@@ -1,0 +1,11 @@
+.git
+.gitignore
+.DS_Store
+storage/*
+!storage/.gitkeep
+node_modules
+*.sqlite
+*.sqlite-journal
+*.sqlite-shm
+*.sqlite-wal
+

@@ -1,7 +1,245 @@
-<h1>Super Shot Graphs</h1>
-<h2>Number of Super Shot Attempts per Team 2020</h2>
-<img src="Images/SSAttempts2020.png">
-<h2>Number of Super Shots Made per Team 2020</h2>
-<img src="Images/SSMade2020.png">
-<h2>% of Super Shots Made per Team 2020</h2>
-<img src="Images/SSPercent2020.png">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Netball Stats Database</title>
+    <meta name="description" content="Secure Super Netball statistics explorer backed by a read-only API and a database built with superNetballR.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://netballstats-api.onrender.com http://127.0.0.1:8000 http://localhost:8000; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
+    <link rel="stylesheet" href="assets/styles.css">
+    <script src="assets/config.js"></script>
+    <script defer src="assets/app.js"></script>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero__inner">
+        <div>
+          <span class="badge">Super Netball data platform</span>
+          <h1>Query Super Netball statistics from 2017 onward.</h1>
+          <p class="hero__lede">
+            This site now fronts a read-only stats API backed by a database built with the
+            <code>superNetballR</code> package. Refreshes should happen offline against Champion Data,
+            while the public site stays locked down and fast.
+          </p>
+          <div class="hero__actions">
+            <a class="button" href="#query-panel">Start querying</a>
+            <a class="button button--ghost" href="#security-panel">Security design</a>
+          </div>
+        </div>
+        <aside class="hero__card">
+          <p class="kicker">Deployment note</p>
+          <h2>Static frontend, private data layer.</h2>
+          <ul>
+            <li>Serve the frontend as static assets.</li>
+            <li>Keep the database private behind a read-only API.</li>
+            <li>Refresh data offline with <code>scripts/build_database.R</code>.</li>
+          </ul>
+        </aside>
+      </div>
+    </header>
+
+    <main>
+      <section class="panel">
+        <div id="status-banner" class="status-banner" hidden></div>
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">API connection</p>
+            <h2>Configured API base</h2>
+          </div>
+          <p><code id="api-base">/api</code></p>
+        </div>
+        <p class="muted">
+          The site expects a read-only API that exposes <code>/meta</code>, <code>/summary</code>,
+          <code>/matches</code>, <code>/team-leaders</code>, and <code>/player-leaders</code>.
+        </p>
+      </section>
+
+      <section id="query-panel" class="panel">
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">Query builder</p>
+            <h2>Filter by season, team, round, and stat.</h2>
+          </div>
+          <p class="muted">All queries are capped server-side to reduce abuse.</p>
+        </div>
+        <form id="filters-form" class="filters" novalidate>
+          <div class="field">
+            <label for="season">Season</label>
+            <select id="season" name="season"></select>
+          </div>
+          <div class="field">
+            <label for="team-id">Team</label>
+            <select id="team-id" name="team-id"></select>
+          </div>
+          <div class="field">
+            <label for="round">Round</label>
+            <input id="round" name="round" type="number" min="1" max="30" inputmode="numeric" placeholder="Any round">
+          </div>
+          <div class="field">
+            <label for="team-stat">Team leaderboard stat</label>
+            <select id="team-stat" name="team-stat"></select>
+          </div>
+          <div class="field">
+            <label for="player-stat">Player leaderboard stat</label>
+            <select id="player-stat" name="player-stat"></select>
+          </div>
+          <div class="field">
+            <label for="player-search">Player search</label>
+            <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler">
+          </div>
+          <div class="filter-actions">
+            <button type="submit">Run query</button>
+            <button type="button" id="reset-filters" class="button button--ghost">Reset</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel">
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">Summary</p>
+            <h2>Selected data snapshot</h2>
+          </div>
+          <p class="muted">These cards come from the read-only summary endpoint.</p>
+        </div>
+        <div class="summary-grid">
+          <article class="summary-card">
+            <span class="summary-card__label">Matches</span>
+            <span id="summary-matches" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Teams</span>
+            <span id="summary-teams" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Players</span>
+            <span id="summary-players" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Goals</span>
+            <span id="summary-goals" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Last refresh</span>
+            <span id="summary-refreshed" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Build mode</span>
+            <span id="summary-mode" class="summary-card__value">-</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">Matches</p>
+            <h2>Recent results for the active filters</h2>
+          </div>
+          <p class="muted">Limited to the latest 12 matching fixtures.</p>
+        </div>
+        <div class="table-wrapper">
+          <table id="matches-table">
+            <thead>
+              <tr>
+                <th scope="col">Competition</th>
+                <th scope="col">Round</th>
+                <th scope="col">Result</th>
+                <th scope="col">Venue</th>
+                <th scope="col">Local start</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">Team leaderboard</p>
+            <h2>Aggregated team stats</h2>
+          </div>
+          <p class="muted">Uses numeric team period stats only.</p>
+        </div>
+        <div class="table-wrapper">
+          <table id="team-leaders-table">
+            <thead>
+              <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Team</th>
+                <th scope="col">Stat</th>
+                <th scope="col">Total</th>
+                <th scope="col">Matches</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">Player leaderboard</p>
+            <h2>Aggregated player stats</h2>
+          </div>
+          <p class="muted">Search is validated server-side and limited to safe characters.</p>
+        </div>
+        <div class="table-wrapper">
+          <table id="player-leaders-table">
+            <thead>
+              <tr>
+                <th scope="col">Rank</th>
+                <th scope="col">Player</th>
+                <th scope="col">Team</th>
+                <th scope="col">Stat</th>
+                <th scope="col">Total</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="security-panel" class="panel">
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">Security first</p>
+            <h2>Recommended production shape</h2>
+          </div>
+        </div>
+        <ul class="security-list">
+          <li>Keep the frontend static and the API/database private.</li>
+          <li>Refresh the database on a schedule instead of from public requests.</li>
+          <li>Restrict cross-origin access to the exact frontend origin you deploy.</li>
+          <li>Use separate database credentials for the read-only API and the ingestion job.</li>
+          <li>Place the API behind TLS, rate limits, and a WAF on your hosting platform.</li>
+        </ul>
+      </section>
+
+      <section class="panel">
+        <div class="panel__heading">
+          <div>
+            <p class="kicker">Hosting options</p>
+            <h2>Where to run this</h2>
+          </div>
+        </div>
+        <ul class="hosting-list">
+          <li><strong>Best balance:</strong> Cloudflare Pages or Vercel for the frontend, Fly.io or Render for the Plumber API, and Neon/Supabase/PostgreSQL for the database.</li>
+          <li><strong>Cheapest first deploy:</strong> one small Fly.io or Render service with the Plumber API and a persisted SQLite file.</li>
+          <li><strong>Keep the GitHub Pages domain:</strong> host only the frontend here and point it to a separate API origin with a strict CORS allow-list.</li>
+        </ul>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="site-footer__inner">
+        <p>
+          Built for secure, queryable Super Netball analysis with data sourced through
+          <code>superNetballR</code> and Champion Data.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
