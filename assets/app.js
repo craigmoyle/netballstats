@@ -50,6 +50,15 @@ document.body.classList.remove("is-ready");
 
 elements.apiBase.textContent = API_BASE_URL;
 
+function isLocalApiConfigured() {
+  try {
+    const apiUrl = new URL(API_BASE_URL, window.location.href);
+    return apiUrl.hostname === "localhost" || apiUrl.hostname === "127.0.0.1";
+  } catch {
+    return API_BASE_URL.startsWith("http://localhost") || API_BASE_URL.startsWith("http://127.0.0.1");
+  }
+}
+
 function showStatus(message, tone = "neutral") {
   elements.statusBanner.textContent = message;
   elements.statusBanner.dataset.tone = tone;
@@ -476,8 +485,12 @@ async function initialise() {
     applyMeta(meta);
     await runQueries();
   } catch (error) {
+    const baseMessage = error.message || "Unable to load the API metadata.";
+    const hint = isLocalApiConfigured()
+      ? " Build the database and run the API before using the site."
+      : " The statistics API is currently unavailable. Please try again shortly.";
     showStatus(
-      `${error.message || "Unable to load the API metadata."} Build the database and run the API before using the site.`,
+      `${baseMessage}${hint}`,
       "error"
     );
     clearAllTables("API metadata is unavailable.");
