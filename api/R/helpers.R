@@ -92,6 +92,19 @@ parse_limit <- function(value, default = 20L, maximum = 100L) {
   parsed %||% default
 }
 
+parse_metric <- function(value = "", name = "metric") {
+  if (is.null(value) || !nzchar(trimws(value))) {
+    return("total")
+  }
+
+  parsed <- tolower(trimws(value))
+  if (!parsed %in% c("total", "average")) {
+    stop(name, " must be either total or average.", call. = FALSE)
+  }
+
+  parsed
+}
+
 parse_search <- function(value, name = "search", max_length = 80L) {
   if (is.null(value) || !nzchar(trimws(value))) {
     return(NULL)
@@ -214,6 +227,17 @@ validate_stat <- function(conn, table_name, stat, default_stat = "goals") {
   }
 
   chosen
+}
+
+apply_metric_value <- function(rows, metric) {
+  rows$metric <- metric
+  if (!nrow(rows)) {
+    rows$value <- numeric(0)
+    return(rows)
+  }
+
+  rows$value <- if (identical(metric, "average")) rows$average_value else rows$total_value
+  rows
 }
 
 apply_player_search_filter <- function(query, params, search, player_id_expr = "stats.player_id") {

@@ -94,6 +94,13 @@
             <label for="player-stat">Player stat</label>
             <select id="player-stat" name="player-stat"></select>
           </div>
+          <div class="field">
+            <label for="stat-mode">Stat mode</label>
+            <select id="stat-mode" name="stat-mode">
+              <option value="total" selected>Total</option>
+              <option value="average">Average per game</option>
+            </select>
+          </div>
           <div class="field field--wide">
             <label for="player-search">Player search</label>
             <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler, Harten, Koenen">
@@ -194,7 +201,7 @@
               <h2>Season-by-season league output</h2>
             </div>
             <div class="panel__meta-stack">
-              <p class="muted">Track competition-wide totals by season for the selected team stat.</p>
+              <p class="muted">Track competition-wide values by season for the selected team stat.</p>
               <div class="view-toggle" role="group" aria-label="Competition season totals view">
                 <button type="button" class="button button--ghost button--small is-active" data-panel="competition-season" data-view-mode="table" aria-pressed="true">Table</button>
                 <button type="button" class="button button--ghost button--small" data-panel="competition-season" data-view-mode="chart" aria-pressed="false">Chart</button>
@@ -208,7 +215,7 @@
                   <tr>
                     <th scope="col">Season</th>
                     <th scope="col">Stat</th>
-                    <th scope="col">Total</th>
+                    <th id="competition-value-heading" scope="col">Total</th>
                     <th scope="col">Matches</th>
                   </tr>
                 </thead>
@@ -232,10 +239,10 @@
           <div class="panel__heading panel__heading--split">
             <div>
               <p class="kicker">Team leaderboards</p>
-              <h2>Cumulative club totals</h2>
+              <h2>Club leaderboard view</h2>
             </div>
             <div class="panel__meta-stack">
-              <p class="muted">Compare cumulative team output across seasons and eras.</p>
+              <p class="muted">Compare team output across seasons and eras.</p>
               <div class="view-toggle" role="group" aria-label="Team leaderboard view">
                 <button type="button" class="button button--ghost button--small is-active" data-panel="team-leaders" data-view-mode="table" aria-pressed="true">Table</button>
                 <button type="button" class="button button--ghost button--small" data-panel="team-leaders" data-view-mode="chart" aria-pressed="false">Chart</button>
@@ -250,7 +257,7 @@
                     <th scope="col">Rank</th>
                     <th scope="col">Team</th>
                     <th scope="col">Stat</th>
-                    <th scope="col">Total</th>
+                    <th id="team-value-heading" scope="col">Total</th>
                     <th scope="col">Matches</th>
                   </tr>
                 </thead>
@@ -263,7 +270,7 @@
               <article class="chart-card">
                 <div class="chart-card__header">
                   <span class="chart-card__eyebrow">Leaderboard bars</span>
-                  <h3 class="chart-card__title">Top clubs by total output</h3>
+                  <h3 class="chart-card__title">Top clubs by the selected stat</h3>
                   <p id="team-bar-note" class="chart-note">The selected team stat, ranked across the active filters.</p>
                 </div>
                 <div id="team-leaders-chart" class="chart-shell" role="img" aria-label="Team leaderboard chart"></div>
@@ -284,7 +291,7 @@
           <div class="panel__heading panel__heading--split">
             <div>
               <p class="kicker">Player leaderboards</p>
-              <h2>Cumulative player totals</h2>
+              <h2>Player leaderboard view</h2>
             </div>
             <div class="panel__meta-stack">
               <p class="muted">Player aliases are consolidated under a single record.</p>
@@ -303,7 +310,8 @@
                     <th scope="col">Player</th>
                     <th scope="col">Team</th>
                     <th scope="col">Stat</th>
-                    <th scope="col">Total</th>
+                    <th id="player-value-heading" scope="col">Total</th>
+                    <th scope="col">Matches</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -315,7 +323,7 @@
               <article class="chart-card">
                 <div class="chart-card__header">
                   <span class="chart-card__eyebrow">Leaderboard bars</span>
-                  <h3 class="chart-card__title">Top players by total output</h3>
+                  <h3 class="chart-card__title">Top players by the selected stat</h3>
                   <p id="player-bar-note" class="chart-note">The selected player stat, ranked across the active filters.</p>
                 </div>
                 <div id="player-leaders-chart" class="chart-shell" role="img" aria-label="Player leaderboard chart"></div>

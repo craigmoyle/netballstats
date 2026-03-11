@@ -7,6 +7,7 @@ This repository now contains a secure-by-default Super Netball stats site backed
 The old site was a single HTML page showing a few 2020 static images. The rewrite introduces:
 
 - a modern query UI for seasons from 2017 onward, including multi-season comparisons and tunable row limits
+- a stat mode toggle so leaderboard-style queries can switch between totals and average per game
 - table/chart toggles for the team and player leaderboards, including top-10 season trend lines for fast visual comparisons
 - competition-wide season totals so you can query and chart league output such as total goals by season
 - a read-only R Plumber API with input validation, rate limiting, security headers, and parameterized SQL
@@ -31,6 +32,7 @@ The current frontend highlights:
 - team leaderboard bar charts
 - player leaderboard bar charts
 - competition-wide season total tables and charts for the selected team stat
+- total or average-per-game modes across the leaderboard and season-series views
 - season-by-season trend lines for the leading teams and players
 - table/chart toggles so the detailed tables remain available
 
