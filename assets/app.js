@@ -5,35 +5,45 @@ const DEFAULT_TIMEOUT_MS = 12000;
 const state = {
   meta: null,
   filters: {
-    season: "",
+    seasons: [],
     teamId: "",
     round: "",
     teamStat: "goals",
     playerStat: "goals",
-    playerSearch: ""
+    playerSearch: "",
+    matchesLimit: "12",
+    leadersLimit: "10",
+    highsLimit: "10"
   }
 };
 
 const elements = {
   statusBanner: document.getElementById("status-banner"),
   filtersForm: document.getElementById("filters-form"),
-  season: document.getElementById("season"),
+  seasonChoices: document.getElementById("season-choices"),
+  seasonSummary: document.getElementById("season-summary"),
+  activeFilterSummary: document.getElementById("active-filter-summary"),
   teamId: document.getElementById("team-id"),
   round: document.getElementById("round"),
   teamStat: document.getElementById("team-stat"),
   playerStat: document.getElementById("player-stat"),
   playerSearch: document.getElementById("player-search"),
+  matchesLimit: document.getElementById("matches-limit"),
+  leadersLimit: document.getElementById("leaders-limit"),
+  highsLimit: document.getElementById("highs-limit"),
   resetFilters: document.getElementById("reset-filters"),
   summaryMatches: document.getElementById("summary-matches"),
   summaryTeams: document.getElementById("summary-teams"),
   summaryPlayers: document.getElementById("summary-players"),
   summaryGoals: document.getElementById("summary-goals"),
   summaryRefreshed: document.getElementById("summary-refreshed"),
-  summaryMode: document.getElementById("summary-mode"),
   matchesTableBody: document.querySelector("#matches-table tbody"),
   teamLeadersBody: document.querySelector("#team-leaders-table tbody"),
   playerLeadersBody: document.querySelector("#player-leaders-table tbody"),
-  apiBase: document.getElementById("api-base")
+  teamHighsBody: document.querySelector("#team-highs-table tbody"),
+  playerHighsBody: document.querySelector("#player-highs-table tbody"),
+  apiBase: document.getElementById("api-base"),
+  seasonActionButtons: document.querySelectorAll("[data-season-action]")
 };
 
 elements.apiBase.textContent = API_BASE_URL;
@@ -47,6 +57,13 @@ function showStatus(message, tone = "neutral") {
 function buildUrl(path, params = {}) {
   const url = new URL(`${API_BASE_URL}${path}`, window.location.href);
   Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      if (value.length) {
+        url.searchParams.set(key, value.join(","));
+      }
+      return;
+    }
+
     if (value !== undefined && value !== null && `${value}`.trim() !== "") {
       url.searchParams.set(key, value);
     }
@@ -68,7 +85,8 @@ async function fetchJson(path, params = {}) {
 
     const payload = await response.json().catch(() => ({ error: "The API returned invalid JSON." }));
     if (!response.ok) {
-      throw new Error(payload.error || `Request failed with status ${response.status}.`);
+      const message = Array.isArray(payload.error) ? payload.error.join(" ") : payload.error;
+      throw new Error(message || `Request failed with status ${response.status}.`);
     }
 
     return payload;
@@ -87,7 +105,9 @@ function formatNumber(value) {
     return value;
   }
 
-  return new Intl.NumberFormat("en-AU").format(numeric);
+  return new Intl.NumberFormat("en-AU", {
+    maximumFractionDigits: Number.isInteger(numeric) ? 0 : 2
+  }).format(numeric);
 }
 
 function formatDate(value) {
@@ -149,25 +169,99 @@ function populateSelect(select, options, placeholder) {
   }
 }
 
+function setSelectedSeasons(values) {
+  const selected = new Set(values.map((value) => `${value}`));
+  elements.seasonChoices.querySelectorAll("input[type='checkbox']").forEach((input) => {
+    input.checked = selected.has(input.value);
+  });
+}
+
+function getSelectedSeasons() {
+  return [...elements.seasonChoices.querySelectorAll("input[type='checkbox']:checked")]
+    .map((input) => input.value)
+    .sort((left, right) => Number(right) - Number(left));
+}
+
+function renderSeasonChoices(seasons) {
+  elements.seasonChoices.replaceChildren();
+  seasons.forEach((season) => {
+    const label = document.createElement("label");
+    label.className = "season-choice";
+
+    const input = document.createElement("input");
+    input.type = "checkbox";
+    input.value = `${season}`;
+    input.name = "season-choice";
+
+    const text = document.createElement("span");
+    text.textContent = `${season}`;
+
+    label.append(input, text);
+    elements.seasonChoices.appendChild(label);
+  });
+}
+
+function seasonSummaryLabel(seasons) {
+  if (!state.meta || !state.meta.seasons.length) {
+    return "No seasons available";
+  }
+  if (!seasons.length) {
+    return "All seasons selected";
+  }
+  if (seasons.length === 1) {
+    return `Season ${seasons[0]}`;
+  }
+  return `${seasons.length} seasons selected`;
+}
+
+function teamLabel(teamId) {
+  if (!teamId || !state.meta) {
+    return "All teams";
+  }
+  const selectedTeam = state.meta.teams.find((team) => `${team.squad_id}` === `${teamId}`);
+  return selectedTeam ? selectedTeam.squad_name : "All teams";
+}
+
 function syncFiltersFromForm() {
   state.filters = {
-    season: elements.season.value,
+    seasons: getSelectedSeasons(),
     teamId: elements.teamId.value,
     round: elements.round.value,
     teamStat: elements.teamStat.value,
     playerStat: elements.playerStat.value,
-    playerSearch: elements.playerSearch.value.trim()
+    playerSearch: elements.playerSearch.value.trim(),
+    matchesLimit: elements.matchesLimit.value,
+    leadersLimit: elements.leadersLimit.value,
+    highsLimit: elements.highsLimit.value
   };
+}
+
+function renderFilterSummary() {
+  syncFiltersFromForm();
+  const segments = [
+    seasonSummaryLabel(state.filters.seasons),
+    teamLabel(state.filters.teamId),
+    state.filters.round ? `Round ${state.filters.round}` : "All rounds",
+    `Team stat: ${state.filters.teamStat || "-"}`,
+    `Player stat: ${state.filters.playerStat || "-"}`
+  ];
+
+  if (state.filters.playerSearch) {
+    segments.push(`Player search: ${state.filters.playerSearch}`);
+  }
+
+  segments.push(
+    `Rows — matches ${state.filters.matchesLimit}, leaders ${state.filters.leadersLimit}, highs ${state.filters.highsLimit}`
+  );
+
+  elements.activeFilterSummary.textContent = segments.join(" • ");
+  elements.seasonSummary.textContent = seasonSummaryLabel(state.filters.seasons);
 }
 
 function applyMeta(meta) {
   state.meta = meta;
+  renderSeasonChoices(meta.seasons || []);
 
-  populateSelect(
-    elements.season,
-    meta.seasons.map((season) => ({ value: `${season}`, label: `${season}` })),
-    "All seasons"
-  );
   populateSelect(
     elements.teamId,
     meta.teams.map((team) => ({ value: `${team.squad_id}`, label: team.squad_name })),
@@ -184,10 +278,17 @@ function applyMeta(meta) {
     "Choose a player stat"
   );
 
-  elements.season.value = meta.default_season ? `${meta.default_season}` : "";
+  const defaultSeason = meta.default_season ? `${meta.default_season}` : "";
+  setSelectedSeasons(defaultSeason ? [defaultSeason] : []);
+  elements.teamId.value = "";
+  elements.round.value = "";
+  elements.playerSearch.value = "";
+  elements.matchesLimit.value = "12";
+  elements.leadersLimit.value = "10";
+  elements.highsLimit.value = "10";
   elements.teamStat.value = meta.team_stats.includes("goals") ? "goals" : meta.team_stats[0] || "";
   elements.playerStat.value = meta.player_stats.includes("goals") ? "goals" : meta.player_stats[0] || "";
-  syncFiltersFromForm();
+  renderFilterSummary();
 }
 
 function renderSummary(summary) {
@@ -196,7 +297,6 @@ function renderSummary(summary) {
   elements.summaryPlayers.textContent = formatNumber(summary.total_players);
   elements.summaryGoals.textContent = formatNumber(summary.total_goals);
   elements.summaryRefreshed.textContent = formatDate(summary.refreshed_at);
-  elements.summaryMode.textContent = summary.build_mode || "production";
 }
 
 function renderMatches(matches) {
@@ -211,7 +311,7 @@ function renderMatches(matches) {
     row.append(
       createCell(`${match.season} ${match.competition_phase}`),
       createCell(`R${match.round_number} G${match.game_number}`),
-      createCell(`${match.home_squad_name} ${match.home_score} - ${match.away_score} ${match.away_squad_name}`),
+      createCell(`${match.home_squad_name} ${formatNumber(match.home_score)} - ${formatNumber(match.away_score)} ${match.away_squad_name}`),
       createCell(match.venue_name || "-"),
       createCell(formatDate(match.local_start_time))
     );
@@ -259,30 +359,93 @@ function renderPlayerLeaders(rows) {
   });
 }
 
+function renderTeamHighs(rows) {
+  if (!rows.length) {
+    clearTable(elements.teamHighsBody, "No team game highs matched the selected filters.");
+    return;
+  }
+
+  elements.teamHighsBody.replaceChildren();
+  rows.forEach((rowData, index) => {
+    const row = document.createElement("tr");
+    row.append(
+      createCell(`${index + 1}`),
+      createCell(rowData.squad_name),
+      createCell(rowData.opponent || "-"),
+      createCell(`${rowData.season}`),
+      createCell(`R${rowData.round_number}`),
+      createCell(formatNumber(rowData.total_value))
+    );
+    elements.teamHighsBody.appendChild(row);
+  });
+}
+
+function renderPlayerHighs(rows) {
+  if (!rows.length) {
+    clearTable(elements.playerHighsBody, "No player game highs matched the selected filters.");
+    return;
+  }
+
+  elements.playerHighsBody.replaceChildren();
+  rows.forEach((rowData, index) => {
+    const row = document.createElement("tr");
+    row.append(
+      createCell(`${index + 1}`),
+      createCell(rowData.player_name),
+      createCell(rowData.squad_name || "-"),
+      createCell(rowData.opponent || "-"),
+      createCell(`${rowData.season}`),
+      createCell(`R${rowData.round_number}`),
+      createCell(formatNumber(rowData.total_value))
+    );
+    elements.playerHighsBody.appendChild(row);
+  });
+}
+
+function clearAllTables(message) {
+  clearTable(elements.matchesTableBody, message);
+  clearTable(elements.teamLeadersBody, message);
+  clearTable(elements.playerLeadersBody, message);
+  clearTable(elements.teamHighsBody, message);
+  clearTable(elements.playerHighsBody, message);
+}
+
 async function runQueries() {
   syncFiltersFromForm();
-  showStatus("Loading summary, matches, and leaderboards…");
+  renderFilterSummary();
+  showStatus("Loading summary, matches, leaderboards, and game highs…");
 
   const baseParams = {
-    season: state.filters.season,
+    seasons: state.filters.seasons,
     team_id: state.filters.teamId,
     round: state.filters.round
   };
 
   try {
-    const [summary, matchesPayload, teamLeadersPayload, playerLeadersPayload] = await Promise.all([
+    const [summary, matchesPayload, teamLeadersPayload, playerLeadersPayload, teamHighsPayload, playerHighsPayload] = await Promise.all([
       fetchJson("/summary", baseParams),
-      fetchJson("/matches", { ...baseParams, limit: 12 }),
+      fetchJson("/matches", { ...baseParams, limit: state.filters.matchesLimit }),
       fetchJson("/team-leaders", {
         ...baseParams,
         stat: state.filters.teamStat,
-        limit: 8
+        limit: state.filters.leadersLimit
       }),
       fetchJson("/player-leaders", {
         ...baseParams,
         stat: state.filters.playerStat,
         search: state.filters.playerSearch,
-        limit: 12
+        limit: state.filters.leadersLimit
+      }),
+      fetchJson("/team-game-highs", {
+        ...baseParams,
+        stat: state.filters.teamStat,
+        limit: state.filters.highsLimit
+      }),
+      fetchJson("/player-game-highs", {
+        ...baseParams,
+        stat: state.filters.playerStat,
+        search: state.filters.playerSearch,
+        limit: state.filters.highsLimit
       })
     ]);
 
@@ -290,19 +453,17 @@ async function runQueries() {
     renderMatches(matchesPayload.data || []);
     renderTeamLeaders(teamLeadersPayload.data || []);
     renderPlayerLeaders(playerLeadersPayload.data || []);
+    renderTeamHighs(teamHighsPayload.data || []);
+    renderPlayerHighs(playerHighsPayload.data || []);
     showStatus("Query completed successfully.", "success");
   } catch (error) {
     showStatus(error.message || "The query failed.", "error");
-    clearTable(elements.matchesTableBody, "Connect the API to see match results.");
-    clearTable(elements.teamLeadersBody, "Connect the API to see team leaderboards.");
-    clearTable(elements.playerLeadersBody, "Connect the API to see player leaderboards.");
+    clearAllTables("Unable to load data from the API.");
   }
 }
 
 async function initialise() {
-  clearTable(elements.matchesTableBody, "Loading matches…");
-  clearTable(elements.teamLeadersBody, "Loading team leaderboards…");
-  clearTable(elements.playerLeadersBody, "Loading player leaderboards…");
+  clearAllTables("Loading data…");
 
   try {
     const meta = await fetchJson("/meta");
@@ -313,9 +474,7 @@ async function initialise() {
       `${error.message || "Unable to load the API metadata."} Build the database and run the API before using the site.`,
       "error"
     );
-    clearTable(elements.matchesTableBody, "API metadata is unavailable.");
-    clearTable(elements.teamLeadersBody, "API metadata is unavailable.");
-    clearTable(elements.playerLeadersBody, "API metadata is unavailable.");
+    clearAllTables("API metadata is unavailable.");
   }
 }
 
@@ -324,17 +483,39 @@ elements.filtersForm.addEventListener("submit", (event) => {
   runQueries();
 });
 
+elements.filtersForm.addEventListener("input", () => {
+  renderFilterSummary();
+});
+
+elements.filtersForm.addEventListener("change", () => {
+  renderFilterSummary();
+});
+
+elements.seasonActionButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    if (!state.meta) {
+      return;
+    }
+
+    const action = button.dataset.seasonAction;
+    if (action === "all") {
+      setSelectedSeasons((state.meta.seasons || []).map((season) => `${season}`));
+    } else if (action === "clear") {
+      setSelectedSeasons([]);
+    } else if (action === "latest") {
+      setSelectedSeasons(state.meta.default_season ? [`${state.meta.default_season}`] : []);
+    }
+
+    renderFilterSummary();
+  });
+});
+
 elements.resetFilters.addEventListener("click", () => {
   if (!state.meta) {
     return;
   }
 
-  elements.teamId.value = "";
-  elements.round.value = "";
-  elements.playerSearch.value = "";
-  elements.season.value = state.meta.default_season ? `${state.meta.default_season}` : "";
-  elements.teamStat.value = state.meta.team_stats.includes("goals") ? "goals" : state.meta.team_stats[0] || "";
-  elements.playerStat.value = state.meta.player_stats.includes("goals") ? "goals" : state.meta.player_stats[0] || "";
+  applyMeta(state.meta);
   runQueries();
 });
 

@@ -38,6 +38,51 @@ parse_optional_int <- function(value, name, minimum = NULL, maximum = NULL) {
   parsed
 }
 
+parse_optional_int_vector <- function(value, name, minimum = NULL, maximum = NULL, max_items = 20L) {
+  if (is.null(value) || !nzchar(trimws(value))) {
+    return(NULL)
+  }
+
+  parts <- trimws(strsplit(value, ",", fixed = TRUE)[[1]])
+  parts <- parts[nzchar(parts)]
+  if (!length(parts)) {
+    return(NULL)
+  }
+  if (length(parts) > max_items) {
+    stop(name, " must contain ", max_items, " values or fewer.", call. = FALSE)
+  }
+
+  parsed <- vapply(
+    parts,
+    parse_optional_int,
+    integer(1),
+    name = name,
+    minimum = minimum,
+    maximum = maximum
+  )
+  unique(parsed)
+}
+
+parse_season_filter <- function(season = "", seasons = "") {
+  parsed_seasons <- parse_optional_int_vector(
+    seasons,
+    "seasons",
+    minimum = 2017L,
+    maximum = 2100L,
+    max_items = 20L
+  )
+  if (!is.null(parsed_seasons)) {
+    return(parsed_seasons)
+  }
+
+  parsed_season <- parse_optional_int(season, "season", minimum = 2017L, maximum = 2100L)
+  if (is.null(parsed_season)) {
+    return(NULL)
+  }
+
+  c(parsed_season)
+}
+
 parse_limit <- function(value, default = 20L, maximum = 100L) {
   if (is.null(value) || !nzchar(value)) {
     return(default)
@@ -87,11 +132,29 @@ query_rows <- function(conn, query, params = list()) {
   DBI::dbGetQuery(conn, sql_interpolate_safe(conn, query, params))
 }
 
-apply_match_filters <- function(query, params, season = NULL, team_id = NULL, round_number = NULL) {
-  if (!is.null(season)) {
-    query <- paste0(query, " AND season = ?season")
-    params$season <- season
+append_integer_in_filter <- function(query, params, column_name, values, prefix) {
+  if (is.null(values) || !length(values)) {
+    return(list(query = query, params = params))
   }
+
+  placeholders <- character(length(values))
+  for (index in seq_along(values)) {
+    key <- sprintf("%s_%s", prefix, index)
+    placeholders[[index]] <- paste0("?", key)
+    params[[key]] <- values[[index]]
+  }
+
+  list(
+    query = paste0(query, " AND ", column_name, " IN (", paste(placeholders, collapse = ", "), ")"),
+    params = params
+  )
+}
+
+apply_match_filters <- function(query, params, seasons = NULL, team_id = NULL, round_number = NULL) {
+  season_filter <- append_integer_in_filter(query, params, "season", seasons, "season")
+  query <- season_filter$query
+  params <- season_filter$params
+
   if (!is.null(team_id)) {
     query <- paste0(query, " AND (home_squad_id = ?team_id OR away_squad_id = ?team_id)")
     params$team_id <- team_id
@@ -104,17 +167,25 @@ apply_match_filters <- function(query, params, season = NULL, team_id = NULL, ro
   list(query = query, params = params)
 }
 
-apply_stat_filters <- function(query, params, season = NULL, team_id = NULL, round_number = NULL) {
-  if (!is.null(season)) {
-    query <- paste0(query, " AND season = ?season")
-    params$season <- season
+apply_stat_filters <- function(query, params, seasons = NULL, team_id = NULL, round_number = NULL, table_alias = NULL) {
+  qualify_column <- function(column_name) {
+    if (is.null(table_alias) || !nzchar(table_alias)) {
+      return(column_name)
+    }
+
+    paste0(table_alias, ".", column_name)
   }
+
+  season_filter <- append_integer_in_filter(query, params, qualify_column("season"), seasons, "season")
+  query <- season_filter$query
+  params <- season_filter$params
+
   if (!is.null(team_id)) {
-    query <- paste0(query, " AND squad_id = ?team_id")
+    query <- paste0(query, " AND ", qualify_column("squad_id"), " = ?team_id")
     params$team_id <- team_id
   }
   if (!is.null(round_number)) {
-    query <- paste0(query, " AND round_number = ?round_number")
+    query <- paste0(query, " AND ", qualify_column("round_number"), " = ?round_number")
     params$round_number <- round_number
   }
 

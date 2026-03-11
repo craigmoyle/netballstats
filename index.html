@@ -4,69 +4,58 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Netball Stats Database</title>
-    <meta name="description" content="Secure Super Netball statistics explorer backed by a read-only API and a database built with superNetballR.">
+    <meta name="description" content="Super Netball statistics explorer for leaders, match results, and single-game highs.">
     <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://netballstats-api.onrender.com http://127.0.0.1:8000 http://localhost:8000; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
     <link rel="stylesheet" href="assets/styles.css">
     <script src="assets/config.js"></script>
     <script defer src="assets/app.js"></script>
   </head>
   <body>
-    <header class="hero">
-      <div class="hero__inner">
-        <div>
-          <span class="badge">Super Netball data platform</span>
-          <h1>Query Super Netball statistics from 2017 onward.</h1>
-          <p class="hero__lede">
-            This site now fronts a read-only stats API backed by a database built with the
-            <code>superNetballR</code> package. Refreshes should happen offline against Champion Data,
-            while the public site stays locked down and fast.
-          </p>
-          <div class="hero__actions">
-            <a class="button" href="#query-panel">Start querying</a>
-            <a class="button button--ghost" href="#security-panel">Security design</a>
-          </div>
+    <header class="page-shell page-header">
+      <div>
+        <p class="kicker">Super Netball Stats</p>
+        <h1>Query seasons, leaders, and game highs.</h1>
+        <p class="intro-copy muted">
+          Compare one season or many, tune how many rows you want back, and move quickly
+          between team and player views.
+        </p>
+      </div>
+      <div class="page-header__meta">
+        <div class="meta-pill">
+          <span>API</span>
+          <code id="api-base">/api</code>
         </div>
-        <aside class="hero__card">
-          <p class="kicker">Deployment note</p>
-          <h2>Static frontend, private data layer.</h2>
-          <ul>
-            <li>Serve the frontend as static assets.</li>
-            <li>Keep the database private behind a read-only API.</li>
-            <li>Refresh data offline with <code>scripts/build_database.R</code>.</li>
-          </ul>
-        </aside>
+        <div class="meta-pill">
+          <span id="season-summary">Loading seasons…</span>
+        </div>
       </div>
     </header>
 
-    <main>
-      <section class="panel">
+    <main class="page-shell page-main">
+      <section class="panel query-panel">
         <div id="status-banner" class="status-banner" hidden></div>
         <div class="panel__heading">
           <div>
-            <p class="kicker">API connection</p>
-            <h2>Configured API base</h2>
+            <p class="kicker">Query centre</p>
+            <h2>Filter the dataset and reshape the response.</h2>
           </div>
-          <p><code id="api-base">/api</code></p>
+          <p id="active-filter-summary" class="muted">Loading query options…</p>
         </div>
-        <p class="muted">
-          The site expects a read-only API that exposes <code>/meta</code>, <code>/summary</code>,
-          <code>/matches</code>, <code>/team-leaders</code>, and <code>/player-leaders</code>.
-        </p>
-      </section>
 
-      <section id="query-panel" class="panel">
-        <div class="panel__heading">
-          <div>
-            <p class="kicker">Query builder</p>
-            <h2>Filter by season, team, round, and stat.</h2>
-          </div>
-          <p class="muted">All queries are capped server-side to reduce abuse.</p>
-        </div>
         <form id="filters-form" class="filters" novalidate>
-          <div class="field">
-            <label for="season">Season</label>
-            <select id="season" name="season"></select>
+          <div class="field field--wide">
+            <div class="field__label-row">
+              <span class="field-label">Seasons</span>
+              <div class="season-actions" role="group" aria-label="Season quick actions">
+                <button type="button" class="button button--ghost button--small" data-season-action="latest">Latest</button>
+                <button type="button" class="button button--ghost button--small" data-season-action="all">All</button>
+                <button type="button" class="button button--ghost button--small" data-season-action="clear">Clear</button>
+              </div>
+            </div>
+            <div id="season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
+            <small class="field-hint">Pick one season for focused analysis or multiple seasons for all-time comparisons.</small>
           </div>
+
           <div class="field">
             <label for="team-id">Team</label>
             <select id="team-id" name="team-id"></select>
@@ -76,74 +65,94 @@
             <input id="round" name="round" type="number" min="1" max="30" inputmode="numeric" placeholder="Any round">
           </div>
           <div class="field">
-            <label for="team-stat">Team leaderboard stat</label>
+            <label for="team-stat">Team stat</label>
             <select id="team-stat" name="team-stat"></select>
           </div>
           <div class="field">
-            <label for="player-stat">Player leaderboard stat</label>
+            <label for="player-stat">Player stat</label>
             <select id="player-stat" name="player-stat"></select>
           </div>
-          <div class="field">
+          <div class="field field--wide">
             <label for="player-search">Player search</label>
-            <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler">
-            <small class="field-hint">Matches historical and current player names, including surname changes.</small>
+            <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler, Harten, Koenen">
+            <small class="field-hint">Matches historical and current surnames for the same player.</small>
           </div>
-          <div class="filter-actions">
+          <div class="field">
+            <label for="matches-limit">Match rows</label>
+            <select id="matches-limit" name="matches-limit">
+              <option value="5">5</option>
+              <option value="10">10</option>
+              <option value="12" selected>12</option>
+              <option value="20">20</option>
+              <option value="30">30</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="leaders-limit">Leaderboard rows</label>
+            <select id="leaders-limit" name="leaders-limit">
+              <option value="5">5</option>
+              <option value="8">8</option>
+              <option value="10" selected>10</option>
+              <option value="15">15</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="highs-limit">Game-high rows</label>
+            <select id="highs-limit" name="highs-limit">
+              <option value="5">5</option>
+              <option value="10" selected>10</option>
+              <option value="15">15</option>
+              <option value="25">25</option>
+              <option value="50">50</option>
+            </select>
+          </div>
+
+          <div class="filter-actions field--wide">
             <button type="submit">Run query</button>
             <button type="button" id="reset-filters" class="button button--ghost">Reset</button>
           </div>
         </form>
       </section>
 
-      <section class="panel">
-        <div class="panel__heading">
-          <div>
-            <p class="kicker">Summary</p>
-            <h2>Selected data snapshot</h2>
-          </div>
-          <p class="muted">These cards come from the read-only summary endpoint.</p>
-        </div>
-        <div class="summary-grid">
-          <article class="summary-card">
-            <span class="summary-card__label">Matches</span>
-            <span id="summary-matches" class="summary-card__value">-</span>
-          </article>
-          <article class="summary-card">
-            <span class="summary-card__label">Teams</span>
-            <span id="summary-teams" class="summary-card__value">-</span>
-          </article>
-          <article class="summary-card">
-            <span class="summary-card__label">Players</span>
-            <span id="summary-players" class="summary-card__value">-</span>
-          </article>
-          <article class="summary-card">
-            <span class="summary-card__label">Goals</span>
-            <span id="summary-goals" class="summary-card__value">-</span>
-          </article>
-          <article class="summary-card">
-            <span class="summary-card__label">Last refresh</span>
-            <span id="summary-refreshed" class="summary-card__value">-</span>
-          </article>
-          <article class="summary-card">
-            <span class="summary-card__label">Build mode</span>
-            <span id="summary-mode" class="summary-card__value">-</span>
-          </article>
-        </div>
+      <section class="summary-grid" aria-label="Summary cards">
+        <article class="summary-card">
+          <span class="summary-card__label">Matches</span>
+          <span id="summary-matches" class="summary-card__value">-</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Teams</span>
+          <span id="summary-teams" class="summary-card__value">-</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Players</span>
+          <span id="summary-players" class="summary-card__value">-</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Goals</span>
+          <span id="summary-goals" class="summary-card__value">-</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Last refresh</span>
+          <span id="summary-refreshed" class="summary-card__value">-</span>
+        </article>
       </section>
 
-      <section class="panel">
+      <section class="panel results-panel results-panel--wide">
         <div class="panel__heading">
           <div>
             <p class="kicker">Matches</p>
-            <h2>Recent results for the active filters</h2>
+            <h2>Recent results</h2>
           </div>
-          <p class="muted">Limited to the latest 12 matching fixtures.</p>
+          <p class="muted">Returns the latest fixtures that match the active filters.</p>
         </div>
         <div class="table-wrapper">
           <table id="matches-table">
             <thead>
               <tr>
-                <th scope="col">Competition</th>
+                <th scope="col">Season</th>
                 <th scope="col">Round</th>
                 <th scope="col">Result</th>
                 <th scope="col">Venue</th>
@@ -155,92 +164,106 @@
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel__heading">
-          <div>
-            <p class="kicker">Team leaderboard</p>
-            <h2>Aggregated team stats</h2>
+      <section class="results-grid" aria-label="Stat tables">
+        <section class="panel results-panel">
+          <div class="panel__heading">
+            <div>
+              <p class="kicker">Team leaders</p>
+              <h2>Aggregated team totals</h2>
+            </div>
+            <p class="muted">Multi-season totals help surface long-term standouts.</p>
           </div>
-          <p class="muted">Uses numeric team period stats only.</p>
-        </div>
-        <div class="table-wrapper">
-          <table id="team-leaders-table">
-            <thead>
-              <tr>
-                <th scope="col">Rank</th>
-                <th scope="col">Team</th>
-                <th scope="col">Stat</th>
-                <th scope="col">Total</th>
-                <th scope="col">Matches</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
+          <div class="table-wrapper">
+            <table id="team-leaders-table">
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Stat</th>
+                  <th scope="col">Total</th>
+                  <th scope="col">Matches</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
 
-      <section class="panel">
-        <div class="panel__heading">
-          <div>
-            <p class="kicker">Player leaderboard</p>
-            <h2>Aggregated player stats</h2>
+        <section class="panel results-panel">
+          <div class="panel__heading">
+            <div>
+              <p class="kicker">Player leaders</p>
+              <h2>Aggregated player totals</h2>
+            </div>
+            <p class="muted">Use search to resolve married names and other aliases.</p>
           </div>
-          <p class="muted">Search is validated server-side and limited to safe characters.</p>
-        </div>
-        <div class="table-wrapper">
-          <table id="player-leaders-table">
-            <thead>
-              <tr>
-                <th scope="col">Rank</th>
-                <th scope="col">Player</th>
-                <th scope="col">Team</th>
-                <th scope="col">Stat</th>
-                <th scope="col">Total</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
+          <div class="table-wrapper">
+            <table id="player-leaders-table">
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Stat</th>
+                  <th scope="col">Total</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
 
-      <section id="security-panel" class="panel">
-        <div class="panel__heading">
-          <div>
-            <p class="kicker">Security first</p>
-            <h2>Recommended production shape</h2>
+        <section class="panel results-panel">
+          <div class="panel__heading">
+            <div>
+              <p class="kicker">Team game highs</p>
+              <h2>Best single-match team outputs</h2>
+            </div>
+            <p class="muted">Useful for finding a club’s peak games across one or many seasons.</p>
           </div>
-        </div>
-        <ul class="security-list">
-          <li>Keep the frontend static and the API/database private.</li>
-          <li>Refresh the database on a schedule instead of from public requests.</li>
-          <li>Restrict cross-origin access to the exact frontend origin you deploy.</li>
-          <li>Use separate database credentials for the read-only API and the ingestion job.</li>
-          <li>Place the API behind TLS, rate limits, and a WAF on your hosting platform.</li>
-        </ul>
-      </section>
+          <div class="table-wrapper">
+            <table id="team-highs-table">
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Opponent</th>
+                  <th scope="col">Season</th>
+                  <th scope="col">Round</th>
+                  <th scope="col">Total</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
 
-      <section class="panel">
-        <div class="panel__heading">
-          <div>
-            <p class="kicker">Hosting options</p>
-            <h2>Where to run this</h2>
+        <section class="panel results-panel">
+          <div class="panel__heading">
+            <div>
+              <p class="kicker">Player game highs</p>
+              <h2>Best single-match player performances</h2>
+            </div>
+            <p class="muted">A quick way to answer “who had the biggest game?” style questions.</p>
           </div>
-        </div>
-        <ul class="hosting-list">
-          <li><strong>Best balance:</strong> Cloudflare Pages or Vercel for the frontend, Fly.io or Render for the Plumber API, and Neon/Supabase/PostgreSQL for the database.</li>
-          <li><strong>Cheapest first deploy:</strong> one small Fly.io or Render service with the Plumber API and a persisted SQLite file.</li>
-          <li><strong>Keep the GitHub Pages domain:</strong> host only the frontend here and point it to a separate API origin with a strict CORS allow-list.</li>
-        </ul>
+          <div class="table-wrapper">
+            <table id="player-highs-table">
+              <thead>
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Opponent</th>
+                  <th scope="col">Season</th>
+                  <th scope="col">Round</th>
+                  <th scope="col">Total</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </section>
       </section>
     </main>
-
-    <footer class="site-footer">
-      <div class="site-footer__inner">
-        <p>
-          Built for secure, queryable Super Netball analysis with data sourced through
-          <code>superNetballR</code> and Champion Data.
-        </p>
-      </div>
-    </footer>
   </body>
 </html>

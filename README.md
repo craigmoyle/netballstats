@@ -6,10 +6,11 @@ This repository now contains a secure-by-default Super Netball stats site backed
 
 The old site was a single HTML page showing a few 2020 static images. The rewrite introduces:
 
-- a modern query UI for seasons from 2017 onward
+- a modern query UI for seasons from 2017 onward, including multi-season comparisons and tunable row limits
 - a read-only R Plumber API with input validation, rate limiting, security headers, and parameterized SQL
 - a database build script that uses `superNetballR::downloadMatch()` plus the package tidiers to populate either SQLite or PostgreSQL
 - canonical player-name handling so leaderboard queries continue to work when players appear under multiple surnames over time
+- additional high-value query views for single-game team and player highs
 - Azure deployment files for Static Web Apps + Container Apps + PostgreSQL Flexible Server
 - an explicit season competition manifest for Super Netball regular season and finals from 2017 to 2025
 
@@ -195,6 +196,8 @@ This repository now includes an Azure deployment path using:
 - `staticwebapp.config.json`: Azure Static Web Apps headers and API route configuration
 - `scripts/build_static.mjs` + `package.json`: static asset build output for Azure Static Web Apps
 
+The Azure template keeps most resources in `AZURE_LOCATION` (for example `australiaeast`) but deploys **Static Web Apps** separately in a supported region. By default that is `eastasia`, because Azure Static Web Apps is not available in every region.
+
 ### Provision with azd
 
 Set the required Azure Developer CLI environment values first:
@@ -219,6 +222,10 @@ azd provision --preview
 azd up
 ```
 
+If you are deploying from an Apple Silicon Mac, keep `azure.yaml` configured with `platform: linux/amd64` for the `api` service. Azure Container Apps remote builds only support that platform today.
+
+`azd deploy` also expects the Container Registry login server under `AZURE_CONTAINER_REGISTRY_ENDPOINT`. The template now outputs that name during provisioning, and `azure.yaml` uses it explicitly for the API image push target.
+
 ### Seed PostgreSQL after provision
 
 `azd up` provisions the infrastructure and deploys the frontend/API, but the database still needs to be populated from Champion Data. Run the ingestion script from a trusted machine or CI runner with network access:
@@ -238,9 +245,12 @@ Rscript scripts/build_database.R
 
 That build step loads the application tables into PostgreSQL and grants `SELECT` permissions to the read-only API user that the Azure Container App uses at runtime.
 
+When the build script targets PostgreSQL, it now disables PostgreSQL statement timeouts by default for that ingestion session so bulk `COPY` operations can complete. The API still keeps its short readiness/query timeout settings through the Container App environment.
+
 ### Azure deployment notes
 
 - The generated Bicep uses a **user-assigned managed identity** for the Container App.
 - The managed identity receives **AcrPull** on the Azure Container Registry and **Key Vault Secrets User** on the Key Vault.
 - The Static Web App is configured on the **Standard** plan so it can link `/api/*` to the Container App backend.
 - `assets/config.js` now defaults to `/api` for non-local, non-Cloudflare hosts, which matches the Azure linked-backend pattern.
+- Azure Container Apps probes now use `/live` for process liveness and `/ready` for PostgreSQL readiness, while `/health` remains the richer operator-facing status endpoint.

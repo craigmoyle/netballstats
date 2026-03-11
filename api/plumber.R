@@ -114,27 +114,83 @@ function(req, res) {
   request_limiter(req, res)
 }
 
-#* @get /health
-function(res) {
+database_health_check <- function(include_metadata = FALSE) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return(json_error(res, 503, conditionMessage(conn)))
+    return(list(ok = FALSE, error = conditionMessage(conn)))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
-  metadata <- query_rows(
-    conn,
-    "SELECT key, value FROM metadata WHERE key IN ('refreshed_at', 'build_mode')"
+  query_check <- tryCatch(
+    query_rows(conn, "SELECT 1 AS ok"),
+    error = function(error) error
   )
+  if (inherits(query_check, "error")) {
+    return(list(ok = FALSE, error = conditionMessage(query_check)))
+  }
+
+  if (!include_metadata) {
+    return(list(ok = TRUE, metadata = NULL))
+  }
+
+  if (!DBI::dbExistsTable(conn, "metadata")) {
+    return(list(
+      ok = FALSE,
+      error = "Database metadata table not found. Seed the database first."
+    ))
+  }
+
+  metadata <- tryCatch(
+    query_rows(
+      conn,
+      "SELECT key, value FROM metadata WHERE key IN ('refreshed_at', 'build_mode')"
+    ),
+    error = function(error) error
+  )
+  if (inherits(metadata, "error")) {
+    return(list(ok = FALSE, error = conditionMessage(metadata)))
+  }
+
+  list(ok = TRUE, metadata = metadata)
+}
+
+#* @get /live
+#* @get /api/live
+function() {
+  list(status = "ok")
+}
+
+#* @get /ready
+#* @get /api/ready
+function(res) {
+  readiness <- database_health_check(include_metadata = FALSE)
+  if (!readiness$ok) {
+    return(json_error(res, 503, readiness$error))
+  }
+
+  list(status = "ok", database = "ok")
+}
+
+#* @get /health
+#* @get /api/health
+function(res) {
+  health <- database_health_check(include_metadata = TRUE)
+  if (!health$ok) {
+    return(json_error(res, 503, health$error))
+  }
+
+  metadata <- health$metadata
 
   list(
     status = "ok",
+    database = "ok",
     refreshed_at = metadata$value[metadata$key == "refreshed_at"] %||% NA_character_,
     build_mode = metadata$value[metadata$key == "build_mode"] %||% NA_character_
   )
 }
 
 #* @get /meta
+#* @get /api/meta
 function(res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
@@ -162,7 +218,8 @@ function(res) {
 }
 
 #* @get /summary
-function(season = "", team_id = "", round = "", res) {
+#* @get /api/summary
+function(season = "", seasons = "", team_id = "", round = "", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(json_error(res, 503, conditionMessage(conn)))
@@ -170,24 +227,24 @@ function(season = "", team_id = "", round = "", res) {
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   result <- tryCatch({
-    season <- parse_optional_int(season, "season", minimum = 2017L)
+    seasons <- parse_season_filter(season, seasons)
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
 
     match_query <- "SELECT COUNT(*) AS total_matches, COUNT(DISTINCT venue_id) AS total_venues FROM matches WHERE 1 = 1"
-    match_filters <- apply_match_filters(match_query, list(), season, team_id, round)
+    match_filters <- apply_match_filters(match_query, list(), seasons, team_id, round)
     match_summary <- query_rows(conn, match_filters$query, match_filters$params)
 
     team_query <- "SELECT COUNT(DISTINCT squad_id) AS total_teams FROM team_period_stats WHERE 1 = 1"
-    team_filters <- apply_stat_filters(team_query, list(), season, team_id, round)
+    team_filters <- apply_stat_filters(team_query, list(), seasons, team_id, round)
     team_summary <- query_rows(conn, team_filters$query, team_filters$params)
 
     player_query <- "SELECT COUNT(DISTINCT player_id) AS total_players FROM player_period_stats WHERE 1 = 1"
-    player_filters <- apply_stat_filters(player_query, list(), season, team_id, round)
+    player_filters <- apply_stat_filters(player_query, list(), seasons, team_id, round)
     player_summary <- query_rows(conn, player_filters$query, player_filters$params)
 
     goals_query <- "SELECT COALESCE(SUM(value_number), 0) AS total_goals FROM team_period_stats WHERE stat = 'goals'"
-    goals_filters <- apply_stat_filters(goals_query, list(), season, team_id, round)
+    goals_filters <- apply_stat_filters(goals_query, list(), seasons, team_id, round)
     goals_summary <- query_rows(conn, goals_filters$query, goals_filters$params)
 
     metadata <- query_rows(
@@ -213,7 +270,8 @@ function(season = "", team_id = "", round = "", res) {
 }
 
 #* @get /matches
-function(season = "", team_id = "", round = "", limit = "12", res) {
+#* @get /api/matches
+function(season = "", seasons = "", team_id = "", round = "", limit = "12", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(json_error(res, 503, conditionMessage(conn)))
@@ -221,7 +279,7 @@ function(season = "", team_id = "", round = "", limit = "12", res) {
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
-    season <- parse_optional_int(season, "season", minimum = 2017L)
+    seasons <- parse_season_filter(season, seasons)
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 12L, maximum = 50L)
@@ -231,7 +289,7 @@ function(season = "", team_id = "", round = "", limit = "12", res) {
       "home_score, away_score, venue_name, local_start_time",
       "FROM matches WHERE 1 = 1"
     )
-    filters <- apply_match_filters(base_query, list(), season, team_id, round)
+    filters <- apply_match_filters(base_query, list(), seasons, team_id, round)
     filters$query <- paste0(
       filters$query,
       " ORDER BY season DESC, local_start_time DESC, round_number DESC, game_number DESC LIMIT ?limit"
@@ -245,7 +303,8 @@ function(season = "", team_id = "", round = "", limit = "12", res) {
 }
 
 #* @get /team-leaders
-function(season = "", team_id = "", round = "", stat = "goals", limit = "8", res) {
+#* @get /api/team-leaders
+function(season = "", seasons = "", team_id = "", round = "", stat = "goals", limit = "8", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(json_error(res, 503, conditionMessage(conn)))
@@ -253,18 +312,18 @@ function(season = "", team_id = "", round = "", stat = "goals", limit = "8", res
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
-    season <- parse_optional_int(season, "season", minimum = 2017L)
+    seasons <- parse_season_filter(season, seasons)
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 8L, maximum = 25L)
     stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
 
     query <- paste(
-      "SELECT squad_id, squad_name, ?stat AS stat, ROUND(SUM(value_number), 2) AS total_value,",
+      "SELECT squad_id, squad_name, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
       "COUNT(DISTINCT match_id) AS matches_played",
       "FROM team_period_stats WHERE stat = ?stat"
     )
-    filters <- apply_stat_filters(query, list(stat = stat), season, team_id, round)
+    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round)
     filters$query <- paste0(
       filters$query,
       " GROUP BY squad_id, squad_name ORDER BY total_value DESC, squad_name ASC LIMIT ?limit"
@@ -278,7 +337,8 @@ function(season = "", team_id = "", round = "", stat = "goals", limit = "8", res
 }
 
 #* @get /player-leaders
-function(season = "", team_id = "", round = "", stat = "goals", search = "", limit = "12", res) {
+#* @get /api/player-leaders
+function(season = "", seasons = "", team_id = "", round = "", stat = "goals", search = "", limit = "12", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(json_error(res, 503, conditionMessage(conn)))
@@ -286,7 +346,7 @@ function(season = "", team_id = "", round = "", stat = "goals", search = "", lim
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
-    season <- parse_optional_int(season, "season", minimum = 2017L)
+    seasons <- parse_season_filter(season, seasons)
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 12L, maximum = 50L)
@@ -296,12 +356,12 @@ function(season = "", team_id = "", round = "", stat = "goals", search = "", lim
 
     query <- paste(
       "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
-      "?stat AS stat, ROUND(SUM(stats.value_number), 2) AS total_value",
+      "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
       "FROM player_period_stats AS stats",
       "INNER JOIN players ON players.player_id = stats.player_id",
       "WHERE stats.stat = ?stat"
     )
-    filters <- apply_stat_filters(query, list(stat = stat), season, team_id, round)
+    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round, table_alias = "stats")
     if (!is.null(search)) {
       filters$query <- paste0(
         filters$query,
@@ -317,6 +377,98 @@ function(season = "", team_id = "", round = "", stat = "goals", search = "", lim
       filters$query,
       " GROUP BY stats.player_id, players.canonical_name, stats.squad_name",
       " ORDER BY total_value DESC, players.canonical_name ASC LIMIT ?limit"
+    )
+    filters$params$limit <- limit
+
+    list(data = query_rows(conn, filters$query, filters$params))
+  }, error = function(error) {
+    json_error(res, 400, conditionMessage(error))
+  })
+}
+
+#* @get /team-game-highs
+#* @get /api/team-game-highs
+function(season = "", seasons = "", team_id = "", round = "", stat = "goals", limit = "10", res) {
+  conn <- tryCatch(open_db(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(json_error(res, 503, conditionMessage(conn)))
+  }
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  tryCatch({
+    seasons <- parse_season_filter(season, seasons)
+    team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
+    round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
+    limit <- parse_limit(limit, default = 10L, maximum = 50L)
+    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
+
+    query <- paste(
+      "SELECT stats.squad_id, stats.squad_name,",
+      "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+      "stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
+      "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+      "FROM team_period_stats AS stats",
+      "INNER JOIN matches ON matches.match_id = stats.match_id",
+      "WHERE stats.stat = ?stat"
+    )
+    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round, table_alias = "stats")
+    filters$query <- paste0(
+      filters$query,
+      " GROUP BY stats.squad_id, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+      " ORDER BY total_value DESC, stats.season DESC, stats.round_number DESC, stats.squad_name ASC LIMIT ?limit"
+    )
+    filters$params$limit <- limit
+
+    list(data = query_rows(conn, filters$query, filters$params))
+  }, error = function(error) {
+    json_error(res, 400, conditionMessage(error))
+  })
+}
+
+#* @get /player-game-highs
+#* @get /api/player-game-highs
+function(season = "", seasons = "", team_id = "", round = "", stat = "goals", search = "", limit = "10", res) {
+  conn <- tryCatch(open_db(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(json_error(res, 503, conditionMessage(conn)))
+  }
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  tryCatch({
+    seasons <- parse_season_filter(season, seasons)
+    team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
+    round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
+    limit <- parse_limit(limit, default = 10L, maximum = 50L)
+    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "goals")
+    search <- parse_search(search, name = "search")
+    normalized_search <- if (is.null(search)) NULL else normalize_player_search_name(search)
+
+    query <- paste(
+      "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
+      "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+      "stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
+      "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+      "FROM player_period_stats AS stats",
+      "INNER JOIN players ON players.player_id = stats.player_id",
+      "INNER JOIN matches ON matches.match_id = stats.match_id",
+      "WHERE stats.stat = ?stat"
+    )
+    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round, table_alias = "stats")
+    if (!is.null(search)) {
+      filters$query <- paste0(
+        filters$query,
+        " AND EXISTS (",
+        "SELECT 1 FROM player_aliases",
+        " WHERE player_aliases.player_id = stats.player_id",
+        " AND player_aliases.alias_search_name LIKE ?search",
+        ")"
+      )
+      filters$params$search <- paste0("%", normalized_search, "%")
+    }
+    filters$query <- paste0(
+      filters$query,
+      " GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+      " ORDER BY total_value DESC, stats.season DESC, stats.round_number DESC, players.canonical_name ASC LIMIT ?limit"
     )
     filters$params$limit <- limit
 
