@@ -11,15 +11,16 @@ services:
     dist: dist
     language: js
     host: staticwebapp
-    module: main
+    module: modules/app-stack
   api:
     project: .
     language: js
     host: containerapp
-    module: main
+    module: modules/app-stack
     docker:
       path: ./Dockerfile.azure
       context: .
-      platform: amd64
+      registry: ${AZURE_CONTAINER_REGISTRY_ENDPOINT}
+      platform: linux/amd64
       remoteBuild: true
     apiVersion: 2025-07-01

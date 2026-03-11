@@ -18,6 +18,32 @@ database_url <- function() {
   trimws(Sys.getenv("NETBALL_STATS_DATABASE_URL", Sys.getenv("DATABASE_URL", "")))
 }
 
+parse_positive_env_int <- function(name, default) {
+  parsed <- suppressWarnings(as.integer(Sys.getenv(name, as.character(default))))
+  if (is.na(parsed) || parsed < 1L) {
+    return(default)
+  }
+
+  parsed
+}
+
+parse_nonnegative_env_int <- function(name, default) {
+  parsed <- suppressWarnings(as.integer(Sys.getenv(name, as.character(default))))
+  if (is.na(parsed) || parsed < 0L) {
+    return(default)
+  }
+
+  parsed
+}
+
+postgres_connect_timeout_seconds <- function() {
+  parse_positive_env_int("NETBALL_STATS_DB_CONNECT_TIMEOUT_SECONDS", 5L)
+}
+
+postgres_statement_timeout_ms <- function() {
+  parse_nonnegative_env_int("NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS", 5000L)
+}
+
 database_backend <- function() {
   configured <- tolower(trimws(Sys.getenv("NETBALL_STATS_DB_BACKEND", "")))
   if (configured %in% c("postgres", "postgresql")) {
@@ -69,6 +95,12 @@ postgres_connection_args <- function() {
       sslmode = Sys.getenv("NETBALL_STATS_DB_SSLMODE", "require")
     )
   }
+
+  connection_args$connect_timeout <- postgres_connect_timeout_seconds()
+  connection_args$options <- sprintf(
+    "-c statement_timeout=%d",
+    postgres_statement_timeout_ms()
+  )
 
   required_fields <- c("host", "dbname", "user", "password")
   missing_fields <- required_fields[!vapply(connection_args[required_fields], nzchar, logical(1))]

@@ -22,6 +22,10 @@ config_path <- file.path(repo_root, "config", "competitions.csv")
 db_path <- Sys.getenv("NETBALL_STATS_DB", default_sqlite_db_path(repo_root))
 sample_mode <- identical(tolower(Sys.getenv("NETBALL_STATS_SAMPLE", "false")), "true")
 
+if (database_backend() == "postgres" && !nzchar(Sys.getenv("NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS", ""))) {
+  Sys.setenv(NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS = "0")
+}
+
 parse_numeric_value <- function(value) {
   numeric <- suppressWarnings(as.numeric(as.character(value)))
   ifelse(is.na(numeric), NA_real_, numeric)

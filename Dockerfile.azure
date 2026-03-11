@@ -3,13 +3,17 @@ FROM rocker/r-ver:4.5.2
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     libcurl4-openssl-dev \
+    libpq-dev \
     libssl-dev \
+    libsodium-dev \
     libxml2-dev \
+    pkg-config \
     make \
+    zlib1g-dev \
     g++ \
   && rm -rf /var/lib/apt/lists/*
 
-RUN R -q -e "install.packages(c('DBI','RPostgres','RSQLite','dplyr','httr','jsonlite','plumber','purrr','remotes','tidyr'), repos='https://cloud.r-project.org')" \
+RUN R -q -e "required <- c('DBI','RPostgres','RSQLite','dplyr','httr','jsonlite','plumber','purrr','remotes','tidyr'); install.packages(required, repos='https://cloud.r-project.org'); missing <- setdiff(required, rownames(installed.packages())); if (length(missing)) stop(sprintf('Missing R packages after install: %s', paste(missing, collapse=', ')))" \
   && R -q -e "remotes::install_github('craigmoyle/superNetballR_updated')"
 
 WORKDIR /app

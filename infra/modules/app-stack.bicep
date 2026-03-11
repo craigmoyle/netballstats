@@ -18,6 +18,16 @@ param tags object = {}
 ])
 param staticWebAppSku string = 'Standard'
 
+@description('Region for Azure Static Web Apps. This can differ from the rest of the stack.')
+@allowed([
+  'centralus'
+  'eastasia'
+  'eastus2'
+  'westeurope'
+  'westus2'
+])
+param staticWebAppLocation string = 'eastasia'
+
 @description('Admin username for Azure Database for PostgreSQL Flexible Server.')
 param postgresAdminUsername string
 
@@ -356,12 +366,20 @@ resource apiContainerApp 'Microsoft.App/containerApps@2025-07-01' = {
               name: 'NETBALL_STATS_DB_SSLMODE'
               value: 'require'
             }
+            {
+              name: 'NETBALL_STATS_DB_CONNECT_TIMEOUT_SECONDS'
+              value: '5'
+            }
+            {
+              name: 'NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS'
+              value: '5000'
+            }
           ]
           probes: [
             {
               type: 'Readiness'
               httpGet: {
-                path: '/health'
+                path: '/ready'
                 port: apiPort
                 scheme: 'HTTP'
               }
@@ -372,7 +390,7 @@ resource apiContainerApp 'Microsoft.App/containerApps@2025-07-01' = {
             {
               type: 'Liveness'
               httpGet: {
-                path: '/health'
+                path: '/live'
                 port: apiPort
                 scheme: 'HTTP'
               }
@@ -403,7 +421,7 @@ resource apiContainerApp 'Microsoft.App/containerApps@2025-07-01' = {
 
 resource staticWebApp 'Microsoft.Web/staticSites@2025-03-01' = {
   name: staticWebAppName
-  location: location
+  location: staticWebAppLocation
   identity: {
     type: 'SystemAssigned'
   }

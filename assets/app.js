@@ -46,6 +46,8 @@ const elements = {
   seasonActionButtons: document.querySelectorAll("[data-season-action]")
 };
 
+document.body.classList.remove("is-ready");
+
 elements.apiBase.textContent = API_BASE_URL;
 
 function showStatus(message, tone = "neutral") {
@@ -456,9 +458,11 @@ async function runQueries() {
     renderTeamHighs(teamHighsPayload.data || []);
     renderPlayerHighs(playerHighsPayload.data || []);
     showStatus("Query completed successfully.", "success");
+    document.body.classList.add("is-ready");
   } catch (error) {
     showStatus(error.message || "The query failed.", "error");
     clearAllTables("Unable to load data from the API.");
+    document.body.classList.add("is-ready");
   }
 }
 
@@ -475,6 +479,7 @@ async function initialise() {
       "error"
     );
     clearAllTables("API metadata is unavailable.");
+    document.body.classList.add("is-ready");
   }
 }
 

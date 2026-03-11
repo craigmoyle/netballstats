@@ -5,45 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Netball Stats Database</title>
     <meta name="description" content="Super Netball statistics explorer for leaders, match results, and single-game highs.">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; connect-src 'self' https://netballstats-api.onrender.com http://127.0.0.1:8000 http://localhost:8000; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; script-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://netballstats-api.onrender.com http://127.0.0.1:8000 http://localhost:8000; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Teko:wght@400;500;600;700&display=swap">
     <link rel="stylesheet" href="assets/styles.css">
     <script src="assets/config.js"></script>
     <script defer src="assets/app.js"></script>
   </head>
   <body>
-    <header class="page-shell page-header">
-      <div>
-        <p class="kicker">Super Netball Stats</p>
-        <h1>Query seasons, leaders, and game highs.</h1>
-        <p class="intro-copy muted">
-          Compare one season or many, tune how many rows you want back, and move quickly
-          between team and player views.
-        </p>
-      </div>
-      <div class="page-header__meta">
-        <div class="meta-pill">
-          <span>API</span>
-          <code id="api-base">/api</code>
+    <div class="page-backdrop" aria-hidden="true">
+      <div class="backdrop-glow backdrop-glow--one"></div>
+      <div class="backdrop-glow backdrop-glow--two"></div>
+      <div class="backdrop-grid"></div>
+    </div>
+
+    <header class="page-shell hero-shell reveal">
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Super Netball archive</p>
+          <h1>Matchday almanac for leaders, peaks, and eras.</h1>
+          <p class="intro-copy">
+            Compare seasons side by side, widen the leaderboard, and surface the biggest
+            single-game spikes in one fast stats workspace.
+          </p>
+          <div class="hero-pills" aria-label="Feature highlights">
+            <span class="hero-pill">Multi-season filters</span>
+            <span class="hero-pill">Single-game highs</span>
+            <span class="hero-pill">Query-depth controls</span>
+          </div>
         </div>
-        <div class="meta-pill">
-          <span id="season-summary">Loading seasons…</span>
-        </div>
-      </div>
+
+        <aside class="hero-aside" aria-label="Explorer status">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Explorer mode</span>
+            <strong>Live query board</strong>
+            <p>Built for rapid comparison, historical leaderboard checks, and one-game record hunting.</p>
+          </div>
+          <div class="hero-meta">
+            <div class="meta-pill">
+              <span>API</span>
+              <code id="api-base">/api</code>
+            </div>
+            <div class="meta-pill">
+              <span id="season-summary">Loading seasons…</span>
+            </div>
+          </div>
+        </aside>
+      </section>
     </header>
 
     <main class="page-shell page-main">
-      <section class="panel query-panel">
+      <section class="panel query-panel reveal">
         <div id="status-banner" class="status-banner" hidden></div>
-        <div class="panel__heading">
+        <div class="panel__heading panel__heading--split">
           <div>
             <p class="kicker">Query centre</p>
-            <h2>Filter the dataset and reshape the response.</h2>
+            <h2>Shape the archive before you pull the tables.</h2>
           </div>
-          <p id="active-filter-summary" class="muted">Loading query options…</p>
+          <p id="active-filter-summary" class="muted filter-summary">Loading query options…</p>
         </div>
 
         <form id="filters-form" class="filters" novalidate>
-          <div class="field field--wide">
+          <div class="field field--wide field--season-block">
             <div class="field__label-row">
               <span class="field-label">Seasons</span>
               <div class="season-actions" role="group" aria-label="Season quick actions">
@@ -53,7 +75,7 @@
               </div>
             </div>
             <div id="season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
-            <small class="field-hint">Pick one season for focused analysis or multiple seasons for all-time comparisons.</small>
+            <small class="field-hint">Pick one season for a focused snapshot or stack several for all-time comparisons.</small>
           </div>
 
           <div class="field">
@@ -75,7 +97,7 @@
           <div class="field field--wide">
             <label for="player-search">Player search</label>
             <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler, Harten, Koenen">
-            <small class="field-hint">Matches historical and current surnames for the same player.</small>
+            <small class="field-hint">Historical surname changes still resolve to the same player record.</small>
           </div>
           <div class="field">
             <label for="matches-limit">Match rows</label>
@@ -117,8 +139,8 @@
         </form>
       </section>
 
-      <section class="summary-grid" aria-label="Summary cards">
-        <article class="summary-card">
+      <section class="summary-band reveal" aria-label="Summary cards">
+        <article class="summary-card summary-card--accent">
           <span class="summary-card__label">Matches</span>
           <span id="summary-matches" class="summary-card__value">-</span>
         </article>
@@ -134,21 +156,21 @@
           <span class="summary-card__label">Goals</span>
           <span id="summary-goals" class="summary-card__value">-</span>
         </article>
-        <article class="summary-card">
+        <article class="summary-card summary-card--wide">
           <span class="summary-card__label">Last refresh</span>
-          <span id="summary-refreshed" class="summary-card__value">-</span>
+          <span id="summary-refreshed" class="summary-card__value summary-card__value--small">-</span>
         </article>
       </section>
 
-      <section class="panel results-panel results-panel--wide">
-        <div class="panel__heading">
+      <section class="panel results-panel results-panel--wide reveal">
+        <div class="panel__heading panel__heading--split">
           <div>
-            <p class="kicker">Matches</p>
-            <h2>Recent results</h2>
+            <p class="kicker">Recent fixtures</p>
+            <h2>Scoreboard strip</h2>
           </div>
-          <p class="muted">Returns the latest fixtures that match the active filters.</p>
+          <p class="muted">Latest match results under the current filter set.</p>
         </div>
-        <div class="table-wrapper">
+        <div class="table-wrapper table-wrapper--spotlight">
           <table id="matches-table">
             <thead>
               <tr>
@@ -165,13 +187,13 @@
       </section>
 
       <section class="results-grid" aria-label="Stat tables">
-        <section class="panel results-panel">
-          <div class="panel__heading">
+        <section class="panel results-panel reveal">
+          <div class="panel__heading panel__heading--split">
             <div>
               <p class="kicker">Team leaders</p>
-              <h2>Aggregated team totals</h2>
+              <h2>Long-run club totals</h2>
             </div>
-            <p class="muted">Multi-season totals help surface long-term standouts.</p>
+            <p class="muted">Best for era-spanning production checks.</p>
           </div>
           <div class="table-wrapper">
             <table id="team-leaders-table">
@@ -189,13 +211,13 @@
           </div>
         </section>
 
-        <section class="panel results-panel">
-          <div class="panel__heading">
+        <section class="panel results-panel reveal">
+          <div class="panel__heading panel__heading--split">
             <div>
               <p class="kicker">Player leaders</p>
-              <h2>Aggregated player totals</h2>
+              <h2>Career-volume board</h2>
             </div>
-            <p class="muted">Use search to resolve married names and other aliases.</p>
+            <p class="muted">Search keeps married-name aliases joined up.</p>
           </div>
           <div class="table-wrapper">
             <table id="player-leaders-table">
@@ -213,13 +235,13 @@
           </div>
         </section>
 
-        <section class="panel results-panel">
-          <div class="panel__heading">
+        <section class="panel results-panel reveal">
+          <div class="panel__heading panel__heading--split">
             <div>
               <p class="kicker">Team game highs</p>
-              <h2>Best single-match team outputs</h2>
+              <h2>Club peaks</h2>
             </div>
-            <p class="muted">Useful for finding a club’s peak games across one or many seasons.</p>
+            <p class="muted">Find the biggest single-night team outputs.</p>
           </div>
           <div class="table-wrapper">
             <table id="team-highs-table">
@@ -238,13 +260,13 @@
           </div>
         </section>
 
-        <section class="panel results-panel">
-          <div class="panel__heading">
+        <section class="panel results-panel reveal">
+          <div class="panel__heading panel__heading--split">
             <div>
               <p class="kicker">Player game highs</p>
-              <h2>Best single-match player performances</h2>
+              <h2>One-game eruptions</h2>
             </div>
-            <p class="muted">A quick way to answer “who had the biggest game?” style questions.</p>
+            <p class="muted">Quick answers for “who had the biggest night?” questions.</p>
           </div>
           <div class="table-wrapper">
             <table id="player-highs-table">

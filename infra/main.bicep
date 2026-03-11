@@ -21,6 +21,16 @@ param tags object = {}
 ])
 param staticWebAppSku string = 'Standard'
 
+@description('Region for Azure Static Web Apps. This resource type is not available in every Azure region.')
+@allowed([
+  'centralus'
+  'eastasia'
+  'eastus2'
+  'westeurope'
+  'westus2'
+])
+param staticWebAppLocation string = 'eastasia'
+
 @description('Admin username for Azure Database for PostgreSQL Flexible Server.')
 param postgresAdminUsername string = 'netballstatsadmin'
 
@@ -99,6 +109,7 @@ module appStack './modules/app-stack.bicep' = {
     namePrefix: namePrefix
     tags: resourceGroupTags
     staticWebAppSku: staticWebAppSku
+    staticWebAppLocation: staticWebAppLocation
     postgresAdminUsername: postgresAdminUsername
     postgresAdminPassword: postgresAdminPassword
     postgresApiUsername: postgresApiUsername
@@ -120,6 +131,7 @@ module appStack './modules/app-stack.bicep' = {
 output staticWebAppHostname string = appStack.outputs.staticWebAppHostname
 output staticWebAppUrl string = appStack.outputs.staticWebAppUrl
 output apiContainerAppFqdn string = appStack.outputs.apiContainerAppFqdn
+output AZURE_CONTAINER_REGISTRY_ENDPOINT string = appStack.outputs.containerRegistryLoginServer
 output containerRegistryLoginServer string = appStack.outputs.containerRegistryLoginServer
 output postgresServerFqdn string = appStack.outputs.postgresServerFqdn
 output postgresDatabase string = appStack.outputs.postgresDatabase
