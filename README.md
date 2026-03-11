@@ -9,6 +9,7 @@ The old site was a single HTML page showing a few 2020 static images. The rewrit
 - a modern query UI for seasons from 2017 onward
 - a read-only R Plumber API with input validation, rate limiting, security headers, and parameterized SQL
 - a database build script that uses `superNetballR::downloadMatch()` plus the package tidiers to populate SQLite
+- canonical player-name handling so leaderboard queries continue to work when players appear under multiple surnames over time
 - an explicit season competition manifest for Super Netball regular season and finals from 2017 to 2025
 
 ## Repository layout

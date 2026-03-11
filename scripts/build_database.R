@@ -40,6 +40,13 @@ parse_numeric_value <- function(value) {
   ifelse(is.na(numeric), NA_real_, numeric)
 }
 
+normalize_player_search_name <- function(value) {
+  normalized <- iconv(as.character(value), to = "ASCII//TRANSLIT")
+  normalized[is.na(normalized)] <- as.character(value)[is.na(normalized)]
+  normalized <- tolower(normalized)
+  gsub("[^a-z0-9]+", "", normalized)
+}
+
 first_or_missing <- function(values, missing) {
   if (!length(values)) {
     return(missing)
@@ -303,6 +310,33 @@ prepare_match_tables <- function(entries, competitions) {
     player_stat_rows[[index]] <- player_stats
   }
 
+  player_period_stats <- dplyr::bind_rows(player_stat_rows)
+  players <- player_period_stats %>%
+    dplyr::filter(!is.na(player_id), !is.na(player_name), nzchar(player_name)) %>%
+    dplyr::arrange(player_id, dplyr::desc(season), dplyr::desc(round_number), dplyr::desc(game_number), dplyr::desc(match_id)) %>%
+    dplyr::group_by(player_id) %>%
+    dplyr::summarise(
+      firstname = dplyr::first(firstname),
+      surname = dplyr::first(surname),
+      short_display_name = dplyr::first(short_display_name),
+      player_name = dplyr::first(player_name),
+      canonical_name = dplyr::first(player_name),
+      search_name = dplyr::first(normalize_player_search_name(player_name)),
+      .groups = "drop"
+    ) %>%
+    dplyr::arrange(canonical_name)
+
+  player_aliases <- player_period_stats %>%
+    dplyr::filter(!is.na(player_id), !is.na(player_name), nzchar(player_name)) %>%
+    dplyr::transmute(
+      player_id = player_id,
+      alias_name = player_name,
+      alias_search_name = normalize_player_search_name(player_name)
+    ) %>%
+    dplyr::filter(nzchar(alias_search_name)) %>%
+    dplyr::distinct(player_id, alias_name, alias_search_name) %>%
+    dplyr::arrange(player_id, alias_name)
+
   list(
     competitions = competitions %>%
       dplyr::mutate(
@@ -314,11 +348,10 @@ prepare_match_tables <- function(entries, competitions) {
     teams = dplyr::bind_rows(team_rows) %>%
       dplyr::distinct(squad_id, .keep_all = TRUE) %>%
       dplyr::arrange(squad_name),
-    players = dplyr::bind_rows(player_rows) %>%
-      dplyr::distinct(player_id, .keep_all = TRUE) %>%
-      dplyr::arrange(player_name),
+    players = players,
+    player_aliases = player_aliases,
     team_period_stats = dplyr::bind_rows(team_stat_rows),
-    player_period_stats = dplyr::bind_rows(player_stat_rows)
+    player_period_stats = player_period_stats
   )
 }
 
@@ -335,6 +368,7 @@ write_database <- function(tables, db_path, build_mode) {
   DBI::dbWriteTable(conn, "matches", tables$matches, overwrite = TRUE)
   DBI::dbWriteTable(conn, "teams", tables$teams, overwrite = TRUE)
   DBI::dbWriteTable(conn, "players", tables$players, overwrite = TRUE)
+  DBI::dbWriteTable(conn, "player_aliases", tables$player_aliases, overwrite = TRUE)
   DBI::dbWriteTable(conn, "team_period_stats", tables$team_period_stats, overwrite = TRUE)
   DBI::dbWriteTable(conn, "player_period_stats", tables$player_period_stats, overwrite = TRUE)
 
@@ -353,6 +387,8 @@ write_database <- function(tables, db_path, build_mode) {
   DBI::dbExecute(conn, "CREATE INDEX idx_team_stats_lookup ON team_period_stats(season, squad_id, stat)")
   DBI::dbExecute(conn, "CREATE INDEX idx_player_stats_lookup ON player_period_stats(season, squad_id, player_id, stat)")
   DBI::dbExecute(conn, "CREATE INDEX idx_players_name ON players(player_name)")
+  DBI::dbExecute(conn, "CREATE INDEX idx_players_search_name ON players(search_name)")
+  DBI::dbExecute(conn, "CREATE INDEX idx_player_aliases_search_name ON player_aliases(alias_search_name, player_id)")
 }
 
 competitions <- utils::read.csv(config_path, stringsAsFactors = FALSE)

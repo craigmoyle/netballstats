@@ -292,19 +292,31 @@ function(season = "", team_id = "", round = "", stat = "goals", search = "", lim
     limit <- parse_limit(limit, default = 12L, maximum = 50L)
     stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "goals")
     search <- parse_search(search, name = "search")
+    normalized_search <- if (is.null(search)) NULL else normalize_player_search_name(search)
 
     query <- paste(
-      "SELECT player_id, player_name, squad_name, ?stat AS stat, ROUND(SUM(value_number), 2) AS total_value",
-      "FROM player_period_stats WHERE stat = ?stat"
+      "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
+      "?stat AS stat, ROUND(SUM(stats.value_number), 2) AS total_value",
+      "FROM player_period_stats AS stats",
+      "INNER JOIN players ON players.player_id = stats.player_id",
+      "WHERE stats.stat = ?stat"
     )
     filters <- apply_stat_filters(query, list(stat = stat), season, team_id, round)
     if (!is.null(search)) {
-      filters$query <- paste0(filters$query, " AND player_name LIKE ?search")
-      filters$params$search <- paste0("%", search, "%")
+      filters$query <- paste0(
+        filters$query,
+        " AND EXISTS (",
+        "SELECT 1 FROM player_aliases",
+        " WHERE player_aliases.player_id = stats.player_id",
+        " AND player_aliases.alias_search_name LIKE ?search",
+        ")"
+      )
+      filters$params$search <- paste0("%", normalized_search, "%")
     }
     filters$query <- paste0(
       filters$query,
-      " GROUP BY player_id, player_name, squad_name ORDER BY total_value DESC, player_name ASC LIMIT ?limit"
+      " GROUP BY stats.player_id, players.canonical_name, stats.squad_name",
+      " ORDER BY total_value DESC, players.canonical_name ASC LIMIT ?limit"
     )
     filters$params$limit <- limit
 

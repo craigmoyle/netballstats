@@ -85,8 +85,23 @@ parse_search <- function(value, name = "search", max_length = 80L) {
   if (grepl("[^A-Za-z0-9 .'-]", trimmed)) {
     stop(name, " contains unsupported characters.", call. = FALSE)
   }
+  if (!grepl("[A-Za-z0-9]", trimmed)) {
+    stop(name, " must include at least one letter or digit.", call. = FALSE)
+  }
 
   trimmed
+}
+
+normalize_player_search_name <- function(value) {
+  if (is.null(value)) {
+    return(NULL)
+  }
+
+  normalized <- iconv(as.character(value), to = "ASCII//TRANSLIT")
+  normalized[is.na(normalized)] <- as.character(value)[is.na(normalized)]
+  normalized <- tolower(normalized)
+  normalized <- gsub("[^a-z0-9]+", "", normalized)
+  normalized
 }
 
 sql_interpolate_safe <- function(conn, query, params = list()) {
