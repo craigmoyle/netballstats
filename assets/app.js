@@ -244,16 +244,18 @@ function renderFilterSummary() {
     seasonSummaryLabel(state.filters.seasons),
     teamLabel(state.filters.teamId),
     state.filters.round ? `Round ${state.filters.round}` : "All rounds",
-    `Team stat: ${state.filters.teamStat || "-"}`,
-    `Player stat: ${state.filters.playerStat || "-"}`
+    `Team ${state.filters.teamStat || "-"}`,
+    `Player ${state.filters.playerStat || "-"}`
   ];
 
   if (state.filters.playerSearch) {
-    segments.push(`Player search: ${state.filters.playerSearch}`);
+    segments.push(`Player ${state.filters.playerSearch}`);
   }
 
   segments.push(
-    `Rows — matches ${state.filters.matchesLimit}, leaders ${state.filters.leadersLimit}, highs ${state.filters.highsLimit}`
+    `${state.filters.matchesLimit} match rows`,
+    `${state.filters.leadersLimit} leaderboard rows`,
+    `${state.filters.highsLimit} game highs`
   );
 
   elements.activeFilterSummary.textContent = segments.join(" • ");
