@@ -376,9 +376,40 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
   })
 }
 
+#* @get /competition-season-series
+#* @get /api/competition-season-series
+function(season = "", seasons = "", round = "", stat = "goals", res) {
+  conn <- tryCatch(open_db(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(json_error(res, 503, conditionMessage(conn)))
+  }
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  tryCatch({
+    seasons <- parse_season_filter(season, seasons)
+    round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
+    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
+
+    query <- paste(
+      "SELECT season, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
+      "COUNT(DISTINCT match_id) AS matches_played",
+      "FROM team_period_stats WHERE stat = ?stat"
+    )
+    filters <- apply_stat_filters(query, list(stat = stat), seasons, NULL, round)
+    filters$query <- paste0(
+      filters$query,
+      " GROUP BY season ORDER BY season ASC"
+    )
+
+    list(data = query_rows(conn, filters$query, filters$params))
+  }, error = function(error) {
+    json_error(res, 400, conditionMessage(error))
+  })
+}
+
 #* @get /team-season-series
 #* @get /api/team-season-series
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", limit = "5", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "goals", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(json_error(res, 503, conditionMessage(conn)))
@@ -389,7 +420,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", li
     seasons <- parse_season_filter(season, seasons)
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
-    limit <- parse_limit(limit, default = 5L, maximum = 8L)
+    limit <- parse_limit(limit, default = 10L, maximum = 10L)
     stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
 
     ranked_query <- paste(
@@ -441,7 +472,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", li
 
 #* @get /player-season-series
 #* @get /api/player-season-series
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", search = "", limit = "5", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "goals", search = "", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(json_error(res, 503, conditionMessage(conn)))
@@ -452,7 +483,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
     seasons <- parse_season_filter(season, seasons)
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
-    limit <- parse_limit(limit, default = 5L, maximum = 8L)
+    limit <- parse_limit(limit, default = 10L, maximum = 10L)
     stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "goals")
 
     ranked_query <- paste(

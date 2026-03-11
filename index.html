@@ -190,6 +190,47 @@
         <section class="panel results-panel reveal">
           <div class="panel__heading panel__heading--split">
             <div>
+              <p class="kicker">Competition totals</p>
+              <h2>Season-by-season league output</h2>
+            </div>
+            <div class="panel__meta-stack">
+              <p class="muted">Track competition-wide totals by season for the selected team stat.</p>
+              <div class="view-toggle" role="group" aria-label="Competition season totals view">
+                <button type="button" class="button button--ghost button--small is-active" data-panel="competition-season" data-view-mode="table" aria-pressed="true">Table</button>
+                <button type="button" class="button button--ghost button--small" data-panel="competition-season" data-view-mode="chart" aria-pressed="false">Chart</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-view" data-panel-view="competition-season" data-panel-mode="table">
+            <div class="table-wrapper">
+              <table id="competition-season-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Season</th>
+                    <th scope="col">Stat</th>
+                    <th scope="col">Total</th>
+                    <th scope="col">Matches</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel-view panel-view--charts" data-panel-view="competition-season" data-panel-mode="chart" hidden>
+            <article class="chart-card">
+              <div class="chart-card__header">
+                <span class="chart-card__eyebrow">Season totals</span>
+                <h3 class="chart-card__title">How the whole competition moves by season</h3>
+                <p id="competition-season-note" class="chart-note">Competition-wide season totals for the active team stat.</p>
+              </div>
+              <div id="competition-season-chart" class="chart-shell" role="img" aria-label="Competition season totals chart"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel results-panel reveal">
+          <div class="panel__heading panel__heading--split">
+            <div>
               <p class="kicker">Team leaderboards</p>
               <h2>Cumulative club totals</h2>
             </div>

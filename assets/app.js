@@ -1,7 +1,7 @@
 const config = window.NETBALL_STATS_CONFIG || {};
 const API_BASE_URL = (config.apiBaseUrl || "/api").replace(/\/$/, "");
 const DEFAULT_TIMEOUT_MS = 12000;
-const TREND_SERIES_LIMIT = 5;
+const CHART_RANK_LIMIT = 10;
 const CHART_PALETTE = [
   "#f0c67e",
   "#79d8d0",
@@ -25,6 +25,7 @@ const state = {
     highsLimit: "10"
   },
   views: {
+    "competition-season": "table",
     "team-leaders": "table",
     "player-leaders": "table"
   }
@@ -51,14 +52,17 @@ const elements = {
   summaryGoals: document.getElementById("summary-goals"),
   summaryRefreshed: document.getElementById("summary-refreshed"),
   matchesTableBody: document.querySelector("#matches-table tbody"),
+  competitionSeasonBody: document.querySelector("#competition-season-table tbody"),
   teamLeadersBody: document.querySelector("#team-leaders-table tbody"),
   playerLeadersBody: document.querySelector("#player-leaders-table tbody"),
   teamHighsBody: document.querySelector("#team-highs-table tbody"),
   playerHighsBody: document.querySelector("#player-highs-table tbody"),
+  competitionSeasonChart: document.getElementById("competition-season-chart"),
   teamLeadersChart: document.getElementById("team-leaders-chart"),
   teamTrendChart: document.getElementById("team-trend-chart"),
   playerLeadersChart: document.getElementById("player-leaders-chart"),
   playerTrendChart: document.getElementById("player-trend-chart"),
+  competitionSeasonNote: document.getElementById("competition-season-note"),
   teamBarNote: document.getElementById("team-bar-note"),
   teamTrendNote: document.getElementById("team-trend-note"),
   playerBarNote: document.getElementById("player-bar-note"),
@@ -300,6 +304,11 @@ function teamLabel(teamId) {
   return selectedTeam ? selectedTeam.squad_name : "All teams";
 }
 
+function selectedLimit(value, fallback) {
+  const numeric = Number.parseInt(value, 10);
+  return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
+}
+
 function syncFiltersFromForm() {
   state.filters = {
     seasons: getSelectedSeasons(),
@@ -369,6 +378,7 @@ function applyMeta(meta) {
   elements.teamStat.value = meta.team_stats.includes("goals") ? "goals" : meta.team_stats[0] || "";
   elements.playerStat.value = meta.player_stats.includes("goals") ? "goals" : meta.player_stats[0] || "";
   renderFilterSummary();
+  setPanelView("competition-season", state.views["competition-season"]);
   setPanelView("team-leaders", state.views["team-leaders"]);
   setPanelView("player-leaders", state.views["player-leaders"]);
 }
@@ -484,8 +494,33 @@ function renderPlayerHighs(rows) {
   });
 }
 
+function renderCompetitionSeasonTable(rows, errorMessage) {
+  if (errorMessage) {
+    clearTable(elements.competitionSeasonBody, errorMessage);
+    return;
+  }
+
+  if (!rows.length) {
+    clearTable(elements.competitionSeasonBody, "No competition season totals matched the selected filters.");
+    return;
+  }
+
+  elements.competitionSeasonBody.replaceChildren();
+  rows.forEach((rowData) => {
+    const row = document.createElement("tr");
+    row.append(
+      createCell(`${rowData.season}`),
+      createCell(rowData.stat),
+      createCell(formatNumber(rowData.total_value)),
+      createCell(formatNumber(rowData.matches_played))
+    );
+    elements.competitionSeasonBody.appendChild(row);
+  });
+}
+
 function clearAllTables(message) {
   clearTable(elements.matchesTableBody, message);
+  clearTable(elements.competitionSeasonBody, message);
   clearTable(elements.teamLeadersBody, message);
   clearTable(elements.playerLeadersBody, message);
   clearTable(elements.teamHighsBody, message);
@@ -493,6 +528,7 @@ function clearAllTables(message) {
 }
 
 function clearAllCharts(message) {
+  clearChart(elements.competitionSeasonChart, message);
   clearChart(elements.teamLeadersChart, message);
   clearChart(elements.teamTrendChart, message);
   clearChart(elements.playerLeadersChart, message);
@@ -834,11 +870,127 @@ function renderTrendChart(container, rows, {
   container.setAttribute("aria-label", ariaLabel);
 }
 
-function renderTeamCharts(leaderRows, trendRows) {
-  elements.teamBarNote.textContent = `${state.filters.teamStat} totals ranked across ${describeSeasonScope()} and the active filters.`;
-  elements.teamTrendNote.textContent = `Season totals for the strongest clubs under the current ${state.filters.teamStat} filter.`;
+function renderSeasonColumnChart(container, rows, {
+  ariaLabel,
+  emptyMessage,
+  labelAccessor,
+  valueAccessor,
+  colourAccessor
+}) {
+  if (!rows.length) {
+    clearChart(container, emptyMessage);
+    return;
+  }
 
-  renderHorizontalBarChart(elements.teamLeadersChart, leaderRows, {
+  const chartRows = rows.map((row, index) => ({
+    label: `${labelAccessor(row, index)}`,
+    value: Number(valueAccessor(row, index)) || 0,
+    colour: colourAccessor(row, index)
+  }));
+
+  const maxValue = Math.max(...chartRows.map((row) => row.value), 1);
+  const width = 760;
+  const height = 360;
+  const left = 56;
+  const right = 20;
+  const top = 20;
+  const bottom = 62;
+  const innerWidth = width - left - right;
+  const innerHeight = height - top - bottom;
+  const slotWidth = innerWidth / chartRows.length;
+  const barWidth = Math.min(62, Math.max(24, slotWidth * 0.62));
+  const svg = createSvgElement("svg", {
+    viewBox: `0 0 ${width} ${height}`,
+    class: "chart-svg",
+    preserveAspectRatio: "xMidYMid meet"
+  });
+
+  [0, 0.25, 0.5, 0.75, 1].forEach((ratio) => {
+    const y = top + innerHeight - (innerHeight * ratio);
+    svg.appendChild(createSvgElement("line", {
+      x1: left,
+      x2: width - right,
+      y1: y,
+      y2: y,
+      class: "chart-grid-line"
+    }));
+    svg.appendChild(createSvgElement("text", {
+      x: left - 8,
+      y: y + 4,
+      "text-anchor": "end",
+      class: "chart-grid-label"
+    }, formatNumber(maxValue * ratio)));
+  });
+
+  svg.appendChild(createSvgElement("line", {
+    x1: left,
+    x2: width - right,
+    y1: height - bottom,
+    y2: height - bottom,
+    class: "chart-axis-line"
+  }));
+
+  chartRows.forEach((row, index) => {
+    const xCenter = left + (slotWidth * index) + (slotWidth / 2);
+    const barHeight = maxValue > 0 ? (innerHeight * row.value) / maxValue : 0;
+    const y = top + innerHeight - barHeight;
+    const bar = createSvgElement("rect", {
+      x: xCenter - (barWidth / 2),
+      y,
+      width: barWidth,
+      height: Math.max(barHeight, 2),
+      rx: 14,
+      fill: row.colour,
+      class: "chart-bar"
+    });
+    bar.appendChild(createSvgElement("title", {}, `${row.label}: ${formatNumber(row.value)}`));
+    svg.appendChild(bar);
+
+    svg.appendChild(createSvgElement("text", {
+      x: xCenter,
+      y: Math.max(y - 10, top + 12),
+      "text-anchor": "middle",
+      class: "chart-value"
+    }, formatNumber(row.value)));
+
+    svg.appendChild(createSvgElement("text", {
+      x: xCenter,
+      y: height - bottom + 24,
+      "text-anchor": "middle",
+      class: "chart-axis"
+    }, row.label));
+  });
+
+  container.replaceChildren(svg);
+  container.removeAttribute("data-state");
+  container.setAttribute("aria-label", ariaLabel);
+}
+
+function renderCompetitionSeasonChart(rows, errorMessage) {
+  elements.competitionSeasonNote.textContent = state.filters.round
+    ? `Competition-wide ${state.filters.teamStat} totals in round ${state.filters.round} by season. Team filters do not apply here.`
+    : `Competition-wide ${state.filters.teamStat} totals by season. Team filters do not apply here.`;
+
+  if (errorMessage) {
+    clearChart(elements.competitionSeasonChart, errorMessage);
+    return;
+  }
+
+  renderSeasonColumnChart(elements.competitionSeasonChart, rows, {
+    ariaLabel: `Competition totals by season for ${state.filters.teamStat}`,
+    emptyMessage: "No competition season totals matched the selected filters.",
+    labelAccessor: (row) => row.season,
+    valueAccessor: (row) => row.total_value,
+    colourAccessor: (_row, index) => fallbackColour(index)
+  });
+}
+
+function renderTeamCharts(leaderRows, trendRows) {
+  const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
+  elements.teamBarNote.textContent = `Top ${chartLeaderRows.length || CHART_RANK_LIMIT} clubs by ${state.filters.teamStat} across ${describeSeasonScope()} and the active filters.`;
+  elements.teamTrendNote.textContent = `Season totals for the top ${Math.min(trendRows.length || CHART_RANK_LIMIT, CHART_RANK_LIMIT)} clubs under the current ${state.filters.teamStat} filter.`;
+
+  renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
     ariaLabel: `Team leaderboard bar chart for ${state.filters.teamStat}`,
     emptyMessage: "No team leaderboard chart data matched the selected filters.",
     labelAccessor: (row) => row.squad_name,
@@ -858,14 +1010,15 @@ function renderTeamCharts(leaderRows, trendRows) {
 }
 
 function renderPlayerCharts(leaderRows, trendRows) {
+  const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
   elements.playerBarNote.textContent = state.filters.playerSearch
-    ? `${state.filters.playerStat} totals for players matching “${state.filters.playerSearch}” across ${describeSeasonScope()}.`
-    : `${state.filters.playerStat} totals ranked across ${describeSeasonScope()} and the active filters.`;
+    ? `Top ${chartLeaderRows.length || CHART_RANK_LIMIT} ${state.filters.playerStat} totals for players matching “${state.filters.playerSearch}” across ${describeSeasonScope()}.`
+    : `Top ${chartLeaderRows.length || CHART_RANK_LIMIT} players by ${state.filters.playerStat} across ${describeSeasonScope()} and the active filters.`;
   elements.playerTrendNote.textContent = state.filters.playerSearch
-    ? `Season totals for the strongest matching players under the current ${state.filters.playerStat} filter.`
-    : `Season totals for the strongest players under the current ${state.filters.playerStat} filter.`;
+    ? `Season totals for the top ${Math.min(trendRows.length || CHART_RANK_LIMIT, CHART_RANK_LIMIT)} matching players under the current ${state.filters.playerStat} filter.`
+    : `Season totals for the top ${Math.min(trendRows.length || CHART_RANK_LIMIT, CHART_RANK_LIMIT)} players under the current ${state.filters.playerStat} filter.`;
 
-  renderHorizontalBarChart(elements.playerLeadersChart, leaderRows, {
+  renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
     ariaLabel: `Player leaderboard bar chart for ${state.filters.playerStat}`,
     emptyMessage: "No player leaderboard chart data matched the selected filters.",
     labelAccessor: (row) => row.player_name,
@@ -888,6 +1041,8 @@ async function runQueries() {
   syncFiltersFromForm();
   renderFilterSummary();
   showStatus("Loading summary, matches, leaderboards, game highs, and charts…");
+  const leaderboardRowLimit = selectedLimit(state.filters.leadersLimit, CHART_RANK_LIMIT);
+  const leaderboardFetchLimit = Math.max(leaderboardRowLimit, CHART_RANK_LIMIT);
 
   const baseParams = {
     seasons: state.filters.seasons,
@@ -909,13 +1064,13 @@ async function runQueries() {
       fetchJson("/team-leaders", {
         ...baseParams,
         stat: state.filters.teamStat,
-        limit: state.filters.leadersLimit
+        limit: leaderboardFetchLimit
       }),
       fetchJson("/player-leaders", {
         ...baseParams,
         stat: state.filters.playerStat,
         search: state.filters.playerSearch,
-        limit: state.filters.leadersLimit
+        limit: leaderboardFetchLimit
       }),
       fetchJson("/team-game-highs", {
         ...baseParams,
@@ -930,33 +1085,52 @@ async function runQueries() {
       })
     ]);
 
-    const [teamSeriesPayload, playerSeriesPayload] = await Promise.all([
+    const [competitionSeriesPayload, teamSeriesPayload, playerSeriesPayload] = await Promise.all([
+      fetchOptionalJson("/competition-season-series", {
+        seasons: state.filters.seasons,
+        round: state.filters.round,
+        stat: state.filters.teamStat
+      }),
       fetchOptionalJson("/team-season-series", {
         ...baseParams,
         stat: state.filters.teamStat,
-        limit: TREND_SERIES_LIMIT
+        limit: CHART_RANK_LIMIT
       }),
       fetchOptionalJson("/player-season-series", {
         ...baseParams,
         stat: state.filters.playerStat,
         search: state.filters.playerSearch,
-        limit: TREND_SERIES_LIMIT
+        limit: CHART_RANK_LIMIT
       })
     ]);
 
-    const chartWarnings = [teamSeriesPayload.error, playerSeriesPayload.error].filter(Boolean);
+    const chartWarnings = [
+      competitionSeriesPayload.error,
+      teamSeriesPayload.error,
+      playerSeriesPayload.error
+    ].filter(Boolean);
+    const teamLeaderRows = teamLeadersPayload.data || [];
+    const playerLeaderRows = playerLeadersPayload.data || [];
 
     renderSummary(summary);
     renderMatches(matchesPayload.data || []);
-    renderTeamLeaders(teamLeadersPayload.data || []);
-    renderPlayerLeaders(playerLeadersPayload.data || []);
-    renderTeamCharts(teamLeadersPayload.data || [], teamSeriesPayload.data || []);
-    renderPlayerCharts(playerLeadersPayload.data || [], playerSeriesPayload.data || []);
+    renderCompetitionSeasonTable(
+      competitionSeriesPayload.data || [],
+      competitionSeriesPayload.error ? "Competition season totals are temporarily unavailable." : ""
+    );
+    renderTeamLeaders(teamLeaderRows.slice(0, leaderboardRowLimit));
+    renderPlayerLeaders(playerLeaderRows.slice(0, leaderboardRowLimit));
+    renderCompetitionSeasonChart(
+      competitionSeriesPayload.data || [],
+      competitionSeriesPayload.error ? "Competition season chart is temporarily unavailable." : ""
+    );
+    renderTeamCharts(teamLeaderRows, teamSeriesPayload.data || []);
+    renderPlayerCharts(playerLeaderRows, playerSeriesPayload.data || []);
     renderTeamHighs(teamHighsPayload.data || []);
     renderPlayerHighs(playerHighsPayload.data || []);
     showStatus(
       chartWarnings.length
-        ? "Core stats loaded. Trend charts are temporarily unavailable while the API catches up."
+        ? "Core stats loaded. Some season charts are temporarily unavailable while the API catches up."
         : "Query completed successfully.",
       chartWarnings.length ? "neutral" : "success"
     );
