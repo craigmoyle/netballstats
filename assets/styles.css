@@ -147,7 +147,7 @@ code {
 
 .hero-copy h1 {
   max-width: 12ch;
-  font-size: clamp(3.6rem, 9vw, 7.4rem);
+  font-size: clamp(2.9rem, 6.4vw, 5.2rem);
   margin-bottom: 1rem;
 }
 
@@ -245,7 +245,7 @@ code {
 }
 
 .panel h2 {
-  font-size: clamp(2rem, 4vw, 3rem);
+  font-size: clamp(1.5rem, 2.8vw, 2.25rem);
   margin-bottom: 0;
 }
 
@@ -590,7 +590,7 @@ body.is-ready .reveal:nth-of-type(4) {
   }
 
   .hero-copy h1 {
-    font-size: clamp(2.8rem, 16vw, 4.4rem);
+    font-size: clamp(2.3rem, 11vw, 3.5rem);
   }
 
   table {
