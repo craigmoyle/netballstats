@@ -133,6 +133,18 @@ That keeps the recurring cost to the Render Starter service only. The trade-off 
 
 Cloudflare Pages will automatically apply the root `_headers` file, which adds the frontend security headers and locks browser API calls to `https://netballstats-api.onrender.com`.
 
+### Azure Static Web Apps GitHub deployment
+
+This repository now includes `.github/workflows/deploy-azure-static-web-app.yml`, which deploys the built `dist/` output on every push to `main`.
+
+To use it with the live site at `https://ashy-hill-04f165c00.1.azurestaticapps.net/`, add the deployment token from Azure Static Web Apps as the repository secret:
+
+```text
+AZURE_STATIC_WEB_APPS_API_TOKEN
+```
+
+The workflow builds the site with `npm run build` and uploads `dist/` directly to Azure Static Web Apps.
+
 ### Render setup
 
 This repository includes:
