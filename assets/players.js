@@ -110,21 +110,33 @@ function renderPlayers(players) {
     meta.className = "directory-card__meta";
     const spanText = player.first_season && player.last_season
       ? `${player.first_season} to ${player.last_season}`
-      : "Career span unavailable";
-    meta.textContent = `${formatNumber(player.games_played)} games • ${spanText}`;
+      : "";
+    meta.textContent = spanText
+      ? `${formatNumber(player.games_played)} games • ${spanText}`
+      : "Open the full profile for career totals, games played, and season-by-season stats.";
 
     const footer = document.createElement("div");
     footer.className = "directory-card__footer";
 
-    const gamesTag = document.createElement("span");
-    gamesTag.className = "tag";
-    gamesTag.textContent = `${formatNumber(player.games_played)} matches`;
+    const profileTag = document.createElement("span");
+    profileTag.className = "tag";
+    profileTag.textContent = "Open profile";
 
-    const spanTag = document.createElement("span");
-    spanTag.className = "tag";
-    spanTag.textContent = spanText;
+    footer.append(profileTag);
 
-    footer.append(gamesTag, spanTag);
+    if (Number.isFinite(Number(player.games_played))) {
+      const gamesTag = document.createElement("span");
+      gamesTag.className = "tag";
+      gamesTag.textContent = `${formatNumber(player.games_played)} matches`;
+      footer.append(gamesTag);
+    }
+
+    if (spanText) {
+      const spanTag = document.createElement("span");
+      spanTag.className = "tag";
+      spanTag.textContent = spanText;
+      footer.append(spanTag);
+    }
     card.append(eyebrow, title, meta, footer);
     elements.directoryGrid.appendChild(card);
   });

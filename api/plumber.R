@@ -342,10 +342,8 @@ function(search = "", limit = "500", res) {
 
     query <- paste(
       "SELECT players.player_id, players.canonical_name AS player_name, players.search_name,",
-      "players.short_display_name, COUNT(DISTINCT stats.match_id) AS games_played,",
-      "MIN(stats.season) AS first_season, MAX(stats.season) AS last_season",
+      "players.short_display_name",
       "FROM players",
-      "LEFT JOIN player_period_stats AS stats ON stats.player_id = players.player_id",
       "WHERE 1 = 1"
     )
     params <- list()
@@ -357,7 +355,6 @@ function(search = "", limit = "500", res) {
 
     query <- paste0(
       query,
-      " GROUP BY players.player_id, players.canonical_name, players.search_name, players.short_display_name",
       " ORDER BY players.canonical_name ASC LIMIT ?limit"
     )
     params$limit <- limit
