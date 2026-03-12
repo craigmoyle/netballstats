@@ -241,6 +241,10 @@ code {
   padding-bottom: 3rem;
 }
 
+.page-main > * {
+  min-width: 0;
+}
+
 .panel {
   padding: 1.4rem;
   border-radius: 28px;
@@ -693,6 +697,8 @@ button:hover {
 }
 
 .table-wrapper {
+  width: 100%;
+  min-width: 0;
   max-width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -972,6 +978,91 @@ body.is-ready .reveal:nth-of-type(4) {
   }
 }
 
+@media (max-width: 1200px) {
+  .season-table {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .season-table thead {
+    display: none;
+  }
+
+  .season-table,
+  .season-table tbody,
+  .season-table tr,
+  .season-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .season-table tbody {
+    display: grid;
+    gap: 0.9rem;
+  }
+
+  .season-table__row {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.85rem 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    background: rgba(9, 17, 23, 0.42);
+  }
+
+  .season-table td,
+  .season-table th,
+  .season-table td:nth-child(2) {
+    min-width: 0;
+    padding: 0;
+    border-bottom: 0;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .season-table td::before {
+    content: attr(data-label);
+    display: block;
+    margin-bottom: 0.2rem;
+    color: var(--accent-strong);
+    font-family: var(--display-font);
+    font-size: 0.82rem;
+    letter-spacing: 0.08em;
+    line-height: 1.05;
+    text-transform: uppercase;
+  }
+
+  .season-table td:first-child,
+  .season-table td:nth-child(2) {
+    grid-column: 1 / -1;
+  }
+
+  .season-table td:first-child {
+    padding-bottom: 0.65rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    font-family: var(--display-font);
+    font-size: 1.55rem;
+    letter-spacing: 0.05em;
+    line-height: 0.95;
+  }
+
+  .season-table td[colspan] {
+    grid-column: 1 / -1;
+    padding: 0;
+    border-bottom: 0;
+    font-family: var(--body-font);
+    font-size: 1rem;
+    letter-spacing: normal;
+    line-height: 1.5;
+    text-transform: none;
+  }
+
+  .season-table td[colspan]::before {
+    display: none;
+  }
+}
+
 @media (max-width: 900px) {
   .panel__heading--split,
   .results-grid,
@@ -997,10 +1088,6 @@ body.is-ready .reveal:nth-of-type(4) {
 
   .player-toolbar .view-toggle .button {
     flex: 1 1 0;
-  }
-
-  .season-table {
-    min-width: 760px;
   }
 }
 
@@ -1065,21 +1152,8 @@ body.is-ready .reveal:nth-of-type(4) {
     font-size: 0.88rem;
   }
 
-  .season-table {
-    min-width: 680px;
-  }
-
-  .season-table th {
-    min-width: 6rem;
-    font-size: 0.84rem;
-  }
-
-  .season-table td,
-  .season-table th {
+  table:not(.season-table) td,
+  table:not(.season-table) th {
     padding: 0.75rem 0.7rem;
-  }
-
-  .season-table td:nth-child(2) {
-    min-width: 8.5rem;
   }
 }

@@ -102,9 +102,12 @@ function formatNumber(value) {
   }).format(numeric);
 }
 
-function createCell(text) {
+function createCell(text, label) {
   const cell = document.createElement("td");
   cell.textContent = text;
+  if (label) {
+    cell.dataset.label = label;
+  }
   return cell;
 }
 
@@ -216,14 +219,15 @@ function renderSeasonTable(profile) {
   seasonSummaries.forEach((summary) => {
     const statMap = new Map((summary.stats || []).map((entry) => [entry.stat, entry]));
     const row = document.createElement("tr");
+    row.className = "season-table__row";
     row.append(
-      createCell(`${summary.season}`),
-      createCell((summary.squad_names || []).join(" / ") || "-"),
-      createCell(formatNumber(summary.matches_played))
+      createCell(`${summary.season}`, "Season"),
+      createCell((summary.squad_names || []).join(" / ") || "-", "Clubs"),
+      createCell(formatNumber(summary.matches_played), "Games")
     );
 
     stats.forEach((stat) => {
-      row.appendChild(createCell(formatNumber(metricValue(statMap.get(stat)))));
+      row.appendChild(createCell(formatNumber(metricValue(statMap.get(stat))), statLabel(stat)));
     });
 
     elements.seasonStatsBody.appendChild(row);
