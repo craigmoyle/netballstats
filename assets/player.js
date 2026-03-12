@@ -1,6 +1,27 @@
 const config = window.NETBALL_STATS_CONFIG || {};
 const API_BASE_URL = (config.apiBaseUrl || "/api").replace(/\/$/, "");
 const DEFAULT_TIMEOUT_MS = 12000;
+const PLAYER_STAT_DEFINITIONS = [
+  ["netPoints", "NetPoints"],
+  ["intercepts", "Intercepts"],
+  ["obstructionPenalties", "Obstructions"],
+  ["contactPenalties", "Contacts"],
+  ["generalPlayTurnovers", "General Play Turnovers"],
+  ["unforcedTurnovers", "Unforced Turnovers"],
+  ["pickups", "Pickups"],
+  ["gain", "Gains"],
+  ["centrePassReceives", "Centre Pass Receives"],
+  ["deflections", "Deflections"],
+  ["rebounds", "Rebounds"],
+  ["goal1", "1 Point Goals"],
+  ["attempts1", "1 Point Goal Attempts"],
+  ["goal2", "2 Point Goals"],
+  ["attempts2", "2 Point Goal Attempts"],
+  ["feeds", "Feeds"],
+  ["goalAssists", "Assists"]
+];
+const PLAYER_STAT_ORDER = PLAYER_STAT_DEFINITIONS.map(([key]) => key);
+const PLAYER_STAT_LABELS = new Map(PLAYER_STAT_DEFINITIONS);
 
 const state = {
   metric: "total",
@@ -87,6 +108,26 @@ function createCell(text) {
   return cell;
 }
 
+function statLabel(statKey) {
+  return PLAYER_STAT_LABELS.get(statKey) || statKey;
+}
+
+function selectedCareerStats(careerStats) {
+  const byStat = new Map((careerStats || []).map((entry) => [entry.stat, entry]));
+  return PLAYER_STAT_ORDER
+    .filter((stat) => byStat.has(stat))
+    .map((stat) => byStat.get(stat));
+}
+
+function selectedStatsForProfile(profile) {
+  const availableStats = new Set(profile.available_stats || []);
+  const careerStats = profile.career_stats || [];
+
+  return PLAYER_STAT_ORDER.filter((stat) =>
+    availableStats.has(stat) || careerStats.some((entry) => entry.stat === stat)
+  );
+}
+
 function metricValue(entry) {
   if (!entry) {
     return "-";
@@ -135,7 +176,7 @@ function renderCareerStats(careerStats) {
   careerStats.forEach((entry) => {
     const row = document.createElement("tr");
     row.append(
-      createCell(entry.stat),
+      createCell(statLabel(entry.stat)),
       createCell(formatNumber(entry.total_value)),
       createCell(formatNumber(entry.average_value)),
       createCell(formatNumber(entry.matches_played))
@@ -145,15 +186,15 @@ function renderCareerStats(careerStats) {
 }
 
 function renderSeasonTable(profile) {
-  const stats = profile.available_stats || [];
+  const stats = selectedStatsForProfile(profile);
   const seasonSummaries = profile.season_summaries || [];
 
   elements.seasonTableCaption.textContent = state.metric === "average"
-    ? "Per-game averages for each season across all tracked stats."
-    : "Season totals across all tracked stats.";
+    ? "Per-game averages for the selected impact stats."
+    : "Season totals for the selected impact stats.";
 
   elements.seasonStatsHead.replaceChildren();
-  ["Season", "Clubs", "Games", ...stats].forEach((label) => {
+  ["Season", "Clubs", "Games", ...stats.map((stat) => statLabel(stat))].forEach((label) => {
     const cell = document.createElement("th");
     cell.scope = "col";
     cell.textContent = label;
@@ -208,7 +249,7 @@ function renderProfile(profile) {
 
   const playerName = profile.player?.canonical_name || profile.player?.player_name || "Unknown player";
   const overview = profile.overview || {};
-  const careerStats = profile.career_stats || [];
+  const careerStats = selectedCareerStats(profile.career_stats || []);
   const topCareerStat = careerStats
     .slice()
     .sort((left, right) => Number(right.total_value || 0) - Number(left.total_value || 0))[0];
@@ -227,9 +268,9 @@ function renderProfile(profile) {
   elements.summaryGames.textContent = formatNumber(overview.games_played);
   elements.summarySeasons.textContent = formatNumber(overview.seasons_played);
   elements.summaryTeams.textContent = formatNumber(overview.teams_played);
-  elements.summaryStats.textContent = formatNumber((profile.available_stats || []).length);
+  elements.summaryStats.textContent = formatNumber(careerStats.length);
   elements.summaryPrimary.textContent = topCareerStat
-    ? `${topCareerStat.stat}: ${formatNumber(topCareerStat.total_value)}`
+    ? `${statLabel(topCareerStat.stat)}: ${formatNumber(topCareerStat.total_value)}`
     : "No totals yet";
 
   renderSquads(overview.squad_names || []);
