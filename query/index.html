@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Ask the Stats | Netball Stats Database</title>
+    <meta name="description" content="Ask constrained natural-language Super Netball questions and get transparent, auditable answers from the stats archive.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; script-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://netballstats-api.onrender.com http://127.0.0.1:8000 http://localhost:8000; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Teko:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/config.js"></script>
+    <script defer src="/assets/query.js"></script>
+  </head>
+  <body class="query-page">
+    <div class="page-backdrop" aria-hidden="true">
+      <div class="backdrop-glow backdrop-glow--one"></div>
+      <div class="backdrop-glow backdrop-glow--two"></div>
+      <div class="backdrop-grid"></div>
+    </div>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Query page navigation">
+        <a class="page-nav__link" href="/">Back to explorer</a>
+        <a class="page-nav__link" href="/players/">Player profiles</a>
+        <a class="page-nav__link page-nav__link--accent" href="/query/">Ask the stats</a>
+      </nav>
+
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Ask the stats</p>
+          <h1>Type a netball question the archive can explain.</h1>
+          <p class="intro-copy">
+            This first version is intentionally narrow: count questions, highest or lowest questions,
+            and list-style stat filters. Every answer stays auditable with the parsed interpretation
+            and matching rows underneath.
+          </p>
+          <div class="hero-pills" aria-label="Feature highlights">
+            <span class="hero-pill">Count questions</span>
+            <span class="hero-pill">Highest / lowest</span>
+            <span class="hero-pill">Visible parsed filters</span>
+          </div>
+        </div>
+
+        <aside class="hero-aside" aria-label="Query feature scope">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">V1 format</span>
+            <strong>Structured natural language</strong>
+            <p id="query-season-summary">Loading available seasons and supported scope…</p>
+          </div>
+          <div class="hero-meta">
+            <div class="meta-pill">
+              <span>API</span>
+              <code id="api-base">/api</code>
+            </div>
+            <div class="meta-pill">
+              <span id="query-mode">Deterministic parser</span>
+            </div>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main class="page-shell page-main">
+      <section class="panel reveal">
+        <div id="query-status" class="status-banner" hidden></div>
+        <div class="query-board">
+          <div class="query-board__header">
+            <div class="panel__heading">
+              <p class="kicker">Question console</p>
+              <h2>Ask a supported stats question.</h2>
+            </div>
+            <p class="query-board__lede">
+              Try a player threshold question, a highest or lowest question, or a list query.
+              If the parser cannot map the request confidently, it will say so instead of guessing.
+            </p>
+          </div>
+
+          <form id="query-form" class="query-form" novalidate>
+            <div class="query-input-shell">
+              <label for="question-input">Question</label>
+              <div class="query-input-row">
+                <textarea
+                  id="question-input"
+                  name="question"
+                  maxlength="220"
+                  placeholder="How many times has Fowler scored 50 goals or more against the Vixens?"
+                  aria-describedby="query-hint"
+                ></textarea>
+                <div class="query-submit-stack">
+                  <button type="submit">Run question</button>
+                  <button type="button" id="clear-question" class="button button--ghost">Clear</button>
+                </div>
+              </div>
+              <p id="query-hint" class="query-hint">
+                Supported today: count, highest/lowest, and list/filter questions against player match totals.
+              </p>
+            </div>
+
+            <div>
+              <p class="kicker">Example prompts</p>
+              <div class="example-strip" id="example-strip" aria-label="Example question prompts">
+                <button type="button" class="example-chip" data-example="How many times has Fowler scored 50 goals or more against the Vixens?">Fowler 50+ against Vixens</button>
+                <button type="button" class="example-chip" data-example="What is Fowler's highest goals total against the Swifts?">Fowler highest against Swifts</button>
+                <button type="button" class="example-chip" data-example="Which players scored 40+ goals in 2025?">Players with 40+ in 2025</button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section class="summary-band reveal" aria-label="Query summary cards">
+        <article class="summary-card summary-card--accent">
+          <span class="summary-card__label">Question type</span>
+          <span id="summary-question-type" class="summary-card__value summary-card__value--small">--</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Matches found</span>
+          <span id="summary-match-count" class="summary-card__value">--</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Stat</span>
+          <span id="summary-stat" class="summary-card__value summary-card__value--small">--</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Question status</span>
+          <span id="summary-status" class="summary-card__value summary-card__value--small">Ready</span>
+        </article>
+      </section>
+
+      <section class="query-results-grid reveal">
+        <section class="panel">
+          <div class="answer-stage">
+            <div class="answer-stage__card">
+              <span class="answer-stage__eyebrow">Answer</span>
+              <h2 id="answer-headline" class="answer-stage__headline">Run a question to see the parsed answer here.</h2>
+              <p id="answer-meta" class="answer-stage__meta">
+                The answer sentence is generated from a fixed query template and the matching rows below.
+              </p>
+            </div>
+
+            <div id="interpretation-grid" class="interpretation-grid" aria-label="Parsed interpretation"></div>
+
+            <div id="query-state" class="query-state">
+              <strong>Supported question shapes</strong>
+              Count questions, highest/lowest questions, and list filters over player match totals.
+              <ul>
+                <li>Player + stat + threshold + optional opponent/season</li>
+                <li>Player + highest/lowest + stat + optional opponent/season</li>
+                <li>List queries for players meeting a stat filter</li>
+              </ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <p class="kicker">Supporting rows</p>
+              <h2>Match-level evidence behind the answer.</h2>
+            </div>
+            <p id="table-meta" class="table-meta">No rows loaded yet.</p>
+          </div>
+          <div class="table-wrapper table-wrapper--spotlight">
+            <table class="query-table">
+              <caption>Matching player performances</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Player</th>
+                  <th scope="col">Team</th>
+                  <th scope="col">Opponent</th>
+                  <th scope="col">Season</th>
+                  <th scope="col">Round</th>
+                  <th scope="col">Stat total</th>
+                  <th scope="col">Local start</th>
+                </tr>
+              </thead>
+              <tbody id="query-rows-body">
+                <tr>
+                  <td colspan="7">Run a supported question to see the matching rows.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>

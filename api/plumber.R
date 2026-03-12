@@ -835,3 +835,83 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
     json_error(res, 400, conditionMessage(error))
   })
 }
+
+#* @get /query
+#* @get /api/query
+function(question = "", limit = "12", res) {
+  conn <- tryCatch(open_db(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(json_error(res, 503, conditionMessage(conn)))
+  }
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  tryCatch({
+    limit <- parse_limit(limit, default = 12L, maximum = 25L)
+    intent <- parse_query_intent(conn, question, limit = limit)
+    if (!identical(intent$status, "supported")) {
+      return(intent)
+    }
+
+    seasons <- if (is.null(intent$season)) NULL else c(intent$season)
+    base_query <- build_player_match_query(
+      stat = intent$stat,
+      seasons = seasons,
+      player_id = intent$player_id,
+      opponent_id = intent$opponent_id,
+      comparison = intent$comparison,
+      threshold = intent$threshold
+    )
+
+    count_query <- paste0(
+      "SELECT COUNT(*) AS total_matches FROM (",
+      base_query$query,
+      ") AS performances"
+    )
+    total_matches <- as.integer(query_rows(conn, count_query, base_query$params)$total_matches[[1]] %||% 0L)
+
+    order_direction <- if (identical(intent$intent_type, "lowest")) "ASC" else "DESC"
+    row_limit <- if (identical(intent$intent_type, "count")) {
+      min(intent$limit, 12L)
+    } else if (identical(intent$intent_type, "list")) {
+      intent$limit
+    } else {
+      1L
+    }
+
+    rows_query <- paste0(
+      base_query$query,
+      " ORDER BY total_value ", order_direction, ", season DESC, round_number DESC, player_name ASC LIMIT ?limit"
+    )
+    rows_params <- base_query$params
+    rows_params$limit <- row_limit
+    rows <- query_rows(conn, rows_query, rows_params)
+
+    list(
+      status = jsonlite::unbox("supported"),
+      question = jsonlite::unbox(intent$question),
+      answer = jsonlite::unbox(build_query_answer(intent, rows, total_matches)),
+      parsed = record_to_scalars(list(
+        intent_type = intent$intent_type,
+        subject_type = intent$subject_type,
+        player_name = intent$player_name,
+        stat = intent$stat,
+        stat_label = intent$stat_label,
+        comparison = intent$comparison,
+        comparison_label = intent$comparison_label,
+        threshold = intent$threshold,
+        opponent_name = intent$opponent_name,
+        season = intent$season,
+        limit = intent$limit
+      )),
+      summary = record_to_scalars(list(
+        question_type = intent$intent_type,
+        match_count = total_matches,
+        row_count = nrow(rows),
+        stat_label = intent$stat_label
+      )),
+      rows = rows_to_records(rows)
+    )
+  }, error = function(error) {
+    json_error(res, 400, conditionMessage(error))
+  })
+}
