@@ -154,6 +154,116 @@ database_health_check <- function(include_metadata = FALSE) {
   list(ok = TRUE, metadata = metadata)
 }
 
+json_scalar <- function(value) {
+  if (!is.list(value) && length(value) == 1L) {
+    return(jsonlite::unbox(value))
+  }
+
+  value
+}
+
+record_to_scalars <- function(values) {
+  lapply(values, json_scalar)
+}
+
+rows_to_records <- function(rows) {
+  if (!nrow(rows)) {
+    return(list())
+  }
+
+  unname(lapply(seq_len(nrow(rows)), function(index) {
+    record_to_scalars(as.list(rows[index, , drop = FALSE]))
+  }))
+}
+
+build_stat_summary <- function(rows, stats_order = NULL) {
+  if (!nrow(rows)) {
+    return(data.frame(
+      stat = character(),
+      total_value = numeric(),
+      average_value = numeric(),
+      matches_played = integer()
+    ))
+  }
+
+  stats <- unique(as.character(rows$stat))
+  if (is.null(stats_order)) {
+    stats <- sort(stats)
+  } else {
+    stats <- stats_order[stats_order %in% stats]
+  }
+
+  summary_rows <- lapply(stats, function(stat_name) {
+    stat_rows <- rows[rows$stat == stat_name, , drop = FALSE]
+    matches_played <- length(unique(stat_rows$match_id))
+    total_value <- round(sum(stat_rows$value_number, na.rm = TRUE), 2)
+    average_value <- if (matches_played > 0) {
+      round(total_value / matches_played, 2)
+    } else {
+      NA_real_
+    }
+
+    data.frame(
+      stat = stat_name,
+      total_value = total_value,
+      average_value = average_value,
+      matches_played = as.integer(matches_played),
+      stringsAsFactors = FALSE
+    )
+  })
+
+  do.call(rbind, summary_rows)
+}
+
+build_player_profile_payload <- function(player_row, stats_rows) {
+  available_stats <- if (nrow(stats_rows)) {
+    sort(unique(as.character(stats_rows$stat)))
+  } else {
+    character()
+  }
+
+  games_played <- if (nrow(stats_rows)) {
+    length(unique(stats_rows$match_id))
+  } else {
+    0L
+  }
+  season_values <- if (nrow(stats_rows)) {
+    sort(unique(stats_rows$season), decreasing = TRUE)
+  } else {
+    integer()
+  }
+  squad_names <- if (nrow(stats_rows)) {
+    sort(unique(as.character(stats_rows$squad_name)))
+  } else {
+    character()
+  }
+
+  season_summaries <- unname(lapply(season_values, function(season_value) {
+    season_rows <- stats_rows[stats_rows$season == season_value, , drop = FALSE]
+    list(
+      season = jsonlite::unbox(as.integer(season_value)),
+      matches_played = jsonlite::unbox(as.integer(length(unique(season_rows$match_id)))),
+      squad_names = sort(unique(as.character(season_rows$squad_name))),
+      stats = rows_to_records(build_stat_summary(season_rows, available_stats))
+    )
+  }))
+
+  list(
+    player = record_to_scalars(as.list(player_row[1, , drop = FALSE])),
+    overview = list(
+      games_played = jsonlite::unbox(as.integer(games_played)),
+      seasons_played = jsonlite::unbox(as.integer(length(season_values))),
+      teams_played = jsonlite::unbox(as.integer(length(squad_names))),
+      first_season = json_scalar(if (length(season_values)) min(season_values) else NA_integer_),
+      last_season = json_scalar(if (length(season_values)) max(season_values) else NA_integer_),
+      squad_names = squad_names
+    ),
+    available_stats = available_stats,
+    career_stats = rows_to_records(build_stat_summary(stats_rows, available_stats)),
+    season_summaries = season_summaries
+  )
+}
+
 #* @get /live
 #* @get /api/live
 function() {
@@ -215,6 +325,92 @@ function(res) {
     build_mode = metadata_map[["build_mode"]] %||% "production",
     refreshed_at = metadata_map[["refreshed_at"]] %||% NA_character_
   )
+}
+
+#* @get /players
+#* @get /api/players
+function(search = "", limit = "500", res) {
+  conn <- tryCatch(open_db(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(json_error(res, 503, conditionMessage(conn)))
+  }
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  tryCatch({
+    limit <- parse_limit(limit, default = 500L, maximum = 1000L)
+    parsed_search <- parse_search(search, name = "search")
+
+    query <- paste(
+      "SELECT players.player_id, players.canonical_name AS player_name, players.search_name,",
+      "players.short_display_name, COUNT(DISTINCT stats.match_id) AS games_played,",
+      "MIN(stats.season) AS first_season, MAX(stats.season) AS last_season",
+      "FROM players",
+      "LEFT JOIN player_period_stats AS stats ON stats.player_id = players.player_id",
+      "WHERE 1 = 1"
+    )
+    params <- list()
+
+    if (!is.null(parsed_search)) {
+      params$search <- paste0("%", normalize_player_search_name(parsed_search), "%")
+      query <- paste0(query, " AND players.search_name LIKE ?search")
+    }
+
+    query <- paste0(
+      query,
+      " GROUP BY players.player_id, players.canonical_name, players.search_name, players.short_display_name",
+      " ORDER BY players.canonical_name ASC LIMIT ?limit"
+    )
+    params$limit <- limit
+
+    list(data = query_rows(conn, query, params))
+  }, error = function(error) {
+    json_error(res, 400, conditionMessage(error))
+  })
+}
+
+#* @get /player-profile
+#* @get /api/player-profile
+function(player_id = "", res) {
+  conn <- tryCatch(open_db(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(json_error(res, 503, conditionMessage(conn)))
+  }
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  tryCatch({
+    player_id <- parse_optional_int(player_id, "player_id", minimum = 1L)
+    if (is.null(player_id)) {
+      stop("player_id is required.", call. = FALSE)
+    }
+
+    player <- query_rows(
+      conn,
+      paste(
+        "SELECT player_id, firstname, surname, short_display_name, player_name, canonical_name, search_name",
+        "FROM players",
+        "WHERE player_id = ?player_id",
+        "LIMIT 1"
+      ),
+      list(player_id = player_id)
+    )
+    if (!nrow(player)) {
+      return(json_error(res, 404, "Player not found."))
+    }
+
+    stats_rows <- query_rows(
+      conn,
+      paste(
+        "SELECT match_id, season, squad_name, stat, value_number",
+        "FROM player_period_stats",
+        "WHERE player_id = ?player_id AND value_number IS NOT NULL"
+      ),
+      list(player_id = player_id)
+    )
+
+    build_player_profile_payload(player, stats_rows)
+  }, error = function(error) {
+    json_error(res, 400, conditionMessage(error))
+  })
 }
 
 #* @get /summary

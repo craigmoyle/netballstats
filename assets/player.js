@@ -1,0 +1,267 @@
+const config = window.NETBALL_STATS_CONFIG || {};
+const API_BASE_URL = (config.apiBaseUrl || "/api").replace(/\/$/, "");
+const DEFAULT_TIMEOUT_MS = 12000;
+
+const state = {
+  metric: "total",
+  profile: null
+};
+
+const elements = {
+  playerStatus: document.getElementById("player-status"),
+  playerName: document.getElementById("player-name"),
+  playerSubtitle: document.getElementById("player-subtitle"),
+  playerIntro: document.getElementById("player-intro"),
+  playerSquads: document.getElementById("player-squads"),
+  careerSpan: document.getElementById("career-span"),
+  careerSpanSummary: document.getElementById("career-span-summary"),
+  summaryGames: document.getElementById("summary-games"),
+  summarySeasons: document.getElementById("summary-seasons"),
+  summaryTeams: document.getElementById("summary-teams"),
+  summaryStats: document.getElementById("summary-stats"),
+  summaryPrimary: document.getElementById("summary-primary"),
+  careerStatsBody: document.getElementById("career-stats-body"),
+  seasonTableCaption: document.getElementById("season-table-caption"),
+  seasonStatsHead: document.getElementById("season-stats-head"),
+  seasonStatsBody: document.getElementById("season-stats-body"),
+  metricButtons: Array.from(document.querySelectorAll("[data-metric]"))
+};
+
+function buildUrl(path, params = {}) {
+  const url = new URL(`${API_BASE_URL}${path}`, window.location.href);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && `${value}`.trim() !== "") {
+      url.searchParams.set(key, value);
+    }
+  });
+  return url;
+}
+
+async function fetchJson(path, params = {}) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(buildUrl(path, params), {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+
+    const payload = await response.json().catch(() => ({ error: "The API returned invalid JSON." }));
+    if (!response.ok) {
+      throw new Error(payload.error || `Request failed with status ${response.status}.`);
+    }
+
+    return payload;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function showStatus(message, tone = "neutral") {
+  elements.playerStatus.textContent = message;
+  elements.playerStatus.dataset.tone = tone;
+  elements.playerStatus.hidden = !message;
+}
+
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "") {
+    return "-";
+  }
+
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return value;
+  }
+
+  return new Intl.NumberFormat("en-AU", {
+    maximumFractionDigits: Number.isInteger(numeric) ? 0 : 2
+  }).format(numeric);
+}
+
+function createCell(text) {
+  const cell = document.createElement("td");
+  cell.textContent = text;
+  return cell;
+}
+
+function metricValue(entry) {
+  if (!entry) {
+    return "-";
+  }
+
+  return state.metric === "average" ? entry.average_value : entry.total_value;
+}
+
+function parsePlayerId() {
+  const url = new URL(window.location.href);
+  const fromQuery = url.searchParams.get("player_id");
+  if (fromQuery && /^\d+$/.test(fromQuery)) {
+    return Number(fromQuery);
+  }
+
+  const segments = window.location.pathname.split("/").filter(Boolean);
+  const playerIndex = segments.indexOf("player");
+  const rawSegment = playerIndex >= 0 ? segments[playerIndex + 1] : "";
+  const match = rawSegment ? rawSegment.match(/^(\d+)/) : null;
+  return match ? Number(match[1]) : NaN;
+}
+
+function renderSquads(squadNames) {
+  elements.playerSquads.replaceChildren();
+  (squadNames || []).forEach((squadName) => {
+    const tag = document.createElement("span");
+    tag.className = "tag";
+    tag.textContent = squadName;
+    elements.playerSquads.appendChild(tag);
+  });
+}
+
+function renderCareerStats(careerStats) {
+  elements.careerStatsBody.replaceChildren();
+
+  if (!careerStats.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 4;
+    cell.textContent = "No career stats were available for this player.";
+    row.appendChild(cell);
+    elements.careerStatsBody.appendChild(row);
+    return;
+  }
+
+  careerStats.forEach((entry) => {
+    const row = document.createElement("tr");
+    row.append(
+      createCell(entry.stat),
+      createCell(formatNumber(entry.total_value)),
+      createCell(formatNumber(entry.average_value)),
+      createCell(formatNumber(entry.matches_played))
+    );
+    elements.careerStatsBody.appendChild(row);
+  });
+}
+
+function renderSeasonTable(profile) {
+  const stats = profile.available_stats || [];
+  const seasonSummaries = profile.season_summaries || [];
+
+  elements.seasonTableCaption.textContent = state.metric === "average"
+    ? "Per-game averages for each season across all tracked stats."
+    : "Season totals across all tracked stats.";
+
+  elements.seasonStatsHead.replaceChildren();
+  ["Season", "Clubs", "Games", ...stats].forEach((label) => {
+    const cell = document.createElement("th");
+    cell.scope = "col";
+    cell.textContent = label;
+    elements.seasonStatsHead.appendChild(cell);
+  });
+
+  elements.seasonStatsBody.replaceChildren();
+
+  if (!seasonSummaries.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 3 + stats.length;
+    cell.textContent = "No season summaries were available for this player.";
+    row.appendChild(cell);
+    elements.seasonStatsBody.appendChild(row);
+    return;
+  }
+
+  seasonSummaries.forEach((summary) => {
+    const statMap = new Map((summary.stats || []).map((entry) => [entry.stat, entry]));
+    const row = document.createElement("tr");
+    row.append(
+      createCell(`${summary.season}`),
+      createCell((summary.squad_names || []).join(" / ") || "-"),
+      createCell(formatNumber(summary.matches_played))
+    );
+
+    stats.forEach((stat) => {
+      row.appendChild(createCell(formatNumber(metricValue(statMap.get(stat)))));
+    });
+
+    elements.seasonStatsBody.appendChild(row);
+  });
+}
+
+function setMetric(nextMetric) {
+  state.metric = nextMetric;
+  elements.metricButtons.forEach((button) => {
+    const isActive = button.dataset.metric === nextMetric;
+    button.classList.toggle("is-active", isActive);
+    button.classList.toggle("button--ghost", !isActive);
+    button.setAttribute("aria-pressed", `${isActive}`);
+  });
+
+  if (state.profile) {
+    renderSeasonTable(state.profile);
+  }
+}
+
+function renderProfile(profile) {
+  state.profile = profile;
+
+  const playerName = profile.player?.canonical_name || profile.player?.player_name || "Unknown player";
+  const overview = profile.overview || {};
+  const careerStats = profile.career_stats || [];
+  const topCareerStat = careerStats
+    .slice()
+    .sort((left, right) => Number(right.total_value || 0) - Number(left.total_value || 0))[0];
+
+  document.title = `${playerName} | Netball Stats Database`;
+  elements.playerName.textContent = playerName;
+  elements.playerSubtitle.textContent = `Player ${profile.player?.player_id ?? ""}`.trim();
+  elements.playerIntro.textContent = `${formatNumber(overview.games_played)} games across ${formatNumber(overview.seasons_played)} seasons with ${formatNumber(overview.teams_played)} clubs represented in the archive.`;
+  elements.careerSpan.textContent = overview.first_season && overview.last_season
+    ? `${overview.first_season} to ${overview.last_season}`
+    : "Single season";
+  elements.careerSpanSummary.textContent = (overview.squad_names || []).length
+    ? `Clubs tracked: ${(overview.squad_names || []).join(", ")}`
+    : "Club history unavailable for this profile.";
+
+  elements.summaryGames.textContent = formatNumber(overview.games_played);
+  elements.summarySeasons.textContent = formatNumber(overview.seasons_played);
+  elements.summaryTeams.textContent = formatNumber(overview.teams_played);
+  elements.summaryStats.textContent = formatNumber((profile.available_stats || []).length);
+  elements.summaryPrimary.textContent = topCareerStat
+    ? `${topCareerStat.stat}: ${formatNumber(topCareerStat.total_value)}`
+    : "No totals yet";
+
+  renderSquads(overview.squad_names || []);
+  renderCareerStats(careerStats);
+  renderSeasonTable(profile);
+}
+
+async function initialise() {
+  const playerId = parsePlayerId();
+  if (!Number.isFinite(playerId)) {
+    showStatus("No player ID was found in the page URL.", "error");
+    document.body.classList.add("is-ready");
+    return;
+  }
+
+  showStatus("Loading player profile…");
+
+  try {
+    const profile = await fetchJson("/player-profile", { player_id: playerId });
+    renderProfile(profile);
+    showStatus("Player profile loaded.", "success");
+  } catch (error) {
+    showStatus(error.message || "Unable to load the player profile.", "error");
+  } finally {
+    document.body.classList.add("is-ready");
+  }
+}
+
+elements.metricButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setMetric(button.dataset.metric || "total");
+  });
+});
+
+initialise();

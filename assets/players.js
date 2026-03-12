@@ -1,0 +1,156 @@
+const config = window.NETBALL_STATS_CONFIG || {};
+const API_BASE_URL = (config.apiBaseUrl || "/api").replace(/\/$/, "");
+const DEFAULT_TIMEOUT_MS = 12000;
+
+const state = {
+  players: []
+};
+
+const elements = {
+  directoryStatus: document.getElementById("directory-status"),
+  directoryTotal: document.getElementById("directory-total"),
+  directorySummary: document.getElementById("directory-summary"),
+  directoryResultsMeta: document.getElementById("directory-results-meta"),
+  directorySearchInput: document.getElementById("directory-search-input"),
+  directoryGrid: document.getElementById("directory-grid")
+};
+
+function buildUrl(path, params = {}) {
+  const url = new URL(`${API_BASE_URL}${path}`, window.location.href);
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && `${value}`.trim() !== "") {
+      url.searchParams.set(key, value);
+    }
+  });
+  return url;
+}
+
+async function fetchJson(path, params = {}) {
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), DEFAULT_TIMEOUT_MS);
+
+  try {
+    const response = await fetch(buildUrl(path, params), {
+      headers: {
+        Accept: "application/json"
+      },
+      signal: controller.signal
+    });
+
+    const payload = await response.json().catch(() => ({ error: "The API returned invalid JSON." }));
+    if (!response.ok) {
+      throw new Error(payload.error || `Request failed with status ${response.status}.`);
+    }
+
+    return payload;
+  } finally {
+    window.clearTimeout(timeoutId);
+  }
+}
+
+function showStatus(message, tone = "neutral") {
+  elements.directoryStatus.textContent = message;
+  elements.directoryStatus.dataset.tone = tone;
+  elements.directoryStatus.hidden = !message;
+}
+
+function formatNumber(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return value ?? "-";
+  }
+
+  return new Intl.NumberFormat("en-AU", {
+    maximumFractionDigits: 0
+  }).format(numeric);
+}
+
+function playerProfileUrl(playerId) {
+  return `/player/${encodeURIComponent(playerId)}/`;
+}
+
+function renderPlayers(players) {
+  const query = elements.directorySearchInput.value.trim().toLowerCase();
+  const filteredPlayers = players.filter((player) => {
+    if (!query) {
+      return true;
+    }
+
+    return `${player.player_name} ${player.search_name || ""}`.toLowerCase().includes(query);
+  });
+
+  elements.directoryResultsMeta.textContent = query
+    ? `${formatNumber(filteredPlayers.length)} players match “${query}”.`
+    : `${formatNumber(players.length)} player profiles available.`;
+
+  elements.directoryGrid.replaceChildren();
+
+  if (!filteredPlayers.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty-state";
+    empty.textContent = "No players matched that search.";
+    elements.directoryGrid.appendChild(empty);
+    return;
+  }
+
+  filteredPlayers.forEach((player) => {
+    const card = document.createElement("a");
+    card.href = playerProfileUrl(player.player_id);
+    card.className = "directory-card";
+
+    const eyebrow = document.createElement("span");
+    eyebrow.className = "directory-card__eyebrow";
+    eyebrow.textContent = `Player ${player.player_id}`;
+
+    const title = document.createElement("h2");
+    title.className = "directory-card__title";
+    title.textContent = player.player_name;
+
+    const meta = document.createElement("p");
+    meta.className = "directory-card__meta";
+    const spanText = player.first_season && player.last_season
+      ? `${player.first_season} to ${player.last_season}`
+      : "Career span unavailable";
+    meta.textContent = `${formatNumber(player.games_played)} games • ${spanText}`;
+
+    const footer = document.createElement("div");
+    footer.className = "directory-card__footer";
+
+    const gamesTag = document.createElement("span");
+    gamesTag.className = "tag";
+    gamesTag.textContent = `${formatNumber(player.games_played)} matches`;
+
+    const spanTag = document.createElement("span");
+    spanTag.className = "tag";
+    spanTag.textContent = spanText;
+
+    footer.append(gamesTag, spanTag);
+    card.append(eyebrow, title, meta, footer);
+    elements.directoryGrid.appendChild(card);
+  });
+}
+
+async function initialise() {
+  showStatus("Loading player directory…");
+
+  try {
+    const payload = await fetchJson("/players");
+    state.players = payload.data || [];
+    elements.directoryTotal.textContent = formatNumber(state.players.length);
+    elements.directorySummary.textContent = "Career pages are live for every player currently in the database.";
+    renderPlayers(state.players);
+    showStatus("Player directory loaded.", "success");
+  } catch (error) {
+    showStatus(error.message || "Unable to load the player directory.", "error");
+    elements.directoryResultsMeta.textContent = "Player directory unavailable.";
+    elements.directoryGrid.innerHTML = '<div class="empty-state">The player directory is temporarily unavailable.</div>';
+  } finally {
+    document.body.classList.add("is-ready");
+  }
+}
+
+elements.directorySearchInput.addEventListener("input", () => {
+  renderPlayers(state.players);
+});
+
+initialise();

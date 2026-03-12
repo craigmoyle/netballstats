@@ -10,6 +10,7 @@ The old site was a single HTML page showing a few 2020 static images. The rewrit
 - a stat mode toggle so leaderboard-style queries can switch between totals and average per game
 - table/chart toggles for the team and player leaderboards, including top-10 season trend lines for fast visual comparisons
 - competition-wide season totals so you can query and chart league output such as total goals by season
+- player directory and profile pages with career totals, games played, and season-by-season stat tables
 - a read-only R Plumber API with input validation, rate limiting, security headers, and parameterized SQL
 - a database build script that uses `superNetballR::downloadMatch()` plus the package tidiers to populate either SQLite or PostgreSQL
 - canonical player-name handling so leaderboard queries continue to work when players appear under multiple surnames over time
@@ -20,6 +21,7 @@ The old site was a single HTML page showing a few 2020 static images. The rewrit
 ## Repository layout
 
 - `index.html` + `assets/`: static frontend
+- `player/` + `players/`: shared player profile and directory page shells
 - `api/plumber.R`: read-only API
 - `api/R/helpers.R`: validation, database, and CORS helpers
 - `scripts/build_database.R`: data ingestion and SQLite/PostgreSQL build
@@ -34,6 +36,7 @@ The current frontend highlights:
 - competition-wide season total tables and charts for the selected team stat
 - total or average-per-game modes across the leaderboard and season-series views
 - season-by-season trend lines for the leading teams and players
+- a browsable player directory plus linked player profile pages
 - table/chart toggles so the detailed tables remain available
 
 ## Local setup

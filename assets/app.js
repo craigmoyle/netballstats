@@ -209,6 +209,24 @@ function createCell(text, className) {
   return cell;
 }
 
+function playerProfileUrl(playerId) {
+  return `/player/${encodeURIComponent(playerId)}/`;
+}
+
+function createLinkCell(href, text, className) {
+  const cell = document.createElement("td");
+  if (className) {
+    cell.className = className;
+  }
+
+  const link = document.createElement("a");
+  link.href = href;
+  link.className = "table-link";
+  link.textContent = text;
+  cell.appendChild(link);
+  return cell;
+}
+
 function createSvgElement(tagName, attributes = {}, textContent = "") {
   const element = document.createElementNS("http://www.w3.org/2000/svg", tagName);
   Object.entries(attributes).forEach(([key, value]) => {
@@ -477,7 +495,7 @@ function renderPlayerLeaders(rows) {
     const row = document.createElement("tr");
     row.append(
       createCell(`${index + 1}`),
-      createCell(rowData.player_name),
+      createLinkCell(playerProfileUrl(rowData.player_id), rowData.player_name),
       createCell(rowData.squad_name || "-"),
       createCell(rowData.stat),
       createCell(formatNumber(statValue(rowData))),
@@ -519,7 +537,7 @@ function renderPlayerHighs(rows) {
     const row = document.createElement("tr");
     row.append(
       createCell(`${index + 1}`),
-      createCell(rowData.player_name),
+      createLinkCell(playerProfileUrl(rowData.player_id), rowData.player_name),
       createCell(rowData.squad_name || "-"),
       createCell(rowData.opponent || "-"),
       createCell(`${rowData.season}`),

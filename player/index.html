@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Player Profile | Netball Stats Database</title>
+    <meta name="description" content="Super Netball player profile with games played, career totals, and season-by-season statistics.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; script-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://netballstats-api.onrender.com http://127.0.0.1:8000 http://localhost:8000; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Teko:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/config.js"></script>
+    <script defer src="/assets/player.js"></script>
+  </head>
+  <body>
+    <div class="page-backdrop" aria-hidden="true">
+      <div class="backdrop-glow backdrop-glow--one"></div>
+      <div class="backdrop-glow backdrop-glow--two"></div>
+      <div class="backdrop-grid"></div>
+    </div>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Player profile navigation">
+        <a class="page-nav__link" href="/">Back to explorer</a>
+        <a class="page-nav__link page-nav__link--accent" href="/players/">All players</a>
+      </nav>
+
+      <section class="hero-panel player-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Player profile</p>
+          <p id="player-subtitle" class="player-subtitle">Loading player record…</p>
+          <h1 id="player-name" class="player-title">Loading player profile</h1>
+          <p id="player-intro" class="intro-copy player-intro">
+            Pulling together career totals, games played, and season-by-season stats.
+          </p>
+          <div id="player-squads" class="tag-list" aria-label="Player clubs"></div>
+        </div>
+
+        <aside class="hero-aside" aria-label="Career snapshot">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Career span</span>
+            <strong id="career-span">--</strong>
+            <p id="career-span-summary">Waiting for player seasons and club history.</p>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main class="page-shell page-main">
+      <section class="panel reveal">
+        <div id="player-status" class="status-banner" hidden></div>
+        <div class="panel__heading">
+          <p class="kicker">Overview</p>
+          <h2>Career snapshot</h2>
+        </div>
+        <div class="summary-band">
+          <article class="summary-card summary-card--accent">
+            <span class="summary-card__label">Games played</span>
+            <span id="summary-games" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Seasons</span>
+            <span id="summary-seasons" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Clubs</span>
+            <span id="summary-teams" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Tracked stats</span>
+            <span id="summary-stats" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Primary record</span>
+            <span id="summary-primary" class="summary-card__value summary-card__value--small">--</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel reveal">
+        <div class="panel__heading">
+          <p class="kicker">Career totals</p>
+          <h2>Every tracked stat across the full career.</h2>
+        </div>
+        <p class="table-caption">Totals and per-game averages are both shown here for quick reading.</p>
+        <div class="table-wrapper table-wrapper--spotlight">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Stat</th>
+                <th scope="col">Total</th>
+                <th scope="col">Avg/game</th>
+                <th scope="col">Games</th>
+              </tr>
+            </thead>
+            <tbody id="career-stats-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel reveal">
+        <div class="player-toolbar">
+          <div class="panel__heading">
+            <p class="kicker">Season breakdown</p>
+            <h2>Season-by-season output across all tracked stats.</h2>
+          </div>
+          <div class="view-toggle" role="group" aria-label="Season stat mode">
+            <button type="button" class="button button--small is-active" data-metric="total" aria-pressed="true">Total</button>
+            <button type="button" class="button button--small button--ghost" data-metric="average" aria-pressed="false">Avg/game</button>
+          </div>
+        </div>
+        <p id="season-table-caption" class="table-caption">Season totals across all tracked stats.</p>
+        <div class="table-wrapper">
+          <table class="season-table">
+            <thead>
+              <tr id="season-stats-head"></tr>
+            </thead>
+            <tbody id="season-stats-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

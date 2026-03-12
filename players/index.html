@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Player Profiles | Netball Stats Database</title>
+    <meta name="description" content="Browse Super Netball player profiles with games played, career summaries, and season-by-season statistics.">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' https://fonts.googleapis.com; script-src 'self'; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://netballstats-api.onrender.com http://127.0.0.1:8000 http://localhost:8000; base-uri 'none'; frame-ancestors 'none'; form-action 'none'">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,600;9..144,700&family=Teko:wght@400;500;600;700&display=swap">
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script src="/assets/config.js"></script>
+    <script defer src="/assets/players.js"></script>
+  </head>
+  <body>
+    <div class="page-backdrop" aria-hidden="true">
+      <div class="backdrop-glow backdrop-glow--one"></div>
+      <div class="backdrop-glow backdrop-glow--two"></div>
+      <div class="backdrop-grid"></div>
+    </div>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Player profile navigation">
+        <a class="page-nav__link" href="/">Back to explorer</a>
+      </nav>
+
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Player profiles</p>
+          <h1>Browse every player page in the Super Netball archive.</h1>
+          <p class="intro-copy">
+            Each profile rolls career totals, games played, and season-by-season stats into one
+            page so you can jump from leaderboard flashes to the full player story.
+          </p>
+          <div class="hero-pills" aria-label="Player profile highlights">
+            <span class="hero-pill">Career summary</span>
+            <span class="hero-pill">Season-by-season table</span>
+            <span class="hero-pill">Stable profile URLs</span>
+          </div>
+        </div>
+
+        <aside class="hero-aside" aria-label="Player directory status">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Directory size</span>
+            <strong id="directory-total">Loading</strong>
+            <p id="directory-summary">Fetching player records and career spans from the API.</p>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main class="page-shell page-main">
+      <section class="panel reveal">
+        <div id="directory-status" class="status-banner" hidden></div>
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <p class="kicker">Directory</p>
+            <h2>Search the archive and open a player profile.</h2>
+          </div>
+          <p id="directory-results-meta" class="directory-results-meta">Loading players…</p>
+        </div>
+
+        <div class="field directory-search">
+          <label for="directory-search-input">Find a player</label>
+          <input id="directory-search-input" type="search" placeholder="Search by player name">
+        </div>
+      </section>
+
+      <section class="panel reveal">
+        <div id="directory-grid" class="directory-grid" aria-live="polite"></div>
+      </section>
+    </main>
+  </body>
+</html>
