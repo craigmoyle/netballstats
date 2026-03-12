@@ -320,8 +320,8 @@ function(res) {
     default_season = if (length(seasons)) seasons[[1]] else NA_integer_,
     seasons = seasons,
     teams = teams,
-    team_stats = available_stats(conn, "team_period_stats"),
-    player_stats = available_stats(conn, "player_period_stats"),
+    team_stats = metadata_stat_catalog(metadata_map, "team_stats_json", DEFAULT_TEAM_STATS),
+    player_stats = metadata_stat_catalog(metadata_map, "player_stats_json", DEFAULT_PLAYER_STATS),
     build_mode = metadata_map[["build_mode"]] %||% "production",
     refreshed_at = metadata_map[["refreshed_at"]] %||% NA_character_
   )

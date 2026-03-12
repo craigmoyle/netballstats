@@ -5,6 +5,27 @@ repo_root <- function() {
   )
 }
 
+DEFAULT_TEAM_STATS <- c(
+  "attempts1", "attempts2", "badHands", "badPasses", "blocked", "blocks", "breaks",
+  "centrePassReceives", "contactPenalties", "defensiveRebounds", "deflections",
+  "disposals", "feeds", "gain", "generalPlayTurnovers", "goal1", "goal2",
+  "goalAssists", "goalAttempts", "goalMisses", "goals", "goalsFromCentrePass",
+  "goalsFromGain", "goalsFromTurnovers", "intercepts", "netPoints",
+  "obstructionPenalties", "offensiveRebounds", "offsides", "passes", "penalties",
+  "pickups", "possessions", "rebounds", "timeInPossession", "tossUpWin",
+  "turnovers", "unforcedTurnovers"
+)
+
+DEFAULT_PLAYER_STATS <- c(
+  "attempts1", "attempts2", "badHands", "badPasses", "blocked", "blocks", "breaks",
+  "centrePassReceives", "contactPenalties", "defensiveRebounds", "deflections",
+  "disposals", "feeds", "gain", "generalPlayTurnovers", "goal1", "goal2",
+  "goalAssists", "goalAttempts", "goalMisses", "goals", "intercepts",
+  "minutesPlayed", "missedGoalTurnover", "netPoints", "obstructionPenalties",
+  "offensiveRebounds", "offsides", "passes", "penalties", "pickups", "possessions",
+  "quartersPlayed", "rebounds", "tossUpWin", "turnovers", "unforcedTurnovers"
+)
+
 default_db_path <- function() {
   default_sqlite_db_path(repo_root())
 }
@@ -123,6 +144,42 @@ parse_search <- function(value, name = "search", max_length = 80L) {
   }
 
   trimmed
+}
+
+normalize_stat_catalog <- function(values) {
+  normalized <- as.character(values %||% character())
+  normalized <- normalized[!is.na(normalized)]
+  normalized <- trimws(normalized)
+  sort(unique(normalized[nzchar(normalized)]))
+}
+
+stat_catalog_metadata_entries <- function(team_stats, player_stats) {
+  data.frame(
+    key = c("team_stats_json", "player_stats_json"),
+    value = c(
+      jsonlite::toJSON(normalize_stat_catalog(team_stats), auto_unbox = TRUE),
+      jsonlite::toJSON(normalize_stat_catalog(player_stats), auto_unbox = TRUE)
+    ),
+    stringsAsFactors = FALSE
+  )
+}
+
+metadata_stat_catalog <- function(metadata_map, key, fallback) {
+  raw_value <- if (key %in% names(metadata_map)) metadata_map[[key]] else ""
+  if (!nzchar(raw_value)) {
+    return(normalize_stat_catalog(fallback))
+  }
+
+  parsed <- tryCatch(
+    jsonlite::fromJSON(raw_value, simplifyVector = TRUE),
+    error = function(error) NULL
+  )
+  normalized <- normalize_stat_catalog(parsed)
+  if (length(normalized)) {
+    return(normalized)
+  }
+
+  normalize_stat_catalog(fallback)
 }
 
 normalize_player_search_name <- function(value) {

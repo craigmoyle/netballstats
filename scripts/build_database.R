@@ -18,6 +18,7 @@ script_path <- function() {
 
 repo_root <- normalizePath(file.path(dirname(script_path()), ".."), mustWork = FALSE)
 source(file.path(repo_root, "R", "database.R"), local = TRUE)
+source(file.path(repo_root, "api", "R", "helpers.R"), local = TRUE)
 config_path <- file.path(repo_root, "config", "competitions.csv")
 db_path <- Sys.getenv("NETBALL_STATS_DB", default_sqlite_db_path(repo_root))
 sample_mode <- identical(tolower(Sys.getenv("NETBALL_STATS_SAMPLE", "false")), "true")
@@ -426,13 +427,19 @@ write_database <- function(tables, db_path, build_mode) {
     DBI::dbWriteTable(conn, "team_period_stats", tables$team_period_stats, overwrite = TRUE)
     DBI::dbWriteTable(conn, "player_period_stats", tables$player_period_stats, overwrite = TRUE)
 
-    metadata <- dplyr::tibble(
+    metadata <- dplyr::bind_rows(
+      dplyr::tibble(
       key = c("refreshed_at", "build_mode", "season_count", "match_count"),
       value = c(
         format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC"),
         build_mode,
         as.character(length(unique(tables$matches$season))),
         as.character(nrow(tables$matches))
+      )
+      ),
+      stat_catalog_metadata_entries(
+        tables$team_period_stats$stat[!is.na(tables$team_period_stats$value_number)],
+        tables$player_period_stats$stat[!is.na(tables$player_period_stats$value_number)]
       )
     )
     DBI::dbWriteTable(conn, "metadata", metadata, overwrite = TRUE)
