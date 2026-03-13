@@ -566,6 +566,16 @@ parse_query_threshold <- function(text) {
   NULL
 }
 
+extract_query_seasons <- function(text) {
+  matched <- gregexpr("\\b20[0-9]{2}\\b", text, perl = TRUE)
+  seasons <- regmatches(text, matched)[[1]]
+  if (!length(seasons)) {
+    return(NULL)
+  }
+
+  unique(as.integer(seasons))
+}
+
 build_query_stat_alias_rows <- function() {
   rows <- lapply(names(QUERY_STAT_DEFINITIONS), function(stat_name) {
     aliases <- QUERY_STAT_DEFINITIONS[[stat_name]]$aliases %||% character()
@@ -814,8 +824,8 @@ parse_query_intent <- function(conn, question, limit = 12L) {
   }
 
   threshold <- parse_query_threshold(normalized_text)
-  season_text <- extract_first_capture(normalized_text, "\\b(?:in|during)\\s+(20[0-9]{2})\\b")
-  season <- if (is.null(season_text)) NULL else as.integer(season_text)
+  seasons <- extract_query_seasons(normalized_text)
+  season <- if (!is.null(seasons) && length(seasons) == 1L) seasons[[1]] else NULL
   opponent_phrase <- extract_first_capture(
     normalized_text,
     "\\bagainst\\s+(.+?)(?:\\s+(?:in|during)\\s+20[0-9]{2}\\b|$)"
@@ -875,7 +885,7 @@ parse_query_intent <- function(conn, question, limit = 12L) {
     ))
   }
   if (identical(intent_type, "list") && identical(subject_type, "players") &&
-      is.null(threshold) && is.null(opponent) && is.null(season)) {
+      is.null(threshold) && is.null(opponent) && is.null(seasons)) {
     return(query_error_payload(
       "unsupported",
       parsed_question,
@@ -897,6 +907,7 @@ parse_query_intent <- function(conn, question, limit = 12L) {
     threshold = threshold$threshold %||% NULL,
     opponent_id = opponent$squad_id %||% NULL,
     opponent_name = opponent$squad_name %||% NULL,
+    seasons = seasons,
     season = season,
     limit = limit
   )
@@ -957,13 +968,37 @@ format_query_number <- function(value) {
   )
 }
 
+format_query_season_label <- function(seasons) {
+  seasons <- as.integer(seasons %||% integer())
+  seasons <- seasons[!is.na(seasons)]
+  if (!length(seasons)) {
+    return(NULL)
+  }
+
+  seasons <- sort(unique(seasons))
+  season_labels <- as.character(seasons)
+  if (length(season_labels) == 1L) {
+    return(season_labels[[1]])
+  }
+  if (length(season_labels) == 2L) {
+    return(paste(season_labels, collapse = " or "))
+  }
+
+  paste0(
+    paste(season_labels[seq_len(length(season_labels) - 1L)], collapse = ", "),
+    ", or ",
+    season_labels[[length(season_labels)]]
+  )
+}
+
 query_filter_suffix <- function(intent) {
   suffix <- character()
   if (!is.null(intent$opponent_name)) {
     suffix <- c(suffix, paste("against", intent$opponent_name))
   }
-  if (!is.null(intent$season)) {
-    suffix <- c(suffix, paste("in", intent$season))
+  season_label <- format_query_season_label(intent$seasons %||% intent$season)
+  if (!is.null(season_label)) {
+    suffix <- c(suffix, paste("in", season_label))
   }
 
   if (!length(suffix)) {
@@ -1097,7 +1132,9 @@ sort_query_result_rows <- function(rows, intent_type = "list") {
 }
 
 fetch_query_result_rows <- function(conn, intent) {
-  seasons_to_query <- if (!is.null(intent$season)) {
+  seasons_to_query <- if (!is.null(intent$seasons) && length(intent$seasons)) {
+    as.integer(intent$seasons)
+  } else if (!is.null(intent$season)) {
     c(as.integer(intent$season))
   } else {
     available_match_seasons(conn)

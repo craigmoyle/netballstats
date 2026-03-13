@@ -882,6 +882,7 @@ function(question = "", limit = "12", res) {
         comparison_label = intent$comparison_label,
         threshold = intent$threshold,
         opponent_name = intent$opponent_name,
+        seasons = intent$seasons,
         season = intent$season,
         limit = intent$limit
       )),

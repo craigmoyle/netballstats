@@ -163,6 +163,9 @@ function renderMeta(meta) {
 
 function renderInterpretation(parsed = {}) {
   elements.interpretationGrid.replaceChildren();
+  const seasonValue = Array.isArray(parsed.seasons) && parsed.seasons.length
+    ? parsed.seasons.join(", ")
+    : (parsed.season || "All seasons");
 
   const cards = [
     ["Question type", QUERY_STATUS_LABELS[parsed.intent_type] || "--"],
@@ -172,7 +175,7 @@ function renderInterpretation(parsed = {}) {
       ? `${parsed.comparison_label} ${formatNumber(parsed.threshold)}`
       : "None"],
     ["Opponent", parsed.opponent_name || "Any"],
-    ["Season", parsed.season || "All seasons"]
+    ["Season", seasonValue]
   ];
 
   cards.forEach(([label, value]) => {
