@@ -725,13 +725,13 @@ resolve_query_player <- function(conn, question) {
     player <- players[index, , drop = FALSE]
     tokens <- unlist(strsplit(as.character(player$canonical_name), "[^A-Za-z0-9]+"))
     tokens <- tokens[nzchar(tokens)]
-    first_token <- if (length(tokens)) tokens[[1]] else ""
-    last_token <- if (length(tokens)) tokens[[length(tokens)]] else ""
+    short_tokens <- unlist(strsplit(as.character(player$short_display_name), "[^A-Za-z0-9]+"))
+    short_tokens <- short_tokens[nzchar(short_tokens)]
     aliases <- unique(c(
       as.character(player$canonical_name),
       as.character(player$short_display_name),
-      first_token,
-      last_token
+      tokens,
+      short_tokens
     ))
     aliases <- aliases[nzchar(aliases)]
 
@@ -844,6 +844,20 @@ parse_query_intent <- function(conn, question, limit = 12L) {
       "unsupported",
       parsed_question,
       "I couldn't identify which player you want to ask about."
+    ))
+  }
+  if (
+    !identical(subject_type, "players") &&
+    (
+      is.null(player$player_id) ||
+      is.null(player$player_name) ||
+      !nzchar(as.character(player$player_name))
+    )
+  ) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "I couldn't confidently match a single player in that question."
     ))
   }
 
