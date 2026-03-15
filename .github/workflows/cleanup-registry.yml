@@ -1,0 +1,136 @@
+name: Clean up container registry
+
+# Runs every Sunday at 02:00 UTC and on manual dispatch.
+# Keeps the 5 most recent image tags for every repository in the ACR;
+# older tags are permanently deleted.
+#
+# Required GitHub Actions variables (Settings → Variables → Actions):
+#   AZURE_REGISTRY_NAME    — ACR name without the .azurecr.io domain
+#                            (e.g. netballstatswr5i2lacr)
+#   AZURE_SUBSCRIPTION_ID  — Azure subscription ID
+#
+# Required GitHub Actions secrets (Settings → Secrets → Actions):
+#   AZURE_CLIENT_ID        — App registration / managed-identity client ID
+#   AZURE_TENANT_ID        — Microsoft Entra tenant ID
+#
+# The service-principal needs the built-in AcrDelete role on the registry.
+#
+# One-time setup (replace <owner>/<repo> and the IDs below):
+#
+#   # 1. Create an app registration
+#   APP_ID=$(az ad app create --display-name netballstats-ghactions \
+#              --query appId -o tsv)
+#   SP_ID=$(az ad sp create --id $APP_ID --query id -o tsv)
+#
+#   # 2. Add a federated credential so GitHub can exchange an OIDC token
+#   az ad app federated-credential create --id $APP_ID --parameters '{
+#     "name": "ghactions-cleanup",
+#     "issuer": "https://token.actions.githubusercontent.com",
+#     "subject": "repo:craigmoyle/netballstats:ref:refs/heads/main",
+#     "audiences": ["api://AzureADTokenExchange"]
+#   }'
+#
+#   # Also allow the workflow_dispatch subject (scheduled runs use main):
+#   az ad app federated-credential create --id $APP_ID --parameters '{
+#     "name": "ghactions-cleanup-dispatch",
+#     "issuer": "https://token.actions.githubusercontent.com",
+#     "subject": "repo:craigmoyle/netballstats:environment:production",
+#     "audiences": ["api://AzureADTokenExchange"]
+#   }'
+#
+#   # 3. Assign AcrDelete on the registry
+#   ACR_ID=$(az acr show --name netballstatswr5i2lacr \
+#              --query id -o tsv)
+#   az role assignment create \
+#     --assignee-object-id $SP_ID \
+#     --assignee-principal-type ServicePrincipal \
+#     --role AcrDelete \
+#     --scope $ACR_ID
+#
+#   # 4. Store in GitHub
+#   gh secret set AZURE_CLIENT_ID  --body "$APP_ID"
+#   gh secret set AZURE_TENANT_ID  --body "$(az account show --query tenantId -o tsv)"
+#   gh variable set AZURE_SUBSCRIPTION_ID --body "bde7d6e3-2a55-44df-9e0b-fdc9c93c7288"
+#   gh variable set AZURE_REGISTRY_NAME   --body "netballstatswr5i2lacr"
+
+on:
+  schedule:
+    - cron: "0 2 * * 0" # Every Sunday at 02:00 UTC
+  workflow_dispatch:
+    inputs:
+      keep:
+        description: "Number of tags to keep per repository (default: 5)"
+        required: false
+        default: "5"
+
+permissions:
+  id-token: write # Required for OIDC token exchange with Azure
+  contents: read
+
+jobs:
+  cleanup:
+    name: Prune old ACR tags
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      KEEP: ${{ inputs.keep || '5' }}
+
+    steps:
+      - name: Log in to Azure (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Prune each repository to ${{ env.KEEP }} tags
+        env:
+          REGISTRY: ${{ vars.AZURE_REGISTRY_NAME }}
+        run: |
+          set -euo pipefail
+
+          repos=$(az acr repository list \
+            --name "$REGISTRY" \
+            --output tsv 2>/dev/null || true)
+
+          if [ -z "$repos" ]; then
+            echo "No repositories found in $REGISTRY — nothing to do."
+            exit 0
+          fi
+
+          total_deleted=0
+
+          for repo in $repos; do
+            echo "=== Repository: $repo ==="
+
+            tags=$(az acr repository show-tags \
+              --name "$REGISTRY" \
+              --repository "$repo" \
+              --orderby time_desc \
+              --output tsv)
+
+            tag_count=$(echo "$tags" | grep -c . || true)
+            echo "  Found $tag_count tag(s); keeping $KEEP newest"
+
+            if [ "$tag_count" -le "$KEEP" ]; then
+              echo "  Nothing to delete."
+              continue
+            fi
+
+            # Everything after the first KEEP lines is a deletion candidate.
+            to_delete=$(echo "$tags" | tail -n +"$(( KEEP + 1 ))")
+
+            while IFS= read -r tag; do
+              [ -z "$tag" ] && continue
+              echo "  Deleting $repo:$tag"
+              az acr repository delete \
+                --name "$REGISTRY" \
+                --image "$repo:$tag" \
+                --yes
+              total_deleted=$(( total_deleted + 1 ))
+            done <<< "$to_delete"
+          done
+
+          echo ""
+          echo "Done. Deleted $total_deleted tag(s) across all repositories."
