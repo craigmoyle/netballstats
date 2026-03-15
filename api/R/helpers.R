@@ -1147,9 +1147,11 @@ sort_query_result_rows <- function(rows, intent_type = "list") {
 }
 
 fetch_player_season_metric_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "goals", search = "") {
-  seasons_to_query <- requested_or_available_seasons(conn, seasons)
-
   # Single query over all requested seasons; avoids one round-trip per season.
+  # When seasons is NULL (no filter), omit the IN clause so the planner can do
+  # a straight index scan on stat without a large IN list covering every season.
+  seasons_filter <- if (!is.null(seasons) && length(seasons)) as.integer(seasons) else NULL
+
   query <- paste(
     "SELECT stats.player_id, players.canonical_name AS player_name, MAX(stats.squad_name) AS squad_name,",
     "stats.season, ?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value,",
@@ -1162,7 +1164,7 @@ fetch_player_season_metric_rows <- function(conn, seasons = NULL, team_id = NULL
   filters <- apply_stat_filters(
     query,
     list(stat = stat),
-    seasons = seasons_to_query,
+    seasons = seasons_filter,
     team_id = team_id,
     round_number = round,
     table_alias = "stats"
@@ -1257,9 +1259,11 @@ sort_player_series_rows <- function(rows, metric = "total") {
 }
 
 fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "goals", search = "", limit = 10L) {
-  seasons_to_query <- requested_or_available_seasons(conn, seasons)
-
   # Single query over all requested seasons; avoids one round-trip per season.
+  # When seasons is NULL (no filter), omit the IN clause so the planner can do
+  # a straight index scan on stat without a large IN list covering every season.
+  seasons_filter <- if (!is.null(seasons) && length(seasons)) as.integer(seasons) else NULL
+
   query <- paste(
     "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
     "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
@@ -1273,7 +1277,7 @@ fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, ro
   filters <- apply_stat_filters(
     query,
     list(stat = stat),
-    seasons = seasons_to_query,
+    seasons = seasons_filter,
     team_id = team_id,
     round_number = round,
     table_alias = "stats"
@@ -1291,12 +1295,15 @@ fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, ro
 }
 
 fetch_query_result_rows <- function(conn, intent) {
-  seasons_to_query <- if (!is.null(intent$seasons) && length(intent$seasons)) {
+  # Resolve the season filter: specific seasons from the intent, or NULL (no
+  # restriction) when the user didn't mention a season. Passing NULL lets the
+  # planner do a stat-only index scan instead of an IN list covering every year.
+  seasons_filter <- if (!is.null(intent$seasons) && length(intent$seasons)) {
     as.integer(intent$seasons)
-  } else if (!is.null(intent$season)) {
-    c(as.integer(intent$season))
+  } else if (!is.null(intent$season) && length(intent$season)) {
+    as.integer(intent$season)
   } else {
-    available_match_seasons(conn)
+    NULL
   }
 
   # Issue a single query for all seasons using an IN clause rather than one
@@ -1304,7 +1311,7 @@ fetch_query_result_rows <- function(conn, intent) {
   # when the user requests data across the full history (9+ seasons).
   base_query <- build_player_match_query(
     stat = intent$stat,
-    seasons = seasons_to_query,
+    seasons = seasons_filter,
     player_id = intent$player_id,
     opponent_id = intent$opponent_id,
     comparison = intent$comparison,
