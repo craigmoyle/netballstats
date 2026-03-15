@@ -497,7 +497,7 @@ function(season = "", seasons = "", team_id = "", round = "", limit = "12", res)
 
 #* @get /team-leaders
 #* @get /api/team-leaders
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", metric = "total", limit = "8", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", metric = "total", limit = "8", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
@@ -509,7 +509,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", me
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 8L, maximum = 25L)
-    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
+    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
     metric <- parse_metric(metric)
     order_column <- if (identical(metric, "average")) "average_value" else "total_value"
 
@@ -535,7 +535,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", me
 
 #* @get /player-leaders
 #* @get /api/player-leaders
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", search = "", metric = "total", limit = "12", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", metric = "total", limit = "12", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
@@ -547,7 +547,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 12L, maximum = 50L)
-    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "goals")
+    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "points")
     metric <- parse_metric(metric)
     season_rows <- fetch_player_season_metric_rows(
       conn,
@@ -570,7 +570,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
 
 #* @get /competition-season-series
 #* @get /api/competition-season-series
-function(season = "", seasons = "", round = "", stat = "goals", metric = "total", res) {
+function(season = "", seasons = "", round = "", stat = "points", metric = "total", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
@@ -580,7 +580,7 @@ function(season = "", seasons = "", round = "", stat = "goals", metric = "total"
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
-    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
+    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
     metric <- parse_metric(metric)
 
     query <- paste(
@@ -604,7 +604,7 @@ function(season = "", seasons = "", round = "", stat = "goals", metric = "total"
 
 #* @get /team-season-series
 #* @get /api/team-season-series
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", metric = "total", limit = "10", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", metric = "total", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
@@ -616,7 +616,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", me
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 10L)
-    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
+    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
     metric <- parse_metric(metric)
     ranked_order_column <- if (identical(metric, "average")) "average_value" else "grand_total"
     series_order_column <- if (identical(metric, "average")) "average_value" else "total_value"
@@ -674,7 +674,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", me
 
 #* @get /player-season-series
 #* @get /api/player-season-series
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", search = "", metric = "total", limit = "10", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", metric = "total", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
@@ -686,7 +686,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 10L)
-    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "goals")
+    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "points")
     metric <- parse_metric(metric)
     rows <- fetch_player_season_metric_rows(
       conn,
@@ -712,7 +712,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
 
 #* @get /team-game-highs
 #* @get /api/team-game-highs
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", limit = "10", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
@@ -724,7 +724,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", li
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 50L)
-    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "goals")
+    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
 
     query <- paste(
       "SELECT stats.squad_id, stats.squad_name,",
@@ -751,7 +751,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", li
 
 #* @get /player-game-highs
 #* @get /api/player-game-highs
-function(season = "", seasons = "", team_id = "", round = "", stat = "goals", search = "", limit = "10", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
@@ -763,7 +763,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "goals", se
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 50L)
-    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "goals")
+    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "points")
     list(data = fetch_player_game_high_rows(
       conn,
       seasons = seasons,

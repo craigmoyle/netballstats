@@ -368,7 +368,7 @@ available_stats <- function(conn, table_name) {
   )$stat
 }
 
-validate_stat <- function(conn, table_name, stat, default_stat = "goals") {
+validate_stat <- function(conn, table_name, stat, default_stat = "points") {
   stats <- available_stats(conn, table_name)
   if (!length(stats)) {
     stop("No numeric stats are available in ", table_name, ".", call. = FALSE)
@@ -1142,7 +1142,7 @@ sort_query_result_rows <- function(rows, intent_type = "list") {
   rows[order_index, , drop = FALSE]
 }
 
-fetch_player_season_metric_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "goals", search = "") {
+fetch_player_season_metric_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "points", search = "") {
   # Single query over all requested seasons; avoids one round-trip per season.
   # When seasons is NULL (no filter), omit the IN clause so the planner can do
   # a straight index scan on stat without a large IN list covering every season.
@@ -1254,7 +1254,7 @@ sort_player_series_rows <- function(rows, metric = "total") {
   rows[order(rows$season, -rows[[order_column]], rows$player_name, na.last = TRUE), , drop = FALSE]
 }
 
-fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "goals", search = "", limit = 10L) {
+fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "points", search = "", limit = 10L) {
   # Single query over all requested seasons; avoids one round-trip per season.
   # When seasons is NULL (no filter), omit the IN clause so the planner can do
   # a straight index scan on stat without a large IN list covering every season.

@@ -19,8 +19,8 @@ const state = {
     seasons: [],
     teamId: "",
     round: "",
-    teamStat: "goals",
-    playerStat: "goals",
+    teamStat: "points",
+    playerStat: "points",
     statMode: "total",
     playerSearch: ""
   },
@@ -409,8 +409,8 @@ function applyMeta(meta) {
   elements.round.value = "";
   elements.playerSearch.value = "";
   elements.statMode.value = "total";
-  elements.teamStat.value = meta.team_stats.includes("goals") ? "goals" : meta.team_stats[0] || "";
-  elements.playerStat.value = meta.player_stats.includes("goals") ? "goals" : meta.player_stats[0] || "";
+  elements.teamStat.value = meta.team_stats.includes("points") ? "points" : meta.team_stats[0] || "";
+  elements.playerStat.value = meta.player_stats.includes("points") ? "points" : meta.player_stats[0] || "";
   renderFilterSummary();
   setPanelView("competition-season", state.views["competition-season"]);
   setPanelView("team-leaders", state.views["team-leaders"]);
