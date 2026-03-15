@@ -355,7 +355,14 @@ apply_stat_filters <- function(query, params, seasons = NULL, team_id = NULL, ro
   list(query = query, params = params)
 }
 
+validate_sql_identifier <- function(value, name = "identifier") {
+  if (!grepl("^[A-Za-z][A-Za-z0-9_]*$", value)) {
+    stop(name, " must start with a letter and contain only letters, digits, and underscores.", call. = FALSE)
+  }
+}
+
 available_stats <- function(conn, table_name) {
+  validate_sql_identifier(table_name, "table_name")
   query_rows(
     conn,
     sprintf(
@@ -1141,36 +1148,33 @@ sort_query_result_rows <- function(rows, intent_type = "list") {
 
 fetch_player_season_metric_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "goals", search = "") {
   seasons_to_query <- requested_or_available_seasons(conn, seasons)
-  rows_by_season <- lapply(seasons_to_query, function(season_value) {
-    query <- paste(
-      "SELECT stats.player_id, players.canonical_name AS player_name, MAX(stats.squad_name) AS squad_name,",
-      "stats.season, ?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value,",
-      "COUNT(DISTINCT stats.match_id) AS matches_played,",
-      "ROUND(CAST(SUM(stats.value_number) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average_value",
-      "FROM player_period_stats AS stats",
-      "INNER JOIN players ON players.player_id = stats.player_id",
-      "WHERE stats.stat = ?stat"
-    )
-    filters <- apply_stat_filters(
-      query,
-      list(stat = stat),
-      seasons = c(as.integer(season_value)),
-      team_id = team_id,
-      round_number = round,
-      table_alias = "stats"
-    )
-    search_filters <- apply_player_search_filter(filters$query, filters$params, search, "stats.player_id")
-    filters$query <- search_filters$query
-    filters$params <- search_filters$params
-    filters$query <- paste0(
-      filters$query,
-      " GROUP BY stats.player_id, players.canonical_name, stats.season"
-    )
 
-    query_rows(conn, filters$query, filters$params)
-  })
+  # Single query over all requested seasons; avoids one round-trip per season.
+  query <- paste(
+    "SELECT stats.player_id, players.canonical_name AS player_name, MAX(stats.squad_name) AS squad_name,",
+    "stats.season, ?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value,",
+    "COUNT(DISTINCT stats.match_id) AS matches_played,",
+    "ROUND(CAST(SUM(stats.value_number) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average_value",
+    "FROM player_period_stats AS stats",
+    "INNER JOIN players ON players.player_id = stats.player_id",
+    "WHERE stats.stat = ?stat"
+  )
+  filters <- apply_stat_filters(
+    query,
+    list(stat = stat),
+    seasons = seasons_to_query,
+    team_id = team_id,
+    round_number = round,
+    table_alias = "stats"
+  )
+  search_filters <- apply_player_search_filter(filters$query, filters$params, search, "stats.player_id")
+  filters$query <- paste0(
+    search_filters$query,
+    " GROUP BY stats.player_id, players.canonical_name, stats.season"
+  )
+  filters$params <- search_filters$params
 
-  bind_query_result_rows(rows_by_season)
+  query_rows(conn, filters$query, filters$params)
 }
 
 summarize_player_metric_rows <- function(rows) {
@@ -1254,44 +1258,36 @@ sort_player_series_rows <- function(rows, metric = "total") {
 
 fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "goals", search = "", limit = 10L) {
   seasons_to_query <- requested_or_available_seasons(conn, seasons)
-  rows_by_season <- lapply(seasons_to_query, function(season_value) {
-    query <- paste(
-      "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
-      "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
-      "stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
-      "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
-      "FROM player_period_stats AS stats",
-      "INNER JOIN players ON players.player_id = stats.player_id",
-      "INNER JOIN matches ON matches.match_id = stats.match_id",
-      "WHERE stats.stat = ?stat"
-    )
-    filters <- apply_stat_filters(
-      query,
-      list(stat = stat),
-      seasons = c(as.integer(season_value)),
-      team_id = team_id,
-      round_number = round,
-      table_alias = "stats"
-    )
-    search_filters <- apply_player_search_filter(filters$query, filters$params, search, "stats.player_id")
-    filters$query <- search_filters$query
-    filters$params <- search_filters$params
-    filters$query <- paste0(
-      filters$query,
-      " GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
-      " ORDER BY total_value DESC, stats.round_number DESC, players.canonical_name ASC LIMIT ?limit"
-    )
-    filters$params$limit <- limit
 
-    query_rows(conn, filters$query, filters$params)
-  })
+  # Single query over all requested seasons; avoids one round-trip per season.
+  query <- paste(
+    "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
+    "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+    "stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
+    "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+    "FROM player_period_stats AS stats",
+    "INNER JOIN players ON players.player_id = stats.player_id",
+    "INNER JOIN matches ON matches.match_id = stats.match_id",
+    "WHERE stats.stat = ?stat"
+  )
+  filters <- apply_stat_filters(
+    query,
+    list(stat = stat),
+    seasons = seasons_to_query,
+    team_id = team_id,
+    round_number = round,
+    table_alias = "stats"
+  )
+  search_filters <- apply_player_search_filter(filters$query, filters$params, search, "stats.player_id")
+  filters$query <- paste0(
+    search_filters$query,
+    " GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+    " ORDER BY total_value DESC, stats.round_number DESC, players.canonical_name ASC LIMIT ?limit"
+  )
+  filters$params <- search_filters$params
+  filters$params$limit <- limit
 
-  rows <- sort_query_result_rows(bind_query_result_rows(rows_by_season), "list")
-  if (!nrow(rows)) {
-    return(rows)
-  }
-
-  rows[seq_len(min(nrow(rows), limit)), , drop = FALSE]
+  sort_query_result_rows(query_rows(conn, filters$query, filters$params), "list")
 }
 
 fetch_query_result_rows <- function(conn, intent) {
@@ -1314,7 +1310,22 @@ fetch_query_result_rows <- function(conn, intent) {
     comparison = intent$comparison,
     threshold = intent$threshold
   )
-  rows <- query_rows(conn, base_query$query, base_query$params)
 
-  sort_query_result_rows(rows, intent$intent_type)
+  # For highest/lowest intents we only ever display 1 row. Push ORDER BY + LIMIT
+  # into SQL so the database returns one row instead of the full match history.
+  if (identical(intent$intent_type, "highest") || identical(intent$intent_type, "lowest")) {
+    order_dir <- if (identical(intent$intent_type, "lowest")) "ASC" else "DESC"
+    limited_query <- paste0(
+      base_query$query,
+      " ORDER BY total_value ", order_dir,
+      ", stats.season DESC, stats.round_number DESC, players.canonical_name ASC",
+      " LIMIT 1"
+    )
+    return(query_rows(conn, limited_query, base_query$params))
+  }
+
+  sort_query_result_rows(
+    query_rows(conn, base_query$query, base_query$params),
+    intent$intent_type
+  )
 }
