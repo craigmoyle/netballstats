@@ -8,7 +8,7 @@
   --border: rgba(238, 210, 156, 0.16);
   --border-strong: rgba(238, 210, 156, 0.35);
   --text: #f4efe5;
-  --muted: #bbaea0;
+  --muted: #cbc0b4;
   --accent: #f0c67e;
   --accent-strong: #ffe0a5;
   --accent-cool: #79d8d0;
@@ -160,14 +160,14 @@ code {
 .panel h2 {
   font-family: var(--display-font);
   font-weight: 600;
-  line-height: 0.94;
+  line-height: 1.0;
   letter-spacing: 0.03em;
   text-transform: uppercase;
 }
 
 .hero-copy h1 {
   max-width: none;
-  font-size: clamp(1rem, 1.9vw, 1.5rem);
+  font-size: clamp(1.1rem, 2vw, 1.6rem);
   margin-bottom: 0;
   line-height: 1.15;
 }
@@ -316,7 +316,7 @@ code {
 
 .filters {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 1rem;
   align-items: end;
 }
@@ -651,7 +651,7 @@ button:hover {
 .chart-value,
 .chart-axis,
 .chart-grid-label {
-  font-size: 12px;
+  font-size: 0.8rem;
 }
 
 .chart-grid-line {
@@ -850,7 +850,7 @@ tbody tr:hover {
 .directory-card__title {
   margin: 0;
   font-family: var(--display-font);
-  font-size: clamp(1.7rem, 3vw, 2.4rem);
+  font-size: clamp(1.4rem, 2.4vw, 2rem);
   line-height: 0.92;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -965,7 +965,7 @@ tbody tr:hover {
 }
 
 .query-page .hero-copy h1 {
-  max-width: 10ch;
+  max-width: none;
 }
 
 .query-page .hero-aside__card strong {
@@ -1147,7 +1147,7 @@ tbody tr:hover {
   display: block;
   margin-bottom: 0.45rem;
   color: var(--muted);
-  font-size: 0.82rem;
+  font-size: 0.9rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
