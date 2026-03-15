@@ -253,6 +253,7 @@ function populateSelect(select, options, placeholder) {
 }
 
 function setSelectedSeasons(values) {
+  if (!elements.seasonChoices) return;
   const selected = new Set(values.map((value) => `${value}`));
   elements.seasonChoices.querySelectorAll("input[type='checkbox']").forEach((input) => {
     input.checked = selected.has(input.value);
@@ -260,12 +261,14 @@ function setSelectedSeasons(values) {
 }
 
 function getSelectedSeasons() {
+  if (!elements.seasonChoices) return [];
   return [...elements.seasonChoices.querySelectorAll("input[type='checkbox']:checked")]
     .map((input) => input.value)
     .sort((left, right) => Number(right) - Number(left));
 }
 
 function renderSeasonChoices(seasons) {
+  if (!elements.seasonChoices) return;
   elements.seasonChoices.replaceChildren();
   seasons.forEach((season) => {
     const label = document.createElement("label");
