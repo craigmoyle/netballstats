@@ -32,7 +32,7 @@ ENV NETBALL_STATS_REPO_ROOT=/app
 ENV NETBALL_STATS_HOST=0.0.0.0
 ENV NETBALL_STATS_PORT=8000
 
-RUN useradd -r -u 1000 -m -s /bin/false netballstats \
+RUN useradd -u 1000 -m -s /bin/false netballstats \
   && chown -R netballstats:netballstats /app
 
 EXPOSE 8000

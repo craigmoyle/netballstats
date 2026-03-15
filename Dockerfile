@@ -28,7 +28,7 @@ ENV NETBALL_STATS_PORT=10000
 RUN mkdir -p /opt/render/project/src/storage \
   && Rscript scripts/build_database.R
 
-RUN useradd -r -u 1000 -m -s /bin/false netballstats \
+RUN useradd -u 1000 -m -s /bin/false netballstats \
   && chown -R netballstats:netballstats /opt/render/project/src
 
 EXPOSE 10000
