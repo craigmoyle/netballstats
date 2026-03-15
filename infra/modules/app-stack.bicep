@@ -509,8 +509,8 @@ resource dbRefreshJobSat 'Microsoft.App/jobs@2025-02-02-preview' = {
           ]
           env: dbRefreshEnv
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json('2')
+            memory: '4Gi'
           }
         }
       ]
@@ -571,8 +571,8 @@ resource dbRefreshJobSun 'Microsoft.App/jobs@2025-02-02-preview' = {
           ]
           env: dbRefreshEnv
           resources: {
-            cpu: json('0.5')
-            memory: '1Gi'
+            cpu: json('2')
+            memory: '4Gi'
           }
         }
       ]
