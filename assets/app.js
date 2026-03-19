@@ -57,11 +57,6 @@ const elements = {
   teamTrendChart: document.getElementById("team-trend-chart"),
   playerLeadersChart: document.getElementById("player-leaders-chart"),
   playerTrendChart: document.getElementById("player-trend-chart"),
-  competitionSeasonNote: document.getElementById("competition-season-note"),
-  teamBarNote: document.getElementById("team-bar-note"),
-  teamTrendNote: document.getElementById("team-trend-note"),
-  playerBarNote: document.getElementById("player-bar-note"),
-  playerTrendNote: document.getElementById("player-trend-note"),
   competitionValueHeading: document.getElementById("competition-value-heading"),
   teamValueHeading: document.getElementById("team-value-heading"),
   playerValueHeading: document.getElementById("player-value-heading"),
@@ -998,10 +993,6 @@ function renderSeasonColumnChart(container, rows, {
 }
 
 function renderCompetitionSeasonChart(rows, errorMessage) {
-  elements.competitionSeasonNote.textContent = state.filters.round
-    ? `Competition-wide ${statModeDescriptor()} ${state.filters.teamStat} values in round ${state.filters.round} by season. Team filters do not apply here.`
-    : `Competition-wide ${statModeDescriptor()} ${state.filters.teamStat} values by season. Team filters do not apply here.`;
-
   if (errorMessage) {
     clearChart(elements.competitionSeasonChart, errorMessage);
     return;
@@ -1018,8 +1009,6 @@ function renderCompetitionSeasonChart(rows, errorMessage) {
 
 function renderTeamCharts(leaderRows, trendRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
-  elements.teamBarNote.textContent = `Top ${chartLeaderRows.length || CHART_RANK_LIMIT} clubs by ${statModeDescriptor()} ${state.filters.teamStat} across ${describeSeasonScope()} and the active filters.`;
-  elements.teamTrendNote.textContent = `Season ${statModeDescriptor()} ${state.filters.teamStat} values for the top ${Math.min(trendRows.length || CHART_RANK_LIMIT, CHART_RANK_LIMIT)} clubs.`;
 
   renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
     ariaLabel: `Team leaderboard ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
@@ -1042,12 +1031,6 @@ function renderTeamCharts(leaderRows, trendRows) {
 
 function renderPlayerCharts(leaderRows, trendRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
-  elements.playerBarNote.textContent = state.filters.playerSearch
-    ? `Top ${chartLeaderRows.length || CHART_RANK_LIMIT} ${statModeDescriptor()} ${state.filters.playerStat} values for players matching “${state.filters.playerSearch}” across ${describeSeasonScope()}.`
-    : `Top ${chartLeaderRows.length || CHART_RANK_LIMIT} players by ${statModeDescriptor()} ${state.filters.playerStat} across ${describeSeasonScope()} and the active filters.`;
-  elements.playerTrendNote.textContent = state.filters.playerSearch
-    ? `Season ${statModeDescriptor()} ${state.filters.playerStat} values for the top ${Math.min(trendRows.length || CHART_RANK_LIMIT, CHART_RANK_LIMIT)} matching players.`
-    : `Season ${statModeDescriptor()} ${state.filters.playerStat} values for the top ${Math.min(trendRows.length || CHART_RANK_LIMIT, CHART_RANK_LIMIT)} players.`;
 
   renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
     ariaLabel: `Player leaderboard ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
