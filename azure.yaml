@@ -12,8 +12,6 @@ hooks:
       # After deploying the API, sync the refresh job images to match.
       # DB_REFRESH_JOB_SAT_NAME and DB_REFRESH_JOB_SUN_NAME come from
       # Bicep outputs, surfaced as env vars by azd.
-      # Uses az rest (not az containerapp job update) to avoid the extension
-      # hardcoding an unsupported API version.
       # AZURE_RESOURCE_GROUP is not exported by azd; fall back to the known value.
       RG="${AZURE_RESOURCE_GROUP:-rg-netballstats-audljf}"
       API_IMAGE=$(az rest \
@@ -21,15 +19,16 @@ hooks:
         --url "https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RG/providers/Microsoft.App/containerApps?api-version=2024-03-01" \
         --query "value[?tags.\"azd-service-name\"=='api'].properties.template.containers[0].image | [0]" \
         --output tsv)
-      BODY="{\"properties\":{\"template\":{\"containers\":[{\"image\":\"$API_IMAGE\",\"name\":\"main\"}]}}}"
-      az rest \
-        --method patch \
-        --url "https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RG/providers/Microsoft.App/jobs/$DB_REFRESH_JOB_SAT_NAME?api-version=2025-01-01" \
-        --body "$BODY"
-      az rest \
-        --method patch \
-        --url "https://management.azure.com/subscriptions/$AZURE_SUBSCRIPTION_ID/resourceGroups/$RG/providers/Microsoft.App/jobs/$DB_REFRESH_JOB_SUN_NAME?api-version=2025-01-01" \
-        --body "$BODY"
+      az containerapp job update \
+        --name "$DB_REFRESH_JOB_SAT_NAME" \
+        --resource-group "$RG" \
+        --image "$API_IMAGE" \
+        --container-name main
+      az containerapp job update \
+        --name "$DB_REFRESH_JOB_SUN_NAME" \
+        --resource-group "$RG" \
+        --image "$API_IMAGE" \
+        --container-name main
 services:
   web:
     project: .
