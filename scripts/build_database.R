@@ -391,7 +391,7 @@ configure_postgres_api_user <- function(conn) {
   DBI::dbExecute(conn, paste0("GRANT CONNECT ON DATABASE ", quoted_database, " TO ", quoted_username))
   DBI::dbExecute(conn, paste0("GRANT USAGE ON SCHEMA public TO ", quoted_username))
 
-  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "metadata")) {
+  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "player_match_stats", "metadata")) {
     quoted_table <- DBI::dbQuoteIdentifier(conn, DBI::Id(schema = "public", table = table_name))
     DBI::dbExecute(conn, paste0("GRANT SELECT ON TABLE ", quoted_table, " TO ", quoted_username))
   }
@@ -443,8 +443,12 @@ write_database <- function(tables, build_mode) {
 
     # player_period_stats: season/squad/player/stat for filtered leaderboard queries
     DBI::dbExecute(conn, "CREATE INDEX idx_player_stats_lookup ON player_period_stats(season, squad_id, player_id, stat)")
-    # stat-first index for /query and /game-high endpoints that filter by stat across all seasons
-    DBI::dbExecute(conn, "CREATE INDEX idx_player_stats_stat_season ON player_period_stats(stat, season, player_id)")
+    # stat-first covering index for /query and /game-high endpoints that filter
+    # by stat across all seasons; INCLUDE avoids heap lookups for the key columns
+    DBI::dbExecute(conn, paste(
+      "CREATE INDEX idx_player_stats_stat_cover ON player_period_stats(stat, player_id, match_id)",
+      "INCLUDE (season, round_number, squad_id, squad_name, value_number)"
+    ))
     # match_id index speeds up the JOIN with matches in game-high and query endpoints
     DBI::dbExecute(conn, "CREATE INDEX idx_player_stats_match ON player_period_stats(match_id)")
 
@@ -452,11 +456,28 @@ write_database <- function(tables, build_mode) {
     DBI::dbExecute(conn, "CREATE INDEX idx_players_search_name ON players(search_name)")
     DBI::dbExecute(conn, "CREATE INDEX idx_player_aliases_search_name ON player_aliases(alias_search_name, player_id)")
 
+    # Pre-aggregate period-level stats to match level.  Reduces per-stat row
+    # count by ~4x and allows /query and /game-high endpoints to use simple JOINs
+    # instead of GROUP BY across period rows — critical on the B1ms server.
+    DBI::dbExecute(conn, paste(
+      "CREATE TABLE player_match_stats AS",
+      "SELECT stats.player_id, stats.match_id, stats.season, stats.round_number,",
+      "  stats.squad_id, MAX(stats.squad_name) AS squad_name, stats.stat,",
+      "  ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS match_value",
+      "FROM player_period_stats AS stats",
+      "WHERE stats.value_number IS NOT NULL",
+      "GROUP BY stats.player_id, stats.match_id, stats.season, stats.round_number, stats.squad_id, stats.stat"
+    ))
+    # Primary access path: stat filter with top-N sort by match_value
+    DBI::dbExecute(conn, "CREATE INDEX idx_pms_stat_value ON player_match_stats(stat, match_value DESC, player_id, match_id)")
+    # Player + season lookups (player-leaders, player-season-series)
+    DBI::dbExecute(conn, "CREATE INDEX idx_pms_stat_player_season ON player_match_stats(stat, player_id, season, match_id)")
+
     configure_postgres_api_user(conn)
 
     # Analyse only our tables (system catalogs require superuser; skip them).
     for (tbl in c("competitions", "matches", "teams", "players", "player_aliases",
-                  "team_period_stats", "player_period_stats", "metadata")) {
+                  "team_period_stats", "player_period_stats", "player_match_stats", "metadata")) {
       DBI::dbExecute(conn, paste0("ANALYZE ", DBI::dbQuoteIdentifier(conn, tbl)))
     }
   })

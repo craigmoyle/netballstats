@@ -40,6 +40,14 @@ hooks:
         --resource-group "$RG" \
         --image "$API_IMAGE" \
         --container-name main
+      # Trigger an immediate DB rebuild so player_match_stats is created with
+      # the new image. Fire-and-forget — don't block the deploy on completion.
+      echo "Triggering DB refresh to rebuild player_match_stats..."
+      az containerapp job start \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --name "$SAT_JOB" \
+        --resource-group "$RG" \
+        --output none || true
 services:
   web:
     project: .
