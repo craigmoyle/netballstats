@@ -30,12 +30,28 @@
 
         <aside class="hero-aside" aria-label="Archive highlights">
           <div class="hero-aside__card">
-            <span class="hero-aside__label">Goals scored</span>
+            <span class="hero-aside__label">Points scored</span>
             <strong id="hero-total-goals">--</strong>
             <p id="hero-refresh-note">Loading archive…</p>
           </div>
         </aside>
       </section>
+
+      <section class="summary-band reveal" aria-label="Archive overview">
+        <article class="summary-card summary-card--accent">
+          <span class="summary-card__label">Matches</span>
+          <span id="summary-matches" class="summary-card__value">-</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Players</span>
+          <span id="summary-players" class="summary-card__value">-</span>
+        </article>
+        <article class="summary-card">
+          <span class="summary-card__label">Points scored</span>
+          <span id="summary-goals" class="summary-card__value">-</span>
+        </article>
+      </section>
+      <p id="summary-refreshed" class="muted refresh-note"></p>
     </header>
 
     <main id="main-content" class="page-shell page-main">
@@ -43,7 +59,7 @@
         <div id="status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
         <div class="panel__heading panel__heading--split">
           <div>
-            <h2>Filters</h2>
+            <h2>Explore the archive</h2>
           </div>
           <p id="active-filter-summary" class="muted filter-summary">Loading query options…</p>
         </div>
@@ -99,22 +115,6 @@
         </form>
       </section>
 
-      <section class="summary-band reveal" aria-label="Summary cards">
-        <article class="summary-card summary-card--accent">
-          <span class="summary-card__label">Matches</span>
-          <span id="summary-matches" class="summary-card__value">-</span>
-        </article>
-        <article class="summary-card">
-          <span class="summary-card__label">Players</span>
-          <span id="summary-players" class="summary-card__value">-</span>
-        </article>
-        <article class="summary-card">
-          <span class="summary-card__label">Points scored</span>
-          <span id="summary-goals" class="summary-card__value">-</span>
-        </article>
-      </section>
-      <p id="summary-refreshed" class="muted refresh-note"></p>
-
       <section class="panel results-panel results-panel--wide reveal">
         <div class="panel__heading panel__heading--split">
           <div>
@@ -139,6 +139,54 @@
       </section>
 
       <section class="results-grid" aria-label="Stat tables">
+        <section class="panel results-panel results-panel--wide reveal">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <h2>Player leaderboard</h2>
+            </div>
+            <div class="panel__meta-stack">
+              <p class="muted">Cross-season totals, including moves and name changes.</p>
+              <div class="view-toggle" role="group" aria-label="Player leaderboard view">
+                <button type="button" class="button button--ghost button--small is-active" data-panel="player-leaders" data-view-mode="table" aria-pressed="true">Table</button>
+                <button type="button" class="button button--ghost button--small" data-panel="player-leaders" data-view-mode="chart" aria-pressed="false">Chart</button>
+              </div>
+            </div>
+          </div>
+          <div class="panel-view" data-panel-view="player-leaders" data-panel-mode="table">
+            <div class="table-wrapper">
+              <table id="player-leaders-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Rank</th>
+                    <th scope="col">Player</th>
+                    <th scope="col">Team</th>
+                    <th scope="col">Stat</th>
+                    <th id="player-value-heading" scope="col">Total</th>
+                    <th scope="col">Matches</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="panel-view panel-view--charts" data-panel-view="player-leaders" data-panel-mode="chart" hidden>
+            <div class="chart-stack">
+              <article class="chart-card">
+                <div class="chart-card__header">
+                  <h3 class="chart-card__title">Top players by the selected stat</h3>
+                </div>
+                <div id="player-leaders-chart" class="chart-shell" role="img" aria-label="Player leaderboard chart"></div>
+              </article>
+              <article class="chart-card">
+                <div class="chart-card__header">
+                  <h3 class="chart-card__title">Season trend for top players</h3>
+                </div>
+                <div id="player-trend-chart" class="chart-shell" role="img" aria-label="Player season trend chart"></div>
+              </article>
+            </div>
+          </div>
+        </section>
+
         <section class="panel results-panel reveal">
           <div class="panel__heading panel__heading--split">
             <div>
@@ -219,54 +267,6 @@
                   <h3 class="chart-card__title">Season trend for top clubs</h3>
                 </div>
                 <div id="team-trend-chart" class="chart-shell" role="img" aria-label="Team season trend chart"></div>
-              </article>
-            </div>
-          </div>
-        </section>
-
-        <section class="panel results-panel reveal">
-          <div class="panel__heading panel__heading--split">
-            <div>
-              <h2>Player leaderboard</h2>
-            </div>
-            <div class="panel__meta-stack">
-              <p class="muted">Cross-season totals, including moves and name changes.</p>
-              <div class="view-toggle" role="group" aria-label="Player leaderboard view">
-                <button type="button" class="button button--ghost button--small is-active" data-panel="player-leaders" data-view-mode="table" aria-pressed="true">Table</button>
-                <button type="button" class="button button--ghost button--small" data-panel="player-leaders" data-view-mode="chart" aria-pressed="false">Chart</button>
-              </div>
-            </div>
-          </div>
-          <div class="panel-view" data-panel-view="player-leaders" data-panel-mode="table">
-            <div class="table-wrapper">
-              <table id="player-leaders-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Rank</th>
-                    <th scope="col">Player</th>
-                    <th scope="col">Team</th>
-                    <th scope="col">Stat</th>
-                    <th id="player-value-heading" scope="col">Total</th>
-                    <th scope="col">Matches</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="panel-view panel-view--charts" data-panel-view="player-leaders" data-panel-mode="chart" hidden>
-            <div class="chart-stack">
-              <article class="chart-card">
-                <div class="chart-card__header">
-                  <h3 class="chart-card__title">Top players by the selected stat</h3>
-                </div>
-                <div id="player-leaders-chart" class="chart-shell" role="img" aria-label="Player leaderboard chart"></div>
-              </article>
-              <article class="chart-card">
-                <div class="chart-card__header">
-                  <h3 class="chart-card__title">Season trend for top players</h3>
-                </div>
-                <div id="player-trend-chart" class="chart-shell" role="img" aria-label="Player season trend chart"></div>
               </article>
             </div>
           </div>

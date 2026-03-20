@@ -491,6 +491,7 @@ function renderTeamLeaders(rows) {
   rows.forEach((rowData, index) => {
     const colour = resolveTeamColour(rowData.squad_name, rowData.squad_colour, index);
     const row = document.createElement("tr");
+    row.setAttribute("data-rank", index + 1);
     row.style.setProperty("--row-accent", colour);
     row.append(
       createCell(`${index + 1}`),
@@ -513,6 +514,7 @@ function renderPlayerLeaders(rows) {
   rows.forEach((rowData, index) => {
     const colour = resolvePlayerColour(rowData.player_name, rowData.squad_name, index);
     const row = document.createElement("tr");
+    row.setAttribute("data-rank", index + 1);
     row.style.setProperty("--row-accent", colour);
     row.append(
       createCell(`${index + 1}`),
