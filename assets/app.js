@@ -43,6 +43,8 @@ const elements = {
   statMode: document.getElementById("stat-mode"),
   playerSearch: document.getElementById("player-search"),
   resetFilters: document.getElementById("reset-filters"),
+  heroTotalGoals: document.getElementById("hero-total-goals"),
+  heroRefreshNote: document.getElementById("hero-refresh-note"),
   summaryMatches: document.getElementById("summary-matches"),
   summaryTeams: document.getElementById("summary-teams"),
   summaryPlayers: document.getElementById("summary-players"),
@@ -450,6 +452,8 @@ function applyMeta(meta) {
 }
 
 function renderSummary(summary) {
+  if (elements.heroTotalGoals) elements.heroTotalGoals.textContent = formatNumber(summary.total_goals);
+  if (elements.heroRefreshNote) elements.heroRefreshNote.textContent = "Updated " + formatDate(summary.refreshed_at);
   elements.summaryMatches.textContent = formatNumber(summary.total_matches);
   if (elements.summaryTeams) elements.summaryTeams.textContent = formatNumber(summary.total_teams);
   elements.summaryPlayers.textContent = formatNumber(summary.total_players);

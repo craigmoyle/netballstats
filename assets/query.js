@@ -10,6 +10,7 @@ const QUERY_STATUS_LABELS = {
 
 const elements = {
   apiBase: document.getElementById("api-base"),
+  heroSeasonRange: document.getElementById("hero-season-range"),
   querySeasonSummary: document.getElementById("query-season-summary"),
   queryStatus: document.getElementById("query-status"),
   queryForm: document.getElementById("query-form"),
@@ -164,6 +165,7 @@ function renderMeta(meta) {
   }
 
   const seasons = [...meta.seasons].sort((left, right) => left - right);
+  if (elements.heroSeasonRange) elements.heroSeasonRange.textContent = seasons[0] + "\u2013" + seasons[seasons.length - 1];
   elements.querySeasonSummary.textContent = `${seasons[0]}-${seasons[seasons.length - 1]} archive coverage with ${meta.player_stats.length} tracked player stats in the catalog.`;
 }
 
