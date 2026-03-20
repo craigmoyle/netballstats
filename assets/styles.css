@@ -142,8 +142,7 @@ code {
 }
 
 .hero-panel,
-.panel,
-.summary-card {
+.panel {
   border: 1px solid var(--border);
   box-shadow: var(--shadow);
 }
@@ -282,7 +281,7 @@ code {
 .filter-actions button[type="submit"]:hover {
   background: var(--accent-strong);
   border-color: transparent;
-  box-shadow: 0 2px 12px rgba(240, 198, 126, 0.32);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
 }
 
 .season-choice span {
@@ -343,10 +342,6 @@ code {
 
 .hero-shell .summary-band {
   margin-top: 0.75rem;
-}
-
-.hero-shell .summary-card {
-  min-height: 100px;
 }
 
 .query-panel {
@@ -632,55 +627,60 @@ button[aria-busy="true"] {
   filter: none;
 }
 
+/* Summary band: editorial inline ticker — avoids the dashboard-metric-card AI pattern */
 .summary-band {
-  display: grid;
-  gap: 1rem;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-}
-
-.refresh-note {
-  margin: -0.5rem 0 0;
-  font-size: var(--type-sm);
-  text-align: right;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
 }
 
 .summary-card {
-  position: relative;
-  overflow: hidden;
-  min-height: 150px;
-  padding: 1.15rem 1.1rem;
-  border-radius: var(--radius-card);
-  background: var(--panel-alt);
-  border-top: 3px solid var(--border-strong);
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
 }
-.summary-card--accent {
-  background: var(--panel-solid);
-  border-top-color: var(--accent);
+
+.summary-card:not(:last-child)::after {
+  content: '·';
+  padding: 0 1.1rem;
+  color: color-mix(in srgb, var(--text) 20%, transparent);
+  font-size: var(--type-label);
 }
 
 .summary-card span {
-  display: block;
-  position: relative;
-  z-index: 1;
+  display: inline;
 }
 
 .summary-card__label {
+  font-family: var(--display-font);
+  font-size: var(--type-xs);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
   color: var(--muted);
-  font-size: var(--type-sm);
 }
 
 .summary-card__value {
   font-family: var(--display-font);
-  font-size: clamp(2.6rem, 5vw, 4rem);
-  line-height: 0.9;
+  font-size: clamp(1.35rem, 2.5vw, 1.75rem);
+  line-height: 1;
   letter-spacing: 0.04em;
-  margin-top: 0.65rem;
   font-variant-numeric: tabular-nums lnum;
+  order: -1;
 }
 
 .summary-card__value--small {
-  font-size: clamp(1.5rem, 3vw, 2.1rem);
-  line-height: 1;
+  font-size: clamp(1rem, 1.8vw, 1.3rem);
+}
+
+.summary-card--accent .summary-card__value {
+  color: var(--accent);
+}
+
+.refresh-note {
+  margin: 0.35rem 0 0;
+  font-size: var(--type-sm);
+  text-align: right;
 }
 
 .results-grid {
@@ -1302,9 +1302,9 @@ caption.table-caption {
   overflow: hidden;
   padding: 1.3rem;
   border-radius: var(--radius-panel);
-  border: 1px solid rgba(240, 198, 126, 0.18);
+  border: 1px solid color-mix(in srgb, var(--accent-cool) 22%, transparent);
   background:
-    linear-gradient(180deg, rgba(240, 198, 126, 0.08), transparent),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 6%, transparent), transparent),
     rgba(9, 17, 23, 0.5);
 }
 
@@ -1314,7 +1314,7 @@ caption.table-caption {
   inset: 0 auto auto 0;
   width: 100%;
   height: 1px;
-  background: linear-gradient(90deg, rgba(240, 198, 126, 0.8), rgba(240, 198, 126, 0));
+  background: linear-gradient(90deg, rgba(121, 216, 208, 0.65), rgba(121, 216, 208, 0));
 }
 
 .answer-stage__headline {
@@ -1615,19 +1615,15 @@ caption.table-caption {
   }
 
   .summary-band {
-    grid-template-columns: 1fr;
-  }
-
-  .summary-card {
-    min-height: 120px;
+    row-gap: 0.25rem;
   }
 
   .summary-card__value {
-    font-size: clamp(2.2rem, 10vw, 3rem);
+    font-size: clamp(1.25rem, 6vw, 1.55rem);
   }
 
   .summary-card__value--small {
-    font-size: clamp(1.25rem, 6vw, 1.8rem);
+    font-size: clamp(0.9rem, 4vw, 1.1rem);
   }
 
   .player-subtitle {
@@ -1662,11 +1658,6 @@ caption.table-caption {
     font-size: clamp(1.85rem, 10vw, 2.6rem);
   }
 
-  .summary-card {
-    min-height: auto;
-    padding: 0.9rem 1rem;
-  }
-
   .field input,
   .field select {
     padding: 0.8rem 0.9rem;
@@ -1699,15 +1690,6 @@ caption.table-caption {
 
 [data-theme="light"] .panel {
   background: var(--panel-solid);
-}
-
-[data-theme="light"] .summary-card {
-  background: var(--panel-alt);
-}
-
-[data-theme="light"] .summary-card--accent {
-  background: var(--panel-solid);
-  border-top-color: var(--accent);
 }
 
 [data-theme="light"] .page-nav__link {
