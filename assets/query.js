@@ -197,7 +197,7 @@ function renderRows(rows) {
     return;
   }
 
-  elements.queryRowsBody.replaceChildren();
+  const fragment = document.createDocumentFragment();
   rows.forEach((entry) => {
     const row = document.createElement("tr");
 
@@ -232,8 +232,9 @@ function renderRows(rows) {
       }
     });
 
-    elements.queryRowsBody.appendChild(row);
+    fragment.appendChild(row);
   });
+  elements.queryRowsBody.replaceChildren(fragment);
 }
 
 function renderUnsupported(result) {
@@ -307,12 +308,23 @@ function updateUrl(question) {
   window.history.replaceState({}, "", url);
 }
 
+let questionRunning = false;
+
 async function runQuestion(question) {
+  if (questionRunning) return;
+
   const trimmed = question.trim();
   if (!trimmed) {
     showStatus("Enter a question before running the parser.", "error");
     setIdleState();
     return;
+  }
+
+  questionRunning = true;
+  const submitBtn = elements.queryForm.querySelector('[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.setAttribute("aria-busy", "true");
   }
 
   showStatus("Parsing and running the question…");
@@ -339,6 +351,12 @@ async function runQuestion(question) {
       ]
     });
     showStatus(error.message || "The query request failed.", "error");
+  } finally {
+    questionRunning = false;
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.removeAttribute("aria-busy");
+    }
   }
 }
 

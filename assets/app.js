@@ -1063,7 +1063,16 @@ function renderPlayerCharts(leaderRows, trendRows) {
   });
 }
 
+let runQuerySeq = 0;
+
 async function runQueries() {
+  const seq = ++runQuerySeq;
+  const submitBtn = elements.filtersForm.querySelector('[type="submit"]');
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.setAttribute("aria-busy", "true");
+  }
+
   syncFiltersFromForm();
   renderFilterSummary();
   showStatus("Loading summary, matches, leaderboards, and charts…");
@@ -1129,6 +1138,8 @@ async function runQueries() {
     const teamLeaderRows = teamLeadersPayload.data || [];
     const playerLeaderRows = playerLeadersPayload.data || [];
 
+    if (seq !== runQuerySeq) return;
+
     renderSummary(summary);
     renderMatches(matchesPayload.data || []);
     renderCompetitionSeasonTable(
@@ -1150,9 +1161,15 @@ async function runQueries() {
       chartWarnings.length ? "neutral" : "success"
     );
   } catch (error) {
+    if (seq !== runQuerySeq) return;
     showStatus(error.message || "The query failed.", "error");
     clearAllTables("Unable to load data from the API.");
     clearAllCharts("Unable to load chart data from the API.");
+  } finally {
+    if (seq === runQuerySeq && submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.removeAttribute("aria-busy");
+    }
   }
 }
 
