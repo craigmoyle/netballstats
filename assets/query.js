@@ -54,7 +54,7 @@ async function fetchJson(path, params = {}) {
       signal: controller.signal
     });
 
-    const payload = await response.json().catch(() => ({ error: "The API returned invalid JSON." }));
+    const payload = await response.json().catch(() => ({ error: "Unexpected server response." }));
     if (!response.ok) {
       throw new Error(payload.error || `Request failed with status ${response.status}.`);
     }
@@ -150,12 +150,12 @@ function setSummaryCards(questionType = "--", matchCount = "--", stat = "--", st
 
 function setIdleState() {
   setSummaryCards();
-  elements.answerHeadline.textContent = "Run a question to see the parsed answer here.";
-  elements.answerMeta.textContent = "The answer sentence is generated from a fixed query template and the matching rows below.";
+  elements.answerHeadline.textContent = "Ask a question to see the answer.";
+  elements.answerMeta.textContent = "Each answer comes from the parsed intent and the matching records.";
   elements.interpretationGrid.replaceChildren();
   elements.queryState.hidden = false;
-  elements.tableMeta.textContent = "No rows loaded yet.";
-  clearTable("Run a supported question to see the matching rows.");
+  elements.tableMeta.textContent = "";
+  clearTable("Ask a question to see the matching records.");
 }
 
 function renderMeta(meta) {
@@ -193,7 +193,7 @@ function renderInterpretation(parsed = {}) {
 
 function renderRows(rows) {
   if (!Array.isArray(rows) || !rows.length) {
-    clearTable("No matching rows were returned for this question.");
+    clearTable("No matching records found.");
     return;
   }
 
@@ -241,7 +241,7 @@ function renderUnsupported(result) {
   const reason = result.reason || "That question is outside the supported v1 grammar.";
   setSummaryCards("--", "--", "--", result.status === "ambiguous" ? "Ambiguous" : "Unsupported");
   elements.answerHeadline.textContent = reason;
-  elements.answerMeta.textContent = "Try one of the supported question shapes below or use one of the prompt chips above.";
+  elements.answerMeta.textContent = "Try one of the examples above.";
   elements.interpretationGrid.replaceChildren();
   elements.queryState.hidden = false;
   elements.queryState.innerHTML = "";
@@ -269,8 +269,8 @@ function renderUnsupported(result) {
   });
   elements.queryState.appendChild(list);
 
-  elements.tableMeta.textContent = "No rows available for unsupported questions.";
-  clearTable("No evidence rows are shown until the parser can map the question safely.");
+  elements.tableMeta.textContent = "";
+  clearTable("Ask a supported question to see matching records.");
 }
 
 function renderResult(result) {
@@ -288,14 +288,14 @@ function renderResult(result) {
     summary.stat_label || "--",
     "Supported"
   );
-  elements.answerHeadline.textContent = result.answer || "No answer available.";
-  elements.answerMeta.textContent = "Answer generated from the parsed intent and the fixed query template below.";
+  elements.answerHeadline.textContent = result.answer || "No answer.";
+  elements.answerMeta.textContent = "Generated from the parsed intent and the query template.";
   elements.queryState.hidden = true;
   renderInterpretation(parsed);
   renderRows(result.rows);
   elements.tableMeta.textContent = Array.isArray(result.rows) && result.rows.length
     ? `Showing ${result.rows.length} supporting row${result.rows.length === 1 ? "" : "s"} from ${formatNumber(summary.match_count)} matching performances.`
-    : "No matching rows returned.";
+    : "No matching records.";
 }
 
 function updateUrl(question) {
@@ -315,7 +315,7 @@ async function runQuestion(question) {
 
   const trimmed = question.trim();
   if (!trimmed) {
-    showStatus("Enter a question before running the parser.", "error");
+    showStatus("Enter a question first.", "error");
     setIdleState();
     return;
   }
@@ -336,21 +336,21 @@ async function runQuestion(question) {
     updateUrl(trimmed);
     showStatus(
       result.status === "supported"
-        ? "Question parsed successfully."
+        ? ""
         : "The parser could not safely support that wording yet.",
       result.status === "supported" ? "success" : "error"
     );
   } catch (error) {
     renderUnsupported({
       status: "unsupported",
-      reason: error.message || "The query request failed.",
+      reason: error.message || "Something went wrong.",
       examples: [
         "How many times has Fowler scored 50 goals or more against the Vixens?",
         "What is Fowler's highest goals total against the Swifts?",
         "Which players scored 40+ goals in 2025?"
       ]
     });
-    showStatus(error.message || "The query request failed.", "error");
+    showStatus(error.message || "Something went wrong. Try again.", "error");
   } finally {
     questionRunning = false;
     if (submitBtn) {
@@ -367,7 +367,7 @@ async function init() {
     const meta = await fetchJson("/meta");
     renderMeta(meta);
   } catch (error) {
-    elements.querySeasonSummary.textContent = "Archive metadata is unavailable right now, but the query parser may still respond.";
+    elements.querySeasonSummary.textContent = "Stats metadata unavailable. The parser may still work.";
   }
 
   const params = new URLSearchParams(window.location.search);

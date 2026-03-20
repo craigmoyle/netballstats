@@ -112,7 +112,7 @@ async function fetchJson(path, params = {}) {
       signal: controller.signal
     });
 
-    const payload = await response.json().catch(() => ({ error: "The API returned invalid JSON." }));
+    const payload = await response.json().catch(() => ({ error: "Unexpected server response." }));
     if (!response.ok) {
       const message = Array.isArray(payload.error) ? payload.error.join(" ") : payload.error;
       throw new Error(message || `Request failed with status ${response.status}.`);
@@ -135,7 +135,7 @@ async function fetchOptionalJson(path, params = {}) {
   } catch (error) {
     return {
       data: [],
-      error: error.message || "Optional request failed."
+      error: error.message || ""
     };
   }
 }
@@ -459,13 +459,13 @@ function renderSummary(summary) {
   elements.summaryMatches.textContent = formatNumber(summary.total_matches);
   if (elements.summaryTeams) elements.summaryTeams.textContent = formatNumber(summary.total_teams);
   elements.summaryPlayers.textContent = formatNumber(summary.total_players);
-  elements.summaryGoals.textContent = formatNumber(summary.total_goals);
+  if (elements.summaryGoals) elements.summaryGoals.textContent = formatNumber(summary.total_goals);
   elements.summaryRefreshed.textContent = formatDate(summary.refreshed_at);
 }
 
 function renderMatches(matches) {
   if (!matches.length) {
-    clearTable(elements.matchesTableBody, "No matches found for the selected filters.");
+    clearTable(elements.matchesTableBody, "No matches for these filters.");
     return;
   }
 
@@ -486,7 +486,7 @@ function renderMatches(matches) {
 
 function renderTeamLeaders(rows) {
   if (!rows.length) {
-    clearTable(elements.teamLeadersBody, "No team leaderboard rows matched the selected filters.");
+    clearTable(elements.teamLeadersBody, "No results for these filters.");
     return;
   }
 
@@ -510,7 +510,7 @@ function renderTeamLeaders(rows) {
 
 function renderPlayerLeaders(rows) {
   if (!rows.length) {
-    clearTable(elements.playerLeadersBody, "No player leaderboard rows matched the selected filters.");
+    clearTable(elements.playerLeadersBody, "No results for these filters.");
     return;
   }
 
@@ -540,7 +540,7 @@ function renderCompetitionSeasonTable(rows, errorMessage) {
   }
 
   if (!rows.length) {
-    clearTable(elements.competitionSeasonBody, "No competition season totals matched the selected filters.");
+    clearTable(elements.competitionSeasonBody, "No results for these filters.");
     return;
   }
 
@@ -1012,7 +1012,7 @@ function renderCompetitionSeasonChart(rows, errorMessage) {
 
   renderSeasonColumnChart(elements.competitionSeasonChart, rows, {
     ariaLabel: `Competition ${statModeDescriptor()} chart by season for ${state.filters.teamStat}`,
-    emptyMessage: "No competition season totals matched the selected filters.",
+    emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.season,
     valueAccessor: (row) => statValue(row),
     colourAccessor: (_row, index) => fallbackColour(index)
@@ -1024,7 +1024,7 @@ function renderTeamCharts(leaderRows, trendRows) {
 
   renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
     ariaLabel: `Team leaderboard ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
-    emptyMessage: "No team leaderboard chart data matched the selected filters.",
+    emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.squad_name,
     valueAccessor: (row) => statValue(row),
     colourAccessor: (row, index) => resolveTeamColour(row.squad_name, row.squad_colour, index)
@@ -1032,8 +1032,8 @@ function renderTeamCharts(leaderRows, trendRows) {
 
   renderTrendChart(elements.teamTrendChart, trendRows, {
     ariaLabel: `Team season ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
-    emptyMessage: "No team trend data matched the selected filters.",
-    singleSeasonMessage: "Select at least two seasons to compare team trends over time.",
+    emptyMessage: "No results for these filters.",
+    singleSeasonMessage: "Select two or more seasons to see trends.",
     idAccessor: (row) => row.squad_id,
     labelAccessor: (row) => row.squad_name,
     valueAccessor: (row) => statValue(row),
@@ -1046,7 +1046,7 @@ function renderPlayerCharts(leaderRows, trendRows) {
 
   renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
     ariaLabel: `Player leaderboard ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
-    emptyMessage: "No player leaderboard chart data matched the selected filters.",
+    emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.player_name,
     valueAccessor: (row) => statValue(row),
     colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
@@ -1054,8 +1054,8 @@ function renderPlayerCharts(leaderRows, trendRows) {
 
   renderTrendChart(elements.playerTrendChart, trendRows, {
     ariaLabel: `Player season ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
-    emptyMessage: "No player trend data matched the selected filters.",
-    singleSeasonMessage: "Select at least two seasons to compare player trends over time.",
+    emptyMessage: "No results for these filters.",
+    singleSeasonMessage: "Select two or more seasons to see trends.",
     idAccessor: (row) => row.player_id,
     labelAccessor: (row) => row.player_name,
     valueAccessor: (row) => statValue(row),
@@ -1075,7 +1075,7 @@ async function runQueries() {
 
   syncFiltersFromForm();
   renderFilterSummary();
-  showStatus("Loading summary, matches, leaderboards, and charts…");
+  showStatus("Loading…");
   const leaderboardFetchLimit = Math.max(LEADERS_LIMIT, CHART_RANK_LIMIT);
 
   const baseParams = {
@@ -1144,27 +1144,27 @@ async function runQueries() {
     renderMatches(matchesPayload.data || []);
     renderCompetitionSeasonTable(
       competitionSeriesPayload.data || [],
-      competitionSeriesPayload.error ? "Competition season totals are temporarily unavailable." : ""
+      competitionSeriesPayload.error ? "Season totals temporarily unavailable." : ""
     );
     renderTeamLeaders(teamLeaderRows.slice(0, LEADERS_LIMIT));
     renderPlayerLeaders(playerLeaderRows.slice(0, LEADERS_LIMIT));
     renderCompetitionSeasonChart(
       competitionSeriesPayload.data || [],
-      competitionSeriesPayload.error ? "Competition season chart is temporarily unavailable." : ""
+      competitionSeriesPayload.error ? "Season chart temporarily unavailable." : ""
     );
     renderTeamCharts(teamLeaderRows, teamSeriesPayload.data || []);
     renderPlayerCharts(playerLeaderRows, playerSeriesPayload.data || []);
     showStatus(
       chartWarnings.length
-        ? "Core stats loaded. Some season charts are temporarily unavailable while the API catches up."
-        : "Query completed successfully.",
+        ? "Loaded. Some charts are still catching up."
+        : "",
       chartWarnings.length ? "neutral" : "success"
     );
   } catch (error) {
     if (seq !== runQuerySeq) return;
-    showStatus(error.message || "The query failed.", "error");
-    clearAllTables("Unable to load data from the API.");
-    clearAllCharts("Unable to load chart data from the API.");
+    showStatus(error.message || "Couldn't load stats.", "error");
+    clearAllTables("Couldn't load stats.");
+    clearAllCharts("Couldn't load charts.");
   } finally {
     if (seq === runQuerySeq && submitBtn) {
       submitBtn.disabled = false;
@@ -1174,8 +1174,8 @@ async function runQueries() {
 }
 
 async function initialise() {
-  clearAllTables("Loading data…");
-  clearAllCharts("Loading chart data…");
+  clearAllTables("Loading…");
+  clearAllCharts("Loading…");
 
   try {
     let meta;
@@ -1183,7 +1183,7 @@ async function initialise() {
       meta = await fetchJson("/meta");
     } catch (firstError) {
       // Retry once to handle cold-start delays (R/Plumber can take 20-30s to start).
-      showStatus("API is starting up, retrying…", "info");
+      showStatus("Starting up, please wait…", "info");
       await new Promise((resolve) => window.setTimeout(resolve, 5000));
       meta = await fetchJson("/meta");
     }
@@ -1191,11 +1191,11 @@ async function initialise() {
     await runQueries();
   } catch (error) {
     const hint = isLocalApiConfigured()
-      ? " Build the database and run the API before using the site."
-      : " The statistics API is currently unavailable. Please try again shortly.";
-    showStatus(hint.trim(), "error");
-    clearAllTables("API metadata is unavailable.");
-    clearAllCharts("API metadata is unavailable.");
+      ? "Run the API before using the site locally."
+      : "Stats unavailable. Try again shortly.";
+    showStatus(hint, "error");
+    clearAllTables("Stats unavailable.");
+    clearAllCharts("Stats unavailable.");
   }
 }
 
