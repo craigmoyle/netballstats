@@ -262,7 +262,7 @@ code {
 .field--secondary select {
   padding: 0.7rem 0.85rem;
   font-size: var(--type-sm);
-  border-color: rgba(255, 255, 255, 0.07);
+  border-color: color-mix(in srgb, var(--text) 7%, transparent);
   background: rgba(22, 37, 49, 0.6);
 }
 
@@ -287,8 +287,8 @@ code {
 
 .season-choice span {
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 .hero-aside {
@@ -318,16 +318,25 @@ code {
   color: var(--muted);
 }
 
+.field-hint-wrap {
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.2s ease-out;
+}
+
+.field:focus-within .field-hint-wrap {
+  grid-template-rows: 1fr;
+}
+
 .field-hint {
-  max-height: 0;
+  min-height: 0;
   overflow: hidden;
   opacity: 0;
-  transition: max-height 0.2s ease, opacity 0.2s ease;
+  transition: opacity 0.2s ease-out;
   margin-top: 0;
 }
 
 .field:focus-within .field-hint {
-  max-height: 4rem;
   opacity: 1;
   margin-top: 0.35rem;
 }
@@ -395,7 +404,7 @@ code {
   padding: 0.95rem 1rem;
   border-radius: var(--radius-sm);
   border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 .status-banner[data-tone="error"] {
@@ -427,7 +436,7 @@ code {
 .field--season-block {
   padding: 1rem;
   border-radius: var(--radius-card);
-  background: linear-gradient(180deg, rgba(121, 216, 208, 0.05), rgba(255, 255, 255, 0.02));
+  background: linear-gradient(180deg, rgba(121, 216, 208, 0.05), transparent);
   border: 1px solid rgba(121, 216, 208, 0.16);
 }
 
@@ -449,7 +458,7 @@ code {
 .field select {
   width: 100%;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   background: rgba(22, 37, 49, 0.9);
   color: var(--text);
   font: inherit;
@@ -479,7 +488,7 @@ a:focus-visible {
 /* Skip-to-content link (hidden until focused) */
 .skip-link {
   position: absolute;
-  top: -100%;
+  top: 0;
   left: 1rem;
   z-index: 9999;
   padding: 0.7rem 1.2rem;
@@ -491,11 +500,12 @@ a:focus-visible {
   font-weight: 600;
   letter-spacing: 0.01em;
   text-decoration: none;
-  transition: top 0.15s ease;
+  transform: translateY(-100%);
+  transition: transform 0.15s ease-out;
 }
 
 .skip-link:focus-visible {
-  top: 0;
+  transform: translateY(0);
   outline: 2px solid var(--text-on-accent);
   outline-offset: -3px;
 }
@@ -528,7 +538,7 @@ a:focus-visible {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition: transform 0.2s ease-out, border-color 0.2s ease-out, background 0.2s ease-out, color 0.2s ease-out;
 }
 
 .season-choice input:checked + span {
@@ -550,12 +560,11 @@ button {
   font-weight: 600;
   letter-spacing: 0.02em;
   padding: 0.95rem 1.3rem;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+  transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, filter 0.2s ease-out;
 }
 
 .button:hover,
-button:hover,
-.season-choice span:hover {
+button:hover {
   transform: translateY(-2px);
 }
 
@@ -568,12 +577,12 @@ button:hover {
 .button--ghost {
   background: transparent;
   color: var(--text);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  border: 1px solid color-mix(in srgb, var(--text) 14%, transparent);
   box-shadow: none;
 }
 
 .button--ghost:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
 }
 
 .button--small {
@@ -586,7 +595,7 @@ button:hover {
   align-items: center;
   gap: 0.3em;
   padding: 0.75rem 1rem;
-  background: rgba(255, 255, 255, 0.05);
+  background: color-mix(in srgb, var(--text) 5%, transparent);
   border: 1px solid var(--border);
   border-radius: 999px;
   color: var(--muted);
@@ -596,13 +605,13 @@ button:hover {
   letter-spacing: 0;
   text-transform: none;
   cursor: pointer;
-  transition: color 0.2s ease, background 0.2s ease, border-color 0.2s ease;
+  transition: color 0.2s ease-out, background 0.2s ease-out, border-color 0.2s ease-out;
   min-block-size: 44px;
 }
 
 .theme-toggle:hover {
   color: var(--text);
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--text) 8%, transparent);
   border-color: var(--border-strong);
   box-shadow: none;
   transform: none;
@@ -675,7 +684,7 @@ button:hover {
   gap: 0.45rem;
   padding: 0.35rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
   background: rgba(9, 17, 23, 0.55);
 }
 
@@ -708,9 +717,9 @@ button:hover {
   overflow: hidden;
   padding: 1rem;
   border-radius: var(--radius-card);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 4%, transparent), transparent),
     rgba(9, 17, 23, 0.42);
 }
 
@@ -746,9 +755,9 @@ button:hover {
   min-height: 260px;
   padding: 0.75rem;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.01)),
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 2%, transparent), transparent),
     rgba(10, 18, 25, 0.72);
 }
 
@@ -789,17 +798,17 @@ button:hover {
 }
 
 .chart-grid-line {
-  stroke: rgba(255, 255, 255, 0.09);
+  stroke: color-mix(in srgb, var(--text) 9%, transparent);
   stroke-dasharray: 4 8;
 }
 
 .chart-axis-line,
 .chart-track {
-  stroke: rgba(255, 255, 255, 0.12);
+  stroke: color-mix(in srgb, var(--text) 12%, transparent);
 }
 
 .chart-track {
-  fill: rgba(255, 255, 255, 0.04);
+  fill: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 .chart-bar {
@@ -832,8 +841,8 @@ button:hover {
   gap: 0.55rem;
   padding: 0.5rem 0.7rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
   color: var(--muted);
   font-size: var(--type-sm);
 }
@@ -842,7 +851,7 @@ button:hover {
   width: 0.8rem;
   height: 0.8rem;
   border-radius: 999px;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.1);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 10%, transparent);
 }
 
 .table-wrapper {
@@ -853,7 +862,7 @@ button:hover {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
   border-radius: var(--radius-card);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   background: rgba(9, 17, 23, 0.35);
 }
 
@@ -868,14 +877,14 @@ table {
 }
 
 thead {
-  background: rgba(255, 255, 255, 0.04);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 th,
 td {
   padding: 0.9rem 1rem;
   text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid color-mix(in srgb, var(--text) 6%, transparent);
 }
 
 td {
@@ -891,11 +900,11 @@ th {
 }
 
 tbody tr {
-  transition: background 0.2s ease;
+  transition: background 0.2s ease-out;
 }
 
 tbody tr:hover {
-  background: rgba(255, 255, 255, 0.035);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
 }
 
 /* Rank highlights — top 3 in any leaderboard */
@@ -940,7 +949,7 @@ tr[data-rank="3"] td:first-child {
   background: var(--swatch-color, var(--muted));
   vertical-align: middle;
   margin-right: 0.55rem;
-  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--text) 12%, transparent);
 }
 
 .table-link,
@@ -973,13 +982,13 @@ tr[data-rank="3"] td:first-child {
   gap: 0.45rem;
   padding: 0.7rem 0.95rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid color-mix(in srgb, var(--text) 12%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   color: var(--muted);
 }
 
 .page-nav__link:hover {
-  background: rgba(255, 255, 255, 0.07);
+  background: color-mix(in srgb, var(--text) 7%, transparent);
   color: var(--text);
 }
 
@@ -1007,18 +1016,18 @@ tr[data-rank="3"] td:first-child {
   min-height: 200px;
   padding: 1.15rem;
   border-radius: var(--radius-card);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.015)),
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 4%, transparent), transparent),
     rgba(9, 17, 23, 0.4);
-  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease;
+  transition: transform 0.2s ease-out, border-color 0.2s ease-out, background 0.2s ease-out;
 }
 
 .directory-card:hover {
   transform: translateY(-3px);
   border-color: rgba(240, 198, 126, 0.28);
   background:
-    linear-gradient(180deg, rgba(240, 198, 126, 0.08), rgba(255, 255, 255, 0.02)),
+    linear-gradient(180deg, rgba(240, 198, 126, 0.08), transparent),
     rgba(9, 17, 23, 0.52);
 }
 
@@ -1062,8 +1071,8 @@ tr[data-rank="3"] td:first-child {
   min-height: 2.1rem;
   padding: 0.45rem 0.8rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   color: var(--muted);
   font-size: 0.9rem;
 }
@@ -1137,14 +1146,14 @@ caption.table-caption {
 .empty-state {
   padding: 1.25rem;
   border-radius: var(--radius-sm);
-  border: 1px dashed rgba(255, 255, 255, 0.16);
+  border: 1px dashed color-mix(in srgb, var(--text) 16%, transparent);
   color: var(--muted);
-  background: rgba(255, 255, 255, 0.02);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 .query-page .hero-panel {
   background:
-    linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.01)),
+    linear-gradient(145deg, color-mix(in srgb, var(--text) 4%, transparent), transparent),
     radial-gradient(circle at top left, rgba(121, 216, 208, 0.14), transparent 38%),
     radial-gradient(circle at bottom right, rgba(240, 198, 126, 0.14), transparent 34%),
     rgba(9, 17, 23, 0.85);
@@ -1182,7 +1191,7 @@ caption.table-caption {
   border-radius: var(--radius-panel);
   border: 1px solid rgba(121, 216, 208, 0.16);
   background:
-    linear-gradient(180deg, rgba(121, 216, 208, 0.08), rgba(255, 255, 255, 0.015)),
+    linear-gradient(180deg, rgba(121, 216, 208, 0.08), transparent),
     rgba(9, 17, 23, 0.56);
 }
 
@@ -1243,16 +1252,15 @@ caption.table-caption {
   min-height: 2.6rem;
   padding: 0.65rem 0.9rem;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(255, 255, 255, 0.035);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  background: color-mix(in srgb, var(--text) 4%, transparent);
   color: var(--muted);
   font: inherit;
   cursor: pointer;
-  transition: transform 0.2s ease, border-color 0.2s ease, background 0.2s ease, color 0.2s ease;
+  transition: transform 0.2s ease-out, border-color 0.2s ease-out, background 0.2s ease-out, color 0.2s ease-out;
 }
 
 .example-chip:hover {
-  transform: translateY(-2px);
   border-color: rgba(121, 216, 208, 0.35);
   background: rgba(121, 216, 208, 0.08);
   color: var(--text);
@@ -1275,7 +1283,7 @@ caption.table-caption {
   border-radius: var(--radius-panel);
   border: 1px solid rgba(240, 198, 126, 0.18);
   background:
-    linear-gradient(180deg, rgba(240, 198, 126, 0.08), rgba(255, 255, 255, 0.02)),
+    linear-gradient(180deg, rgba(240, 198, 126, 0.08), transparent),
     rgba(9, 17, 23, 0.5);
 }
 
@@ -1312,8 +1320,8 @@ caption.table-caption {
   min-height: 114px;
   padding: 0.95rem;
   border-radius: var(--radius-sm);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 .interpretation-card__label {
@@ -1337,8 +1345,8 @@ caption.table-caption {
 .query-state {
   padding: 1.15rem;
   border-radius: var(--radius-sm);
-  border: 1px dashed rgba(255, 255, 255, 0.16);
-  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed color-mix(in srgb, var(--text) 16%, transparent);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
   color: var(--muted);
 }
 
@@ -1375,7 +1383,7 @@ caption.table-caption {
 .reveal {
   opacity: 0;
   transform: translateY(20px);
-  transition: opacity 0.6s ease, transform 0.6s ease;
+  transition: opacity 0.6s ease-out, transform 0.6s ease-out;
 }
 
 .reveal.is-visible {
@@ -1447,7 +1455,7 @@ caption.table-caption {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 0.85rem 1rem;
     padding: 1rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
     border-radius: var(--radius-sm);
     background: rgba(9, 17, 23, 0.42);
   }
@@ -1481,7 +1489,7 @@ caption.table-caption {
 
   .season-table td:first-child {
     padding-bottom: 0.65rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    border-bottom: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
     font-family: var(--display-font);
     font-size: 1.55rem;
     letter-spacing: 0.05em;
