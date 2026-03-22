@@ -71,12 +71,34 @@
                   <button type="button" id="clear-question" class="button button--ghost">Clear</button>
                 </div>
               </div>
-              <p id="query-hint" class="query-hint">
-                Supported today: count, highest/lowest, and list/filter questions against player match totals.
-              </p>
+              <div class="query-input-meta">
+                <p id="query-hint" class="query-hint">
+                  Supported today: count, highest/lowest, and list/filter questions against player match totals.
+                </p>
+                <p id="question-character-count" class="query-character-count" aria-live="polite">0 / 220 characters</p>
+              </div>
             </div>
 
-            <div>
+            <div class="query-form__notes" aria-label="Question writing guide">
+              <article class="query-note">
+                <span class="query-note__label">Start with</span>
+                <p>A player, a stat, and either a threshold or a highest/lowest cue.</p>
+              </article>
+              <article class="query-note">
+                <span class="query-note__label">Optional filters</span>
+                <p>Add an opponent or season when you want a tighter slice of the archive.</p>
+              </article>
+              <article class="query-note">
+                <span class="query-note__label">What you get back</span>
+                <p>A plain-language answer, the parsed read, and the supporting match rows.</p>
+              </article>
+            </div>
+
+            <div class="query-examples">
+              <div class="query-examples__header">
+                <strong>Starter prompts</strong>
+                <p>Use one of these, then swap the player, opponent, stat, or season.</p>
+              </div>
               <div class="example-strip" id="example-strip" aria-label="Example question prompts">
                 <button type="button" class="example-chip" data-example="How many times has Fowler scored 50 goals or more against the Vixens?">Fowler 50+ against Vixens</button>
                 <button type="button" class="example-chip" data-example="What is Fowler's highest goals total against the Swifts?">Fowler highest against Swifts</button>
@@ -120,7 +142,7 @@
 
             <div id="query-state" class="query-state">
               <strong>Supported question shapes</strong>
-              Count questions, highest/lowest questions, and list filters over player match totals.
+              <p>Keep the wording literal so the parser can show exactly how it read the question.</p>
               <ul>
                 <li>Player + stat + threshold + optional opponent/season</li>
                 <li>Player + highest/lowest + stat + optional opponent/season</li>

@@ -16,6 +16,20 @@ const QUERY_STATUS_LABELS = {
   lowest: "Lowest",
   list: "List"
 };
+const DEFAULT_QUERY_STATE = {
+  title: "Supported question shapes",
+  description: "Keep the wording literal so the parser can show exactly how it read the question.",
+  items: [
+    "Player + stat + threshold + optional opponent/season",
+    "Player + highest/lowest + stat + optional opponent/season",
+    "List queries for players meeting a stat filter"
+  ]
+};
+const FALLBACK_EXAMPLES = [
+  "How many times has Fowler scored 50 goals or more against the Vixens?",
+  "What is Fowler's highest goals total against the Swifts?",
+  "Which players scored 40+ goals in 2025?"
+];
 
 const elements = {
   apiBase: document.getElementById("api-base"),
@@ -24,6 +38,7 @@ const elements = {
   queryStatus: document.getElementById("query-status"),
   queryForm: document.getElementById("query-form"),
   questionInput: document.getElementById("question-input"),
+  questionCharacterCount: document.getElementById("question-character-count"),
   clearQuestion: document.getElementById("clear-question"),
   exampleStrip: document.getElementById("example-strip"),
   summaryQuestionType: document.getElementById("summary-question-type"),
@@ -38,6 +53,10 @@ const elements = {
   queryRowsBody: document.getElementById("query-rows-body")
 };
 
+elements.submitButton = elements.queryForm.querySelector('[type="submit"]');
+
+const exampleButtons = Array.from(elements.exampleStrip.querySelectorAll("[data-example]"));
+const submitButtonDefaultLabel = elements.submitButton?.textContent || "Run question";
 
 if (elements.apiBase) {
   elements.apiBase.textContent = API_BASE_URL;
@@ -168,14 +187,67 @@ function setSummaryCards(questionType = "--", matchCount = "--", stat = "--", st
   elements.summaryStatus.textContent = status;
 }
 
+function renderQueryState({ title, description, items = [], extraParagraphs = [] }) {
+  elements.queryState.replaceChildren();
+
+  const titleElement = document.createElement("strong");
+  titleElement.textContent = title;
+  elements.queryState.appendChild(titleElement);
+
+  if (description) {
+    const descriptionElement = document.createElement("p");
+    descriptionElement.textContent = description;
+    elements.queryState.appendChild(descriptionElement);
+  }
+
+  extraParagraphs.forEach((paragraph) => {
+    if (!paragraph) {
+      return;
+    }
+
+    const paragraphElement = document.createElement("p");
+    paragraphElement.textContent = paragraph;
+    elements.queryState.appendChild(paragraphElement);
+  });
+
+  if (items.length) {
+    const list = document.createElement("ul");
+    items.forEach((item) => {
+      const listItem = document.createElement("li");
+      listItem.textContent = item;
+      list.appendChild(listItem);
+    });
+    elements.queryState.appendChild(list);
+  }
+}
+
+function renderDefaultQueryState() {
+  renderQueryState(DEFAULT_QUERY_STATE);
+}
+
+function updateQuestionComposerState(value = "") {
+  if (elements.questionCharacterCount) {
+    elements.questionCharacterCount.textContent = `${value.length} / 220 characters`;
+  }
+
+  elements.clearQuestion.disabled = value.trim().length === 0;
+
+  exampleButtons.forEach((button) => {
+    const isActive = button.getAttribute("data-example") === value;
+    button.setAttribute("aria-pressed", isActive ? "true" : "false");
+  });
+}
+
 function setIdleState() {
   setSummaryCards();
   elements.answerHeadline.textContent = "Ask a question to see the answer.";
   elements.answerMeta.textContent = "Each answer comes from the parsed intent and the matching records.";
   elements.interpretationGrid.replaceChildren();
+  renderDefaultQueryState();
   elements.queryState.hidden = false;
   elements.tableMeta.textContent = "";
   clearTable("Ask a question to see the matching records.");
+  updateQuestionComposerState(elements.questionInput.value);
 }
 
 function renderMeta(meta) {
@@ -265,30 +337,14 @@ function renderUnsupported(result) {
   elements.answerMeta.textContent = "Try one of the examples above.";
   elements.interpretationGrid.replaceChildren();
   elements.queryState.hidden = false;
-  elements.queryState.innerHTML = "";
-
-  const title = document.createElement("strong");
-  title.textContent = result.status === "ambiguous" ? "Need a more specific question" : "Supported question shapes";
-  elements.queryState.appendChild(title);
-
-  const message = document.createElement("p");
-  message.textContent = reason;
-  elements.queryState.appendChild(message);
-
-  if (Array.isArray(result.candidates) && result.candidates.length) {
-    const candidateList = document.createElement("p");
-    candidateList.textContent = `Possible matches: ${result.candidates.join(", ")}`;
-    elements.queryState.appendChild(candidateList);
-  }
-
-  const list = document.createElement("ul");
-  const examples = Array.isArray(result.examples) && result.examples.length ? result.examples : [];
-  examples.forEach((example) => {
-    const item = document.createElement("li");
-    item.textContent = example;
-    list.appendChild(item);
+  renderQueryState({
+    title: result.status === "ambiguous" ? "Need a more specific question" : "Supported question shapes",
+    description: reason,
+    extraParagraphs: Array.isArray(result.candidates) && result.candidates.length
+      ? [`Possible matches: ${result.candidates.join(", ")}`]
+      : [],
+    items: Array.isArray(result.examples) && result.examples.length ? result.examples : FALLBACK_EXAMPLES
   });
-  elements.queryState.appendChild(list);
 
   elements.tableMeta.textContent = "";
   clearTable("Ask a supported question to see matching records.");
@@ -342,10 +398,11 @@ async function runQuestion(question) {
   }
 
   questionRunning = true;
-  const submitBtn = elements.queryForm.querySelector('[type="submit"]');
+  const submitBtn = elements.submitButton;
   if (submitBtn) {
     submitBtn.disabled = true;
     submitBtn.setAttribute("aria-busy", "true");
+    submitBtn.textContent = "Running…";
   }
 
   showLoadingStatus(QUERY_LOADING_MESSAGES, "Reading the archive");
@@ -380,6 +437,7 @@ async function runQuestion(question) {
     if (submitBtn) {
       submitBtn.disabled = false;
       submitBtn.removeAttribute("aria-busy");
+      submitBtn.textContent = submitButtonDefaultLabel;
     }
   }
 }
@@ -398,13 +456,21 @@ async function init() {
   const initialQuestion = params.get("q");
   if (initialQuestion) {
     elements.questionInput.value = initialQuestion;
+    updateQuestionComposerState(initialQuestion);
     await runQuestion(initialQuestion);
+    return;
   }
+
+  updateQuestionComposerState(elements.questionInput.value);
 }
 
 elements.queryForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   await runQuestion(elements.questionInput.value);
+});
+
+elements.questionInput.addEventListener("input", () => {
+  updateQuestionComposerState(elements.questionInput.value);
 });
 
 elements.clearQuestion.addEventListener("click", () => {
@@ -422,6 +488,7 @@ elements.exampleStrip.addEventListener("click", async (event) => {
 
   const example = button.getAttribute("data-example") || "";
   elements.questionInput.value = example;
+  updateQuestionComposerState(example);
   await runQuestion(example);
 });
 

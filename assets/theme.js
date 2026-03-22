@@ -9,15 +9,21 @@ document.addEventListener('DOMContentLoaded', function () {
   var btn = document.getElementById('theme-toggle');
   var root = document.documentElement;
   if (btn) {
+    function setButtonContent(currentTheme, nextTheme) {
+      btn.innerHTML = '<span class="theme-toggle__kicker">Theme</span><span class="theme-toggle__value">' +
+        currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1) +
+        '</span>';
+      btn.setAttribute('aria-label', 'Current theme ' + currentTheme + '. Switch to ' + nextTheme + ' theme');
+      btn.setAttribute('title', 'Switch to ' + nextTheme + ' theme');
+    }
+
     function applyTheme(t) {
       if (t === 'light') {
         root.setAttribute('data-theme', 'light');
-        btn.textContent = 'Dark';
-        btn.setAttribute('aria-label', 'Switch to dark theme');
+        setButtonContent('light', 'dark');
       } else {
         root.removeAttribute('data-theme');
-        btn.textContent = 'Light';
-        btn.setAttribute('aria-label', 'Switch to light theme');
+        setButtonContent('dark', 'light');
       }
     }
     applyTheme(localStorage.getItem('ns-theme') || 'dark');
