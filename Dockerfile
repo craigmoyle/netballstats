@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /opt/render/project/src
 
+ENV RENV_PATHS_CACHE=/opt/renv/cache
+
 COPY . /opt/render/project/src
 
 RUN R -q -e "install.packages('renv', repos='https://cloud.r-project.org'); renv::consent(provided = TRUE); renv::restore(prompt = FALSE)"
@@ -24,7 +26,8 @@ ENV NETBALL_STATS_HOST=0.0.0.0
 ENV NETBALL_STATS_PORT=10000
 
 RUN useradd -u 1000 -m -s /bin/false netballstats \
-  && chown -R netballstats:netballstats /opt/render/project/src
+  && mkdir -p /opt/renv/cache \
+  && chown -R netballstats:netballstats /opt/render/project/src /opt/renv
 
 EXPOSE 10000
 

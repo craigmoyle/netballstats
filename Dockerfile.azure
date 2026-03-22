@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
+ENV RENV_PATHS_CACHE=/opt/renv/cache
+
 COPY . /app
 
 RUN R -q -e " \
@@ -28,7 +30,8 @@ ENV NETBALL_STATS_HOST=0.0.0.0
 ENV NETBALL_STATS_PORT=8000
 
 RUN useradd -u 1000 -m -s /bin/false netballstats \
-  && chown -R netballstats:netballstats /app
+  && mkdir -p /opt/renv/cache \
+  && chown -R netballstats:netballstats /app /opt/renv
 
 EXPOSE 8000
 
