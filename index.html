@@ -57,17 +57,19 @@
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel query-panel reveal">
+      <section class="panel query-panel query-panel--home reveal">
         <div id="status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
         <div class="panel__heading panel__heading--split">
           <div>
+            <p class="panel__eyebrow">Start here</p>
             <h2>Explore the archive</h2>
+            <p class="panel__lead">Choose seasons and a stat first, then narrow the archive only if you need a tighter slice.</p>
           </div>
           <p id="active-filter-summary" class="muted filter-summary">Loading query options…</p>
         </div>
 
-        <form id="filters-form" class="filters" novalidate>
-          <div class="field field--wide field--season-block">
+        <form id="filters-form" class="filters filters--dashboard" novalidate>
+          <div class="field field--wide field--season-block field--season-hub">
             <div class="field__label-row">
               <span class="field-label">Seasons</span>
               <div class="season-actions" role="group" aria-label="Season quick actions">
@@ -79,49 +81,53 @@
             <div id="season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
           </div>
 
-          <div class="field">
+          <div class="field field--stat-picker">
             <label for="team-stat">Team stat</label>
             <select id="team-stat" name="team-stat"></select>
           </div>
-          <div class="field">
+          <div class="field field--stat-picker">
             <label for="player-stat">Player stat</label>
             <select id="player-stat" name="player-stat"></select>
           </div>
 
           <div class="filter-divider field--wide" aria-hidden="true">Narrow results</div>
 
-          <div class="field field--secondary">
-            <label for="team-id">Team</label>
-            <select id="team-id" name="team-id"></select>
-          </div>
-          <div class="field field--secondary">
-            <label for="round">Round</label>
-            <input id="round" name="round" type="number" min="1" max="30" inputmode="numeric" placeholder="Any round">
-          </div>
-          <div class="field field--secondary">
-            <label for="stat-mode">Stat mode</label>
-            <select id="stat-mode" name="stat-mode">
-              <option value="total" selected>Total</option>
-              <option value="average">Average per game</option>
-            </select>
-          </div>
-          <div class="field field--wide">
+          <div class="field field--wide field--search-bar">
             <label for="player-search">Player search</label>
             <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler, Harten, Koenen">
             <div class="field-hint-wrap">
               <small class="field-hint">Historical surname changes still resolve to the same player record.</small>
             </div>
           </div>
-          <div class="filter-actions field--wide">
-            <button type="submit">Apply filters</button>
-            <button type="button" id="reset-filters" class="button button--ghost">Reset</button>
+          <div class="field field--secondary field--compact">
+            <label for="team-id">Team</label>
+            <select id="team-id" name="team-id"></select>
+          </div>
+          <div class="field field--secondary field--compact">
+            <label for="round">Round</label>
+            <input id="round" name="round" type="number" min="1" max="30" inputmode="numeric" placeholder="Any round">
+          </div>
+          <div class="field field--secondary field--compact">
+            <label for="stat-mode">Stat mode</label>
+            <select id="stat-mode" name="stat-mode">
+              <option value="total" selected>Total</option>
+              <option value="average">Average per game</option>
+            </select>
+          </div>
+          <div class="filter-actions filter-actions--primary field--wide">
+            <p class="filter-actions__hint">Apply these filters to refresh the match log, leaderboards, and charts below.</p>
+            <div class="filter-actions__buttons">
+              <button type="submit">Apply filters</button>
+              <button type="button" id="reset-filters" class="button button--ghost">Reset</button>
+            </div>
           </div>
         </form>
       </section>
 
-      <section class="panel results-panel results-panel--wide reveal">
+      <section class="panel results-panel results-panel--wide results-panel--spotlight reveal">
         <div class="panel__heading panel__heading--split">
           <div>
+            <p class="results-panel__eyebrow">Match log</p>
             <h2>Recent results</h2>
           </div>
           <p class="muted">Latest matches for the selected seasons.</p>
@@ -142,10 +148,11 @@
         </div>
       </section>
 
-      <section class="results-grid" aria-label="Stat tables">
-        <section class="panel results-panel results-panel--wide reveal">
+      <section class="results-grid results-grid--home" aria-label="Stat tables">
+        <section class="panel results-panel results-panel--lead reveal">
           <div class="panel__heading panel__heading--split">
             <div>
+              <p class="results-panel__eyebrow">Lead board</p>
               <h2>Player leaderboard</h2>
             </div>
             <div class="panel__meta-stack">
@@ -191,9 +198,10 @@
           </div>
         </section>
 
-        <section class="panel results-panel reveal">
+        <section class="panel results-panel results-panel--rail reveal">
           <div class="panel__heading panel__heading--split">
             <div>
+              <p class="results-panel__eyebrow">Season snapshot</p>
               <h2>Season totals</h2>
             </div>
             <div class="panel__meta-stack">
@@ -229,9 +237,10 @@
           </div>
         </section>
 
-        <section class="panel results-panel reveal">
+        <section class="panel results-panel results-panel--anchor reveal">
           <div class="panel__heading panel__heading--split">
             <div>
+              <p class="results-panel__eyebrow">Club comparison</p>
               <h2>Team leaderboard</h2>
             </div>
             <div class="panel__meta-stack">

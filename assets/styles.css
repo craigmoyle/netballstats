@@ -59,6 +59,12 @@
   --shadow: 0 30px 60px rgba(0, 0, 0, 0.28);
   --display-font: "Teko", sans-serif;
   --body-font: "Fraunces", Georgia, serif;
+  --space-2xs: clamp(0.45rem, 0.6vw, 0.65rem);
+  --space-xs: clamp(0.75rem, 0.9vw, 0.95rem);
+  --space-sm: clamp(1rem, 1.2vw, 1.25rem);
+  --space-md: clamp(1.3rem, 1.8vw, 1.8rem);
+  --space-lg: clamp(1.8rem, 2.8vw, 2.6rem);
+  --space-xl: clamp(2.5rem, 4vw, 4rem);
   --text-body-size: 1rem;
   --text-body-size-lg: 1.0625rem;
   --text-ui-size: 0.9375rem;
@@ -147,7 +153,7 @@ code {
 }
 
 .hero-shell {
-  padding: 3rem 0 2rem;
+  padding: var(--space-xl) 0 var(--space-lg);
 }
 
 .panel {
@@ -376,7 +382,7 @@ code {
 }
 
 .hero-shell .summary-band {
-  margin-top: 0.75rem;
+  margin-top: var(--space-sm);
 }
 
 .query-panel {
@@ -385,8 +391,8 @@ code {
 
 .page-main {
   display: grid;
-  gap: 1.35rem;
-  padding-bottom: 3rem;
+  gap: var(--space-lg);
+  padding-bottom: var(--space-xl);
 }
 
 .page-main > * {
@@ -394,7 +400,7 @@ code {
 }
 
 .panel {
-  padding: 1.4rem;
+  padding: var(--space-md);
   border-radius: var(--radius-panel);
   background: var(--panel-solid);
   contain: layout paint;
@@ -402,14 +408,33 @@ code {
 
 .panel__heading {
   display: grid;
-  gap: 0.35rem;
-  margin-bottom: 1rem;
+  gap: var(--space-2xs);
+  margin-bottom: var(--space-md);
+}
+
+.panel__eyebrow,
+.results-panel__eyebrow {
+  margin: 0;
+  color: var(--accent-cool);
+  font-family: var(--body-font);
+  font-size: var(--type-xs);
+  font-weight: 600;
+  letter-spacing: var(--tracking-kicker);
+  text-transform: uppercase;
+}
+
+.panel__lead {
+  margin: 0;
+  max-width: 46ch;
+  color: var(--muted);
+  font-size: var(--text-ui-size);
+  line-height: 1.62;
 }
 
 .panel__heading--split {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: start;
-  gap: 0.75rem 1rem;
+  gap: var(--space-xs) var(--space-md);
 }
 
 .panel__meta-stack {
@@ -427,6 +452,12 @@ code {
   text-align: right;
   font-size: var(--text-ui-size);
   line-height: 1.6;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in srgb, var(--accent-cool) 18%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 6%, transparent), transparent),
+    color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 .status-banner {
@@ -502,8 +533,57 @@ code {
 .filters {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
-  align-items: end;
+  gap: var(--space-sm);
+  align-items: start;
+}
+
+.filters--dashboard {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: var(--space-sm) var(--space-md);
+}
+
+.filters--dashboard .field--season-hub {
+  grid-column: 1 / span 8;
+}
+
+.filters--dashboard .field--stat-picker {
+  grid-column: span 2;
+}
+
+.filters--dashboard .field--search-bar {
+  grid-column: 1 / span 6;
+}
+
+.filters--dashboard .field--compact {
+  grid-column: span 2;
+}
+
+.filter-actions--primary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-sm);
+  padding-top: var(--space-xs);
+  border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.filter-actions__hint {
+  margin: 0;
+  max-width: 44ch;
+  color: var(--muted);
+  font-size: var(--text-ui-size);
+  line-height: 1.6;
+}
+
+.filter-actions__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: flex-end;
+}
+
+.filter-actions--primary .button {
+  min-width: 9.5rem;
 }
 
 .field {
@@ -516,7 +596,7 @@ code {
 }
 
 .field--season-block {
-  padding: 1rem;
+  padding: var(--space-sm);
   border-radius: var(--radius-card);
   background: linear-gradient(180deg, rgba(121, 216, 208, 0.05), transparent);
   border: 1px solid rgba(121, 216, 208, 0.16);
@@ -803,12 +883,76 @@ button[aria-busy="true"] {
 
 .results-grid {
   display: grid;
-  gap: 1.35rem;
+  gap: var(--space-md);
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .results-panel--wide {
   grid-column: 1 / -1;
+}
+
+.results-grid--home {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  align-items: start;
+}
+
+.results-grid--home .results-panel--lead {
+  grid-column: span 7;
+}
+
+.results-grid--home .results-panel--rail {
+  grid-column: span 5;
+  align-self: start;
+}
+
+.results-grid--home .results-panel--anchor {
+  grid-column: 1 / -1;
+}
+
+.results-panel--spotlight,
+.query-panel--home {
+  position: relative;
+  overflow: hidden;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 5%, transparent), transparent 38%),
+    var(--panel-solid);
+}
+
+.results-panel--spotlight::before,
+.query-panel--home::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(121, 216, 208, 0.55), rgba(121, 216, 208, 0));
+  pointer-events: none;
+}
+
+.results-panel--rail .panel__heading--split {
+  grid-template-columns: 1fr;
+}
+
+.results-panel--rail .panel__meta-stack {
+  justify-items: start;
+  gap: var(--space-xs);
+}
+
+.results-panel__eyebrow {
+  margin-bottom: 0.2rem;
+}
+
+.results-panel--lead {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, transparent), transparent 44%),
+    var(--panel-solid);
+}
+
+.results-panel--rail {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 4%, transparent), transparent 40%),
+    color-mix(in srgb, var(--panel-solid) 92%, var(--panel-alt));
+  border-color: color-mix(in srgb, var(--accent-cool) 22%, var(--border));
 }
 
 .view-toggle {
@@ -841,7 +985,9 @@ button[aria-busy="true"] {
 
 .chart-stack {
   display: grid;
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-md);
+  align-items: stretch;
 }
 
 .chart-card {
@@ -1549,7 +1695,7 @@ caption.table-caption {
 
 .query-form__notes {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 0.75rem;
 }
 
@@ -1642,10 +1788,10 @@ caption.table-caption {
   display: grid;
   gap: 0.45rem;
   min-height: 100%;
-  padding: 0.9rem 1rem;
+  padding: 0.75rem 0.9rem;
   border-radius: var(--radius-sm);
-  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
-  background: color-mix(in srgb, var(--text) 3%, transparent);
+  border: 1px solid color-mix(in srgb, var(--text) 7%, transparent);
+  background: color-mix(in srgb, var(--text) 2%, transparent);
 }
 
 .query-note__label {
@@ -1926,6 +2072,26 @@ caption.table-caption {
     border-radius: var(--radius-sm);
   }
 
+  .filters--dashboard {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .filters--dashboard .field--season-hub,
+  .filters--dashboard .field--search-bar,
+  .filters--dashboard .filter-actions--primary {
+    grid-column: 1 / -1;
+  }
+
+  .filters--dashboard .field--stat-picker,
+  .filters--dashboard .field--compact {
+    grid-column: span 2;
+  }
+
+  .results-grid--home .results-panel--lead,
+  .results-grid--home .results-panel--rail {
+    grid-column: span 6;
+  }
+
 }
 
 @media (max-width: 1200px) {
@@ -2017,6 +2183,27 @@ caption.table-caption {
   .panel__heading--split,
   .results-grid {
     grid-template-columns: 1fr;
+  }
+
+  .filters--dashboard {
+    grid-template-columns: 1fr;
+  }
+
+  .filters--dashboard > * {
+    grid-column: 1 / -1 !important;
+  }
+
+  .filter-actions--primary {
+    justify-content: flex-start;
+    align-items: stretch;
+    gap: var(--space-xs);
+    flex-direction: column;
+    padding-top: 0;
+    border-top: 0;
+  }
+
+  .filter-actions__buttons {
+    justify-content: flex-start;
   }
 
   .panel__meta-stack {
@@ -2283,6 +2470,26 @@ caption.table-caption {
 [data-theme="light"] .query-page .hero-panel,
 [data-theme="light"] .player-hero {
   background: var(--panel-solid);
+}
+
+[data-theme="light"] .query-panel--home,
+[data-theme="light"] .results-panel--spotlight {
+  background:
+    linear-gradient(180deg, rgba(26, 138, 122, 0.05), transparent 38%),
+    var(--panel-solid);
+}
+
+[data-theme="light"] .results-panel--lead {
+  background:
+    linear-gradient(180deg, rgba(184, 112, 32, 0.06), transparent 44%),
+    var(--panel-solid);
+}
+
+[data-theme="light"] .results-panel--rail,
+[data-theme="light"] .filter-summary {
+  background:
+    linear-gradient(180deg, rgba(26, 138, 122, 0.05), transparent 40%),
+    var(--panel-solid);
 }
 
 [data-theme="light"] .panel {
