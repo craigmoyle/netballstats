@@ -156,12 +156,35 @@ database_health_check <- function(include_metadata = FALSE) {
 
 handle_request_error <- function(error, res) {
   msg <- conditionMessage(error)
-  message("[API] Request error: ", msg)
+  timeout <- grepl("statement timeout|canceling statement|query_canceled", msg, ignore.case = TRUE)
+  api_log(
+    if (timeout) "WARN" else "INFO",
+    if (timeout) "request_timeout" else "request_rejected",
+    error_class = class(error)[[1]] %||% "unknown"
+  )
   if (grepl("statement timeout|canceling statement|query_canceled", msg, ignore.case = TRUE)) {
     json_error(res, 503, "The query took too long. Try narrowing to a specific season or player.")
   } else {
     json_error(res, 400, "Invalid request parameters.")
   }
+}
+
+api_log <- function(level, event, ...) {
+  details <- list(...)
+  detail_parts <- unlist(lapply(names(details), function(name) {
+    value <- details[[name]]
+    if (is.null(value) || length(value) == 0 || all(is.na(value))) {
+      return(NULL)
+    }
+    scalar <- gsub("[[:space:]]+", " ", as.character(value[[1]]))
+    paste0(name, "=", scalar)
+  }))
+  message("[API] ", paste(c(paste0("level=", level), paste0("event=", event), detail_parts), collapse = " "))
+}
+
+database_unavailable <- function(res, error) {
+  api_log("ERROR", "db_connection_failed", error_class = class(error)[[1]] %||% "unknown")
+  json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.")
 }
 
 json_scalar <- function(value) {
@@ -314,7 +337,7 @@ function(res) {
 function(res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -342,7 +365,7 @@ function(res) {
 function(search = "", limit = "500", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -380,7 +403,7 @@ function(search = "", limit = "500", res) {
 function(player_id = "", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -425,7 +448,7 @@ function(player_id = "", res) {
 function(season = "", seasons = "", team_id = "", round = "", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -477,7 +500,7 @@ function(season = "", seasons = "", team_id = "", round = "", res) {
 function(season = "", seasons = "", team_id = "", round = "", limit = "12", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -510,7 +533,7 @@ function(season = "", seasons = "", team_id = "", round = "", limit = "12", res)
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", metric = "total", limit = "8", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -548,7 +571,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", metric = "total", limit = "12", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -581,7 +604,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 function(season = "", seasons = "", round = "", stat = "points", metric = "total", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -615,7 +638,7 @@ function(season = "", seasons = "", round = "", stat = "points", metric = "total
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", metric = "total", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -685,7 +708,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", metric = "total", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -723,7 +746,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -762,7 +785,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", l
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
@@ -791,7 +814,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 function(question = "", limit = "12", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
-    return({ message("[API] DB connection error: ", conditionMessage(conn)); json_error(res, 503, "The statistics API is currently unavailable. Please try again shortly.") })
+    return(database_unavailable(res, conn))
   }
   on.exit(DBI::dbDisconnect(conn), add = TRUE)
 

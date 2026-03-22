@@ -408,7 +408,7 @@ resource apiContainerApp 'Microsoft.App/containerApps@2025-07-01' = {
                 port: apiPort
                 scheme: 'HTTP'
               }
-              initialDelaySeconds: 90
+              initialDelaySeconds: 60
               periodSeconds: 30
               timeoutSeconds: 5
             }
