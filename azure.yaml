@@ -23,23 +23,35 @@ hooks:
         --resource-group "$RG" \
         --query "[?contains(name, '-db-sat-')].name | [0]" \
         --output tsv)
+      SAT_CONTAINER=$(az containerapp job show \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --name "$SAT_JOB" \
+        --query "properties.template.containers[0].name" \
+        --output tsv)
       SUN_JOB=$(az containerapp job list \
         --subscription "$AZURE_SUBSCRIPTION_ID" \
         --resource-group "$RG" \
         --query "[?contains(name, '-db-sun-')].name | [0]" \
+        --output tsv)
+      SUN_CONTAINER=$(az containerapp job show \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --name "$SUN_JOB" \
+        --query "properties.template.containers[0].name" \
         --output tsv)
       az containerapp job update \
         --subscription "$AZURE_SUBSCRIPTION_ID" \
         --name "$SAT_JOB" \
         --resource-group "$RG" \
         --image "$API_IMAGE" \
-        --container-name main
+        --container-name "$SAT_CONTAINER"
       az containerapp job update \
         --subscription "$AZURE_SUBSCRIPTION_ID" \
         --name "$SUN_JOB" \
         --resource-group "$RG" \
         --image "$API_IMAGE" \
-        --container-name main
+        --container-name "$SUN_CONTAINER"
       # Trigger an immediate DB rebuild so player_match_stats is created with
       # the new image. Fire-and-forget — don't block the deploy on completion.
       echo "Triggering DB refresh to rebuild player_match_stats..."
