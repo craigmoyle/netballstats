@@ -15,12 +15,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /opt/render/project/src
 
-COPY .Rprofile renv.lock /opt/render/project/src/
-COPY renv /opt/render/project/src/renv
+COPY . /opt/render/project/src
 
 RUN R -q -e "install.packages('renv', repos='https://cloud.r-project.org'); renv::consent(provided = TRUE); renv::restore(prompt = FALSE)"
-
-COPY . /opt/render/project/src
 
 ENV NETBALL_STATS_REPO_ROOT=/opt/render/project/src
 ENV NETBALL_STATS_HOST=0.0.0.0
