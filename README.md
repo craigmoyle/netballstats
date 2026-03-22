@@ -16,7 +16,7 @@ The old site was a single HTML page showing a few 2020 static images. The rewrit
 - canonical player-name handling so leaderboard queries continue to work when players appear under multiple surnames over time
 - additional high-value query views for single-game team and player highs
 - Azure deployment files for Static Web Apps + Container Apps + PostgreSQL Flexible Server
-- an explicit season competition manifest for Super Netball regular season and finals from 2017 to 2025
+- an explicit season competition manifest for Super Netball regular season and finals from 2017 to 2026
 
 ## Repository layout
 

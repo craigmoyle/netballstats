@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Compare | Netball Stats Database</title>
+    <meta name="description" content="Compare Super Netball players or teams across seasons with shared trend charts and side-by-side tables.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/charts.js"></script>
+    <script defer src="/assets/compare.js"></script>
+  </head>
+  <body class="compare-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Back to explorer</a>
+        <a class="page-nav__link" href="/players/">Player profiles</a>
+        <a class="page-nav__link" href="/query/">Ask the stats</a>
+        <a class="page-nav__link page-nav__link--accent" href="/compare/">Compare</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">☀</button>
+      </nav>
+
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Head to head across seasons</p>
+          <h1>Compare players or teams</h1>
+          <p class="intro-copy">Pick two or more names, choose a stat, and track who led across each season.</p>
+        </div>
+
+        <aside class="hero-aside" aria-label="Comparison summary">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Comparison mode</span>
+            <strong id="compare-hero-mode">Players</strong>
+            <p id="compare-hero-summary">Load recent seasons, then add names to start a head-to-head view.</p>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel query-panel reveal">
+        <div id="compare-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <h2>Build a comparison</h2>
+          </div>
+          <p id="compare-summary" class="muted filter-summary">Pick players or teams, choose a stat, then compare season by season.</p>
+        </div>
+
+        <form id="compare-form" class="filters compare-builder" novalidate>
+          <div class="field field--wide">
+            <span class="field-label">Mode</span>
+            <div class="view-toggle compare-mode-toggle" role="group" aria-label="Comparison mode">
+              <button type="button" class="button button--small is-active" data-compare-mode="players" aria-pressed="true">Players</button>
+              <button type="button" class="button button--small button--ghost" data-compare-mode="teams" aria-pressed="false">Teams</button>
+            </div>
+          </div>
+
+          <div id="player-picker-field" class="field field--wide">
+            <label for="compare-player-search">Add players</label>
+            <div class="compare-combobox">
+              <input
+                id="compare-player-search"
+                type="search"
+                autocomplete="off"
+                placeholder="Search by player name"
+                role="combobox"
+                aria-autocomplete="list"
+                aria-expanded="false"
+                aria-controls="player-search-results"
+              >
+              <div id="player-search-results" class="entity-picker" role="listbox" hidden></div>
+            </div>
+            <div id="selected-player-chips" class="tag-list compare-chip-list" aria-live="polite"></div>
+            <p id="player-selection-meta" class="compare-selection-meta muted">Select 2 to 6 players.</p>
+          </div>
+
+          <div id="team-picker-field" class="field field--wide" hidden>
+            <div class="field__label-row">
+              <span class="field-label">Teams</span>
+              <p id="team-selection-meta" class="compare-selection-meta muted">Select 2 to 8 teams.</p>
+            </div>
+            <div id="team-choices" class="season-choices compare-team-choices" role="group" aria-label="Team choices"></div>
+          </div>
+
+          <div class="field">
+            <label for="compare-stat">Stat</label>
+            <select id="compare-stat" name="compare-stat"></select>
+          </div>
+
+          <div class="field field--wide field--season-block">
+            <div class="field__label-row">
+              <span class="field-label">Seasons</span>
+              <div class="season-actions" role="group" aria-label="Season quick actions">
+                <button type="button" class="button button--ghost button--small" data-compare-season-action="recent">Recent 3</button>
+                <button type="button" class="button button--ghost button--small" data-compare-season-action="all">All</button>
+                <button type="button" class="button button--ghost button--small" data-compare-season-action="clear">Clear</button>
+              </div>
+            </div>
+            <div id="compare-season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
+          </div>
+
+          <div class="field">
+            <span class="field-label">Metric</span>
+            <div class="view-toggle compare-metric-toggle" role="group" aria-label="Stat mode">
+              <button type="button" class="button button--small is-active" data-compare-metric="total" aria-pressed="true">Total</button>
+              <button type="button" class="button button--small button--ghost" data-compare-metric="average" aria-pressed="false">Avg/game</button>
+            </div>
+          </div>
+
+          <div class="filter-actions field--wide">
+            <button type="submit">Compare</button>
+            <button type="button" id="reset-compare" class="button button--ghost">Reset</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="panel results-panel results-panel--wide reveal">
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <h2>Season trend</h2>
+          </div>
+          <p id="compare-results-meta" class="muted">Select names to load a comparison chart.</p>
+        </div>
+        <div id="compare-trend-chart" class="chart-shell" role="img" aria-label="Comparison trend chart"></div>
+      </section>
+
+      <section class="panel results-panel results-panel--wide reveal">
+        <div class="panel__heading">
+          <h2>Comparison table</h2>
+        </div>
+        <div class="table-wrapper">
+          <table class="compare-table" aria-describedby="compare-table-caption">
+            <caption id="compare-table-caption" class="table-caption">Comparison rows will appear here once you choose players or teams.</caption>
+            <thead id="compare-table-head"></thead>
+            <tbody id="compare-table-body"></tbody>
+            <tfoot id="compare-table-foot"></tfoot>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
