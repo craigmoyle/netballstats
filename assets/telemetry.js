@@ -6,7 +6,10 @@
     initPromise: null,
     metaPromise: null,
     pageViewSent: false,
-    queue: []
+    queue: [],
+    userId: null,
+    sessionId: null,
+    operationId: null
   };
 
   function apiBaseUrl() {
@@ -54,6 +57,101 @@
     });
 
     return output;
+  }
+
+  function createId(prefix = "t") {
+    if (window.crypto && typeof window.crypto.randomUUID === "function") {
+      return `${prefix}-${window.crypto.randomUUID()}`;
+    }
+    return `${prefix}-${Math.random().toString(36).slice(2, 10)}${Date.now().toString(36)}`;
+  }
+
+  function getStorage(name) {
+    try {
+      return window[name] || null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  function getOrCreateStorageValue(storageName, key, prefix) {
+    const storage = getStorage(storageName);
+    if (!storage) {
+      return createId(prefix);
+    }
+
+    const existingValue = storage.getItem(key);
+    if (existingValue) {
+      return existingValue;
+    }
+
+    const createdValue = createId(prefix);
+    storage.setItem(key, createdValue);
+    return createdValue;
+  }
+
+  function ensureTelemetryIds() {
+    if (!state.userId) {
+      state.userId = getOrCreateStorageValue("localStorage", "netballstats.telemetry.user_id", "u");
+    }
+    if (!state.sessionId) {
+      state.sessionId = getOrCreateStorageValue("sessionStorage", "netballstats.telemetry.session_id", "s");
+    }
+    if (!state.operationId) {
+      state.operationId = createId("op");
+    }
+
+    return {
+      userId: state.userId,
+      sessionId: state.sessionId,
+      operationId: state.operationId
+    };
+  }
+
+  function referrerHost() {
+    if (!document.referrer) {
+      return "";
+    }
+
+    try {
+      return new URL(document.referrer).host;
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function viewportBucket() {
+    const width = Number(window.innerWidth || 0);
+    if (!Number.isFinite(width) || width <= 0) {
+      return "unknown";
+    }
+    if (width < 640) {
+      return "xs";
+    }
+    if (width < 960) {
+      return "sm";
+    }
+    if (width < 1280) {
+      return "md";
+    }
+    return "lg";
+  }
+
+  function telemetryContext() {
+    const ids = ensureTelemetryIds();
+    const timezone = typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+      : "";
+
+    return {
+      user_id: ids.userId,
+      session_id: ids.sessionId,
+      operation_id: ids.operationId,
+      viewport_bucket: viewportBucket(),
+      browser_language: trimString(navigator.language || "", 20),
+      referrer_host: trimString(referrerHost(), 80),
+      timezone: trimString(timezone, 60)
+    };
   }
 
   function bucketCount(value, breakpoints = [0, 1, 2, 3, 5, 10, 25, 50]) {
@@ -114,6 +212,7 @@
     return {
       name: pageTypeFromPath(pathname),
       uri: `${window.location.origin}${pathname === "/" ? "/" : `${pathname}/`}`,
+      context: telemetryContext(),
       properties: sanitiseProperties({
         page_type: pageTypeFromPath(pathname),
         ...extraProperties
@@ -634,6 +733,7 @@
   function trackEvent(name, properties = {}) {
     const payload = {
       name,
+      context: telemetryContext(),
       properties: sanitiseProperties({
         page_type: pageTypeFromPath(),
         ...properties

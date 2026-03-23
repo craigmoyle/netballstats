@@ -212,6 +212,46 @@ telemetry_sanitise_properties <- function(properties) {
   output
 }
 
+telemetry_sanitise_context <- function(context) {
+  if (is.null(context) || !is.list(context)) {
+    return(list())
+  }
+
+  output <- list()
+
+  session_id <- telemetry_trim_string(context$session_id %||% "", 80L)
+  user_id <- telemetry_trim_string(context$user_id %||% "", 80L)
+  operation_id <- telemetry_trim_string(context$operation_id %||% "", 80L)
+  viewport_bucket <- telemetry_trim_string(context$viewport_bucket %||% "", 20L)
+  browser_language <- telemetry_trim_string(context$browser_language %||% "", 20L)
+  referrer_host <- telemetry_trim_string(context$referrer_host %||% "", 80L)
+  timezone <- telemetry_trim_string(context$timezone %||% "", 60L)
+
+  if (nzchar(session_id)) {
+    output$session_id <- session_id
+  }
+  if (nzchar(user_id)) {
+    output$user_id <- user_id
+  }
+  if (nzchar(operation_id)) {
+    output$operation_id <- operation_id
+  }
+  if (nzchar(viewport_bucket)) {
+    output$viewport_bucket <- viewport_bucket
+  }
+  if (nzchar(browser_language)) {
+    output$browser_language <- browser_language
+  }
+  if (nzchar(referrer_host)) {
+    output$referrer_host <- referrer_host
+  }
+  if (nzchar(timezone)) {
+    output$timezone <- timezone
+  }
+
+  output
+}
+
 build_telemetry_envelope <- function(kind, payload, req) {
   instrumentation_key <- browser_telemetry_instrumentation_key()
   if (!nzchar(instrumentation_key)) {
@@ -220,9 +260,38 @@ build_telemetry_envelope <- function(kind, payload, req) {
 
   telemetry_name <- telemetry_trim_string(payload$name, 80L)
   telemetry_uri <- telemetry_trim_string(payload$uri, 200L)
-  telemetry_properties <- telemetry_sanitise_properties(payload$properties)
+  telemetry_context <- telemetry_sanitise_context(payload$context)
+  telemetry_properties <- utils::modifyList(
+    telemetry_sanitise_properties(payload$properties),
+    Filter(
+      nzchar,
+      list(
+        viewport_bucket = telemetry_context$viewport_bucket %||% "",
+        browser_language = telemetry_context$browser_language %||% "",
+        referrer_host = telemetry_context$referrer_host %||% "",
+        timezone = telemetry_context$timezone %||% ""
+      )
+    )
+  )
   operation_name <- if (nzchar(telemetry_uri)) telemetry_uri else telemetry_name
   client_ip <- telemetry_trim_string(req$HTTP_X_FORWARDED_FOR %||% req$REMOTE_ADDR %||% "unknown", 80L)
+
+  tags <- list(
+    "ai.operation.name" = operation_name,
+    "ai.cloud.role" = "netballstats-browser",
+    "ai.location.ip" = client_ip,
+    "ai.internal.sdkVersion" = "netballstats-browser-proxy:1.0.0"
+  )
+
+  if (nzchar(telemetry_context$session_id %||% "")) {
+    tags[["ai.session.id"]] <- telemetry_context$session_id
+  }
+  if (nzchar(telemetry_context$user_id %||% "")) {
+    tags[["ai.user.id"]] <- telemetry_context$user_id
+  }
+  if (nzchar(telemetry_context$operation_id %||% "")) {
+    tags[["ai.operation.id"]] <- telemetry_context$operation_id
+  }
 
   list(
     time = telemetry_iso_time(),
@@ -232,12 +301,7 @@ build_telemetry_envelope <- function(kind, payload, req) {
       gsub("-", "", instrumentation_key, fixed = TRUE),
       if (identical(kind, "pageView")) "Pageview" else "Event"
     ),
-    tags = list(
-      "ai.operation.name" = operation_name,
-      "ai.cloud.role" = "netballstats-browser",
-      "ai.location.ip" = client_ip,
-      "ai.internal.sdkVersion" = "netballstats-browser-proxy:1.0.0"
-    ),
+    tags = tags,
     data = list(
       baseType = if (identical(kind, "pageView")) "PageviewData" else "EventData",
       baseData = if (identical(kind, "pageView")) {
@@ -269,7 +333,11 @@ forward_browser_telemetry <- function(kind, payload, req) {
     url = ingestion_url,
     body = jsonlite::toJSON(list(envelope), auto_unbox = TRUE, null = "null"),
     encode = "raw",
-    httr::add_headers("Content-Type" = "application/json"),
+    httr::add_headers(.headers = c(
+      "Content-Type" = "application/json",
+      "User-Agent" = telemetry_trim_string(req$HTTP_USER_AGENT %||% "netballstats-browser-proxy/1.0", 240L),
+      "Accept-Language" = telemetry_trim_string(req$HTTP_ACCEPT_LANGUAGE %||% "", 120L)
+    )),
     httr::timeout(5)
   )
 
@@ -317,6 +385,7 @@ parse_browser_telemetry_request <- function(req) {
 
   payload$uri <- telemetry_trim_string(payload$uri, 200L)
   payload$properties <- telemetry_sanitise_properties(payload$properties)
+  payload$context <- telemetry_sanitise_context(payload$context)
 
   list(kind = kind, payload = payload)
 }
