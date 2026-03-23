@@ -14,15 +14,26 @@ PageViewEvents
 | order by Views desc
 
 // Query 1b: Recent page views with richer proxy-era detail
+let PageViewEvents = union isfuzzy=true
+(
+  AppPageViews
+  | project TimeGenerated, PageName = Name, PageUri = Url, Properties = todynamic(Properties), ItemCount
+),
+(
+  pageViews
+  | project TimeGenerated = timestamp, PageName = name, PageUri = url, Properties = todynamic(customDimensions), ItemCount = itemCount
+);
 PageViewEvents
 | extend PageType = tostring(coalesce(Properties.page_type, PageName))
+| extend RawClientOS = tostring(column_ifexists("ClientOS", "")), RawClientType = tostring(column_ifexists("ClientType", ""))
 | project
     TimeGenerated,
     PageType,
     PageName,
     PageUri,
     ClientBrowser = column_ifexists("ClientBrowser", ""),
-    ClientOS = column_ifexists("ClientOS", ""),
+    ClientOS = iff(isempty(RawClientOS), tostring(coalesce(Properties.device_os_version, Properties.device_os, "")), RawClientOS),
+    ClientType = iff(isempty(RawClientType), tostring(coalesce(Properties.device_type, "")), RawClientType),
     SessionId = column_ifexists("SessionId", ""),
     UserId = column_ifexists("UserId", ""),
     Properties
@@ -43,14 +54,25 @@ UsageEvents
 | order by Events desc
 
 // Query 2b: Recent custom events with richer proxy-era detail
+let UsageEvents = union isfuzzy=true
+(
+  AppEvents
+  | project TimeGenerated, EventName = Name, Properties = todynamic(Properties), ItemCount
+),
+(
+  customEvents
+  | project TimeGenerated = timestamp, EventName = name, Properties = todynamic(customDimensions), ItemCount = itemCount
+);
 UsageEvents
+| extend RawClientOS = tostring(column_ifexists("ClientOS", "")), RawClientType = tostring(column_ifexists("ClientType", ""))
 | project
     TimeGenerated,
     EventName,
     SessionId = column_ifexists("SessionId", ""),
     UserId = column_ifexists("UserId", ""),
     ClientBrowser = column_ifexists("ClientBrowser", ""),
-    ClientOS = column_ifexists("ClientOS", ""),
+    ClientOS = iff(isempty(RawClientOS), tostring(coalesce(Properties.device_os_version, Properties.device_os, "")), RawClientOS),
+    ClientType = iff(isempty(RawClientType), tostring(coalesce(Properties.device_type, "")), RawClientType),
     Properties
 | order by TimeGenerated desc
 

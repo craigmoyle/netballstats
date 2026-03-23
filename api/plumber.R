@@ -226,6 +226,9 @@ telemetry_sanitise_context <- function(context) {
   browser_language <- telemetry_trim_string(context$browser_language %||% "", 20L)
   referrer_host <- telemetry_trim_string(context$referrer_host %||% "", 80L)
   timezone <- telemetry_trim_string(context$timezone %||% "", 60L)
+  device_type <- telemetry_trim_string(context$device_type %||% "", 20L)
+  device_os <- telemetry_trim_string(context$device_os %||% "", 40L)
+  device_os_version <- telemetry_trim_string(context$device_os_version %||% "", 80L)
 
   if (nzchar(session_id)) {
     output$session_id <- session_id
@@ -248,6 +251,15 @@ telemetry_sanitise_context <- function(context) {
   if (nzchar(timezone)) {
     output$timezone <- timezone
   }
+  if (nzchar(device_type)) {
+    output$device_type <- device_type
+  }
+  if (nzchar(device_os)) {
+    output$device_os <- device_os
+  }
+  if (nzchar(device_os_version)) {
+    output$device_os_version <- device_os_version
+  }
 
   output
 }
@@ -269,7 +281,10 @@ build_telemetry_envelope <- function(kind, payload, req) {
         viewport_bucket = telemetry_context$viewport_bucket %||% "",
         browser_language = telemetry_context$browser_language %||% "",
         referrer_host = telemetry_context$referrer_host %||% "",
-        timezone = telemetry_context$timezone %||% ""
+        timezone = telemetry_context$timezone %||% "",
+        device_type = telemetry_context$device_type %||% "",
+        device_os = telemetry_context$device_os %||% "",
+        device_os_version = telemetry_context$device_os_version %||% ""
       )
     )
   )
@@ -282,6 +297,16 @@ build_telemetry_envelope <- function(kind, payload, req) {
     "ai.location.ip" = client_ip,
     "ai.internal.sdkVersion" = "netballstats-browser-proxy:1.0.0"
   )
+
+  if (nzchar(telemetry_context$device_type %||% "")) {
+    tags[["ai.device.type"]] <- telemetry_context$device_type
+  }
+  if (nzchar(telemetry_context$device_os %||% "")) {
+    tags[["ai.device.os"]] <- telemetry_context$device_os
+  }
+  if (nzchar(telemetry_context$device_os_version %||% "")) {
+    tags[["ai.device.osVersion"]] <- telemetry_context$device_os_version
+  }
 
   if (nzchar(telemetry_context$session_id %||% "")) {
     tags[["ai.session.id"]] <- telemetry_context$session_id

@@ -9,7 +9,9 @@
     queue: [],
     userId: null,
     sessionId: null,
-    operationId: null
+    operationId: null,
+    deviceContext: null,
+    deviceContextPromise: null
   };
 
   function apiBaseUrl() {
@@ -137,8 +139,123 @@
     return "lg";
   }
 
+  function normaliseOsName(value = "") {
+    const lower = `${value || ""}`.toLowerCase();
+
+    if (!lower) {
+      return "";
+    }
+    if (lower.includes("mac")) {
+      return "macOS";
+    }
+    if (lower.includes("iphone") || lower.includes("ipad") || lower.includes("ipod") || lower.includes("ios")) {
+      return "iOS";
+    }
+    if (lower.includes("android")) {
+      return "Android";
+    }
+    if (lower.includes("windows")) {
+      return "Windows";
+    }
+    if (lower.includes("cros") || lower.includes("chrome os")) {
+      return "Chrome OS";
+    }
+    if (lower.includes("linux")) {
+      return "Linux";
+    }
+
+    return trimString(value, 40);
+  }
+
+  function normaliseOsVersion(value = "") {
+    return trimString(`${value || ""}`.replace(/_/g, "."), 40);
+  }
+
+  function formatDeviceOsVersion(deviceOs, version) {
+    if (!deviceOs) {
+      return version;
+    }
+    if (!version) {
+      return deviceOs;
+    }
+    if (version.toLowerCase().startsWith(deviceOs.toLowerCase())) {
+      return trimString(version, 80);
+    }
+    return trimString(`${deviceOs} ${version}`, 80);
+  }
+
+  function inferDeviceContextFromNavigator() {
+    const platform = trimString(navigator.platform || navigator.userAgentData?.platform || "", 40);
+    const userAgent = navigator.userAgent || "";
+    let deviceOs = normaliseOsName(platform);
+    let version = "";
+
+    if (/android/i.test(userAgent)) {
+      deviceOs = "Android";
+      version = normaliseOsVersion(userAgent.match(/Android\s+([\d._]+)/i)?.[1] || "");
+    } else if (/iPhone|iPad|iPod/i.test(userAgent)) {
+      deviceOs = "iOS";
+      version = normaliseOsVersion(userAgent.match(/OS\s+([\d_]+)/i)?.[1] || "");
+    } else if (/Mac OS X/i.test(userAgent) || deviceOs === "macOS") {
+      deviceOs = "macOS";
+      version = normaliseOsVersion(userAgent.match(/Mac OS X\s+([\d_]+)/i)?.[1] || "");
+    } else if (/Windows NT/i.test(userAgent) || deviceOs === "Windows") {
+      deviceOs = "Windows";
+      version = normaliseOsVersion(userAgent.match(/Windows NT\s+([\d.]+)/i)?.[1] || "");
+    } else if (/CrOS/i.test(userAgent)) {
+      deviceOs = "Chrome OS";
+      version = normaliseOsVersion(userAgent.match(/CrOS [^ ]+ ([\d.]+)/i)?.[1] || "");
+    } else if (/Linux/i.test(userAgent) || deviceOs === "Linux") {
+      deviceOs = "Linux";
+    }
+
+    return {
+      deviceType: "Browser",
+      deviceOs,
+      deviceOsVersion: formatDeviceOsVersion(deviceOs, version)
+    };
+  }
+
+  function currentDeviceContext() {
+    if (!state.deviceContext) {
+      state.deviceContext = inferDeviceContextFromNavigator();
+    }
+
+    return state.deviceContext;
+  }
+
+  async function ensureDeviceContext() {
+    if (state.deviceContextPromise) {
+      return state.deviceContextPromise;
+    }
+
+    const fallback = currentDeviceContext();
+    const uaData = navigator.userAgentData;
+    if (!uaData || typeof uaData.getHighEntropyValues !== "function") {
+      state.deviceContextPromise = Promise.resolve(fallback);
+      return state.deviceContextPromise;
+    }
+
+    state.deviceContextPromise = uaData
+      .getHighEntropyValues(["platform", "platformVersion"])
+      .then((values) => {
+        const deviceOs = normaliseOsName(values?.platform || uaData.platform || fallback.deviceOs);
+        const version = normaliseOsVersion(values?.platformVersion || "");
+        state.deviceContext = {
+          deviceType: "Browser",
+          deviceOs: deviceOs || fallback.deviceOs,
+          deviceOsVersion: formatDeviceOsVersion(deviceOs || fallback.deviceOs, version) || fallback.deviceOsVersion
+        };
+        return state.deviceContext;
+      })
+      .catch(() => fallback);
+
+    return state.deviceContextPromise;
+  }
+
   function telemetryContext() {
     const ids = ensureTelemetryIds();
+    const device = currentDeviceContext();
     const timezone = typeof Intl !== "undefined"
       ? Intl.DateTimeFormat().resolvedOptions().timeZone || ""
       : "";
@@ -150,7 +267,10 @@
       viewport_bucket: viewportBucket(),
       browser_language: trimString(navigator.language || "", 20),
       referrer_host: trimString(referrerHost(), 80),
-      timezone: trimString(timezone, 60)
+      timezone: trimString(timezone, 60),
+      device_type: trimString(device.deviceType || "Browser", 20),
+      device_os: trimString(device.deviceOs || "", 40),
+      device_os_version: trimString(device.deviceOsVersion || "", 80)
     };
   }
 
@@ -230,7 +350,11 @@
       if (entry.kind === "pageView") {
         state.appInsights.trackPageView(entry.payload);
       } else if (entry.kind === "event") {
-        state.appInsights.trackEvent({ name: entry.payload.name }, entry.payload.properties);
+        state.appInsights.trackEvent(
+          { name: entry.payload.name },
+          entry.payload.properties,
+          entry.payload.context
+        );
       }
     });
   }
@@ -697,7 +821,8 @@
           trackEvent(eventDescriptor, properties) {
             sendTelemetry("event", {
               name: eventDescriptor?.name || "",
-              properties: properties || {}
+              properties: properties || {},
+              context: arguments[2] || {}
             });
           },
           flush() {}
@@ -731,6 +856,7 @@
   }
 
   function trackEvent(name, properties = {}) {
+    void ensureDeviceContext();
     const payload = {
       name,
       context: telemetryContext(),
@@ -741,7 +867,7 @@
     };
 
     if (state.appInsights) {
-      state.appInsights.trackEvent({ name: payload.name }, payload.properties);
+      state.appInsights.trackEvent({ name: payload.name }, payload.properties, payload.context);
       return;
     }
 
@@ -749,7 +875,9 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
-    trackPageView();
+    void ensureDeviceContext().finally(() => {
+      trackPageView();
+    });
     void ensureClient();
   });
 
