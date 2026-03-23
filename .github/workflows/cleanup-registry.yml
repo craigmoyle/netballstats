@@ -77,7 +77,27 @@ jobs:
       KEEP: ${{ inputs.keep || '5' }}
 
     steps:
+      - name: Check Azure cleanup configuration
+        id: config
+        shell: bash
+        env:
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+          AZURE_REGISTRY_NAME: ${{ vars.AZURE_REGISTRY_NAME }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "$AZURE_CLIENT_ID" ] || [ -z "$AZURE_TENANT_ID" ] || [ -z "$AZURE_SUBSCRIPTION_ID" ] || [ -z "$AZURE_REGISTRY_NAME" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Azure cleanup configuration is incomplete; skipping registry prune."
+            exit 0
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
       - name: Log in to Azure (OIDC)
+        if: steps.config.outputs.enabled == 'true'
         uses: azure/login@v2
         with:
           client-id: ${{ secrets.AZURE_CLIENT_ID }}
@@ -85,6 +105,7 @@ jobs:
           subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
 
       - name: Prune each repository to ${{ env.KEEP }} tags
+        if: steps.config.outputs.enabled == 'true'
         env:
           REGISTRY: ${{ vars.AZURE_REGISTRY_NAME }}
         run: |
