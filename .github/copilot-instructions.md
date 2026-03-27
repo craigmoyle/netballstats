@@ -44,6 +44,7 @@
 - For frontend-only deploys, prefer `azd deploy web`.
 - Keep `azure.yaml` postdeploy behaviour intact so refresh jobs stay on the same image as the API.
 - Keep the Azure API image compatible with non-root `renv` usage and `linux/amd64` remote builds.
+- After a successful repository change, commit it, push it, and deploy the relevant Azure service once validation passes.
 
 ## Operational notes
 
