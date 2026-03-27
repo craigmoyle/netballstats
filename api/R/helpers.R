@@ -116,7 +116,9 @@ QUERY_COMPARISON_DEFINITIONS <- list(
 QUERY_SUPPORTED_EXAMPLES <- c(
   "How many times has Fowler scored 50 goals or more against the Vixens?",
   "What is Fowler's highest goals total against the Swifts?",
-  "Which players scored 40+ goals in 2025?"
+  "Which players scored 40+ goals in 2025?",
+  "How many times have the Swifts scored 70 goals or more against the Vixens?",
+  "Which teams scored 70+ goals in 2025?"
 )
 
 open_db <- function() {
@@ -533,7 +535,7 @@ detect_query_intent_type <- function(text) {
   if (grepl("\\blowest\\b", text)) {
     return("lowest")
   }
-  if (grepl("^(which players|list players|show players|who)\\b", text)) {
+  if (grepl("^(which players|which teams|list players|list teams|show players|show teams|who)\\b", text)) {
     return("list")
   }
   if (grepl("^(show|list)\\b", text)) {
@@ -783,7 +785,7 @@ extract_query_player_phrase <- function(question, intent_type) {
   patterns <- switch(
     intent_type,
     count = c(
-      "(?i)^how many (?:times|matches) has\\s+(.+?)\\s+(?:scored|recorded|made|had|posted|notched|registered)\\b",
+      "(?i)^how many (?:times|matches) (?:has|have)\\s+(.+?)\\s+(?:scored|recorded|made|had|posted|notched|registered)\\b",
       "(?i)^how many (?:times|matches) did\\s+(.+?)\\s+(?:score|record|make|have|post|notch|register)\\b"
     ),
     highest = c(
@@ -803,6 +805,56 @@ extract_query_player_phrase <- function(question, intent_type) {
   }
 
   NULL
+}
+
+extract_query_subject_phrase <- function(question, intent_type) {
+  extract_query_player_phrase(question, intent_type)
+}
+
+detect_query_list_subject_type <- function(text) {
+  if (grepl("^(which players|list players|show players|who)\\b", text)) {
+    return("players")
+  }
+  if (grepl("^(which teams|list teams|show teams)\\b", text)) {
+    return("teams")
+  }
+
+  NULL
+}
+
+resolve_query_subject <- function(conn, phrase) {
+  team <- resolve_query_team(conn, phrase)
+  if (is.list(team) && !is.null(team$status) && identical(team$status, "supported")) {
+    return(list(
+      status = "supported",
+      subject_type = "team",
+      team_id = team$squad_id,
+      team_name = team$squad_name
+    ))
+  }
+
+  player <- resolve_query_player(conn, phrase)
+  if (is.list(player) && !is.null(player$status) && identical(player$status, "supported")) {
+    return(list(
+      status = "supported",
+      subject_type = "player",
+      player_id = player$player_id,
+      player_name = player$player_name
+    ))
+  }
+
+  if (is.list(team) && !is.null(team$status) && identical(team$status, "ambiguous")) {
+    return(team)
+  }
+  if (is.list(player) && !is.null(player$status) && identical(player$status, "ambiguous")) {
+    return(player)
+  }
+
+  query_error_payload(
+    "unsupported",
+    phrase,
+    "I couldn't match a player or team in that question."
+  )
 }
 
 parse_query_intent <- function(conn, question, limit = 12L) {
@@ -839,44 +891,61 @@ parse_query_intent <- function(conn, question, limit = 12L) {
     return(opponent)
   }
 
-  plural_list_query <- identical(intent_type, "list") &&
-    grepl("^(which players|list players|show players|who)\\b", normalized_text)
-
-  player_search_phrase <- if (plural_list_query) {
-    NULL
+  plural_subject_type <- if (identical(intent_type, "list")) {
+    detect_query_list_subject_type(normalized_text)
   } else {
-    extract_query_player_phrase(parsed_question, intent_type) %||% parsed_question
-  }
-  player <- if (plural_list_query) {
     NULL
-  } else {
-    resolve_query_player(conn, player_search_phrase)
-  }
-  if (is.list(player) && !is.null(player$status) && !identical(player$status, "supported")) {
-    player$question <- parsed_question
-    return(player)
   }
 
-  subject_type <- if (plural_list_query) "players" else "player"
-  if (!identical(subject_type, "players") && is.null(player)) {
+  subject_search_phrase <- if (!is.null(plural_subject_type)) {
+    NULL
+  } else {
+    extract_query_subject_phrase(parsed_question, intent_type) %||% parsed_question
+  }
+  subject <- if (!is.null(plural_subject_type)) {
+    list(status = "supported", subject_type = plural_subject_type)
+  } else {
+    resolve_query_subject(conn, subject_search_phrase)
+  }
+  if (is.list(subject) && !is.null(subject$status) && !identical(subject$status, "supported")) {
+    subject$question <- parsed_question
+    return(subject)
+  }
+
+  subject_type <- subject$subject_type %||% NULL
+  if (is.null(subject_type)) {
     return(query_error_payload(
       "unsupported",
       parsed_question,
-      "I couldn't identify which player you want to ask about."
+      "I couldn't identify whether the question is about a player or a team."
     ))
   }
   if (
-    !identical(subject_type, "players") &&
+    identical(subject_type, "player") &&
     (
-      is.null(player$player_id) ||
-      is.null(player$player_name) ||
-      !nzchar(as.character(player$player_name))
+      is.null(subject$player_id) ||
+      is.null(subject$player_name) ||
+      !nzchar(as.character(subject$player_name))
     )
   ) {
     return(query_error_payload(
       "unsupported",
       parsed_question,
       "I couldn't confidently match a single player in that question."
+    ))
+  }
+  if (
+    identical(subject_type, "team") &&
+    (
+      is.null(subject$team_id) ||
+      is.null(subject$team_name) ||
+      !nzchar(as.character(subject$team_name))
+    )
+  ) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "I couldn't confidently match a single team in that question."
     ))
   }
 
@@ -895,14 +964,24 @@ parse_query_intent <- function(conn, question, limit = 12L) {
       "Broader list questions need at least one narrowing filter such as a threshold, opponent, or season."
     ))
   }
+  if (identical(intent_type, "list") && identical(subject_type, "teams") &&
+      is.null(threshold) && is.null(opponent) && is.null(seasons)) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "Broader list questions need at least one narrowing filter such as a threshold, opponent, or season."
+    ))
+  }
 
   list(
     status = "supported",
     question = parsed_question,
     intent_type = intent_type,
     subject_type = subject_type,
-    player_id = player$player_id %||% NULL,
-    player_name = player$player_name %||% NULL,
+    player_id = subject$player_id %||% NULL,
+    player_name = subject$player_name %||% NULL,
+    team_id = subject$team_id %||% NULL,
+    team_name = subject$team_name %||% NULL,
     stat = stat,
     stat_label = query_stat_label(stat),
     comparison = threshold$comparison %||% NULL,
@@ -1008,6 +1087,43 @@ build_fast_player_match_query <- function(stat, seasons = NULL, player_id = NULL
   list(query = query, params = params)
 }
 
+build_team_match_query <- function(stat, seasons = NULL, team_id = NULL, opponent_id = NULL, comparison = NULL, threshold = NULL) {
+  query <- paste(
+    "SELECT stats.squad_id AS team_id, stats.squad_name,",
+    "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+    "stats.season AS season, stats.round_number AS round_number, stats.match_id AS match_id, matches.local_start_time AS local_start_time,",
+    "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+    "FROM team_period_stats AS stats",
+    "INNER JOIN matches ON matches.match_id = stats.match_id",
+    "WHERE stats.stat = ?stat"
+  )
+  params <- list(stat = stat)
+
+  filters <- apply_stat_filters(query, params, seasons = seasons, team_id = team_id, round_number = NULL, table_alias = "stats")
+  query <- filters$query
+  params <- filters$params
+
+  if (!is.null(opponent_id)) {
+    query <- paste0(
+      query,
+      " AND (CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_id ELSE matches.home_squad_id END) = ?opponent_id"
+    )
+    params$opponent_id <- opponent_id
+  }
+
+  query <- paste0(
+    query,
+    " GROUP BY stats.squad_id, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time"
+  )
+
+  if (!is.null(comparison) && !is.null(threshold)) {
+    query <- paste0(query, " HAVING SUM(stats.value_number) ", query_comparison_sql(comparison), " ?threshold")
+    params$threshold <- threshold
+  }
+
+  list(query = query, params = params)
+}
+
 format_query_number <- function(value) {
   if (is.null(value) || !is.finite(as.numeric(value))) {
     return(as.character(value))
@@ -1061,9 +1177,24 @@ query_filter_suffix <- function(intent) {
   paste0(" ", paste(suffix, collapse = " "))
 }
 
+query_possessive_label <- function(value) {
+  if (is.null(value) || !nzchar(value)) {
+    return("")
+  }
+
+  trimmed <- trimws(as.character(value))
+  if (!nzchar(trimmed)) {
+    return("")
+  }
+
+  paste0(trimmed, if (grepl("s$", trimmed, ignore.case = TRUE)) "'" else "'s")
+}
+
 build_query_answer <- function(intent, rows, total_matches) {
   stat_label <- tolower(query_stat_label(intent$stat))
-  subject <- intent$player_name %||% "Players"
+  subject <- intent$player_name %||% intent$team_name %||%
+    if (identical(intent$subject_type, "teams")) "Teams" else "Players"
+  possessive_subject <- query_possessive_label(subject)
   filter_suffix <- query_filter_suffix(intent)
   threshold_phrase <- if (!is.null(intent$comparison) && !is.null(intent$threshold)) {
     paste(query_comparison_label(intent$comparison), format_query_number(intent$threshold), stat_label)
@@ -1095,8 +1226,8 @@ build_query_answer <- function(intent, rows, total_matches) {
 
   if (identical(intent$intent_type, "highest")) {
     return(sprintf(
-      "%s's highest %s%s was %s%s",
-      subject,
+      "%s highest %s%s was %s%s",
+      possessive_subject,
       stat_label,
       filter_suffix,
       format_query_number(first_row$total_value[[1]]),
@@ -1106,8 +1237,8 @@ build_query_answer <- function(intent, rows, total_matches) {
 
   if (identical(intent$intent_type, "lowest")) {
     return(sprintf(
-      "%s's lowest %s%s was %s%s",
-      subject,
+      "%s lowest %s%s was %s%s",
+      possessive_subject,
       stat_label,
       filter_suffix,
       format_query_number(first_row$total_value[[1]]),
@@ -1118,6 +1249,14 @@ build_query_answer <- function(intent, rows, total_matches) {
   if (identical(intent$subject_type, "players")) {
     return(sprintf(
       "Found %s matching player performances for %s%s.",
+      format_query_number(total_matches),
+      threshold_phrase,
+      filter_suffix
+    ))
+  }
+  if (identical(intent$subject_type, "teams")) {
+    return(sprintf(
+      "Found %s matching team performances for %s%s.",
       format_query_number(total_matches),
       threshold_phrase,
       filter_suffix
@@ -1169,14 +1308,25 @@ sort_query_result_rows <- function(rows, intent_type = "list") {
   rows$season <- suppressWarnings(as.integer(rows$season))
   rows$round_number <- suppressWarnings(as.integer(rows$round_number))
   rows$total_value <- suppressWarnings(as.numeric(rows$total_value))
-  rows$player_name <- as.character(rows$player_name)
+  label_column <- if ("player_name" %in% names(rows)) {
+    "player_name"
+  } else if ("squad_name" %in% names(rows)) {
+    "squad_name"
+  } else {
+    NULL
+  }
+  rows$sort_label <- if (is.null(label_column)) {
+    rep("", nrow(rows))
+  } else {
+    as.character(rows[[label_column]])
+  }
 
   order_index <- if (identical(intent_type, "lowest")) {
     order(
       rows$total_value,
       -rows$season,
       -rows$round_number,
-      rows$player_name,
+      rows$sort_label,
       na.last = TRUE
     )
   } else {
@@ -1184,12 +1334,14 @@ sort_query_result_rows <- function(rows, intent_type = "list") {
       -rows$total_value,
       -rows$season,
       -rows$round_number,
-      rows$player_name,
+      rows$sort_label,
       na.last = TRUE
     )
   }
 
-  rows[order_index, , drop = FALSE]
+  ordered <- rows[order_index, , drop = FALSE]
+  ordered$sort_label <- NULL
+  ordered
 }
 
 # Fetches player leaderboard rows aggregated across all requested seasons in SQL.
@@ -1422,31 +1574,47 @@ fetch_query_result_rows <- function(conn, intent) {
     NULL
   }
 
-  # Use the pre-aggregated table when available; fall back to period-level aggregation.
-  builder <- if (has_player_match_stats(conn)) build_fast_player_match_query else build_player_match_query
-  base_query <- builder(
-    stat = intent$stat,
-    seasons = seasons_filter,
-    player_id = intent$player_id,
-    opponent_id = intent$opponent_id,
-    comparison = intent$comparison,
-    threshold = intent$threshold
-  )
+  team_query <- identical(intent$subject_type, "team") || identical(intent$subject_type, "teams")
+  if (team_query) {
+    builder <- build_team_match_query
+    base_query <- builder(
+      stat = intent$stat,
+      seasons = seasons_filter,
+      team_id = intent$team_id,
+      opponent_id = intent$opponent_id,
+      comparison = intent$comparison,
+      threshold = intent$threshold
+    )
+    tbl_alias <- "stats"
+    order_name_expr <- paste0(tbl_alias, ".squad_name")
+  } else {
+    # Use the pre-aggregated table when available; fall back to period-level aggregation.
+    builder <- if (has_player_match_stats(conn)) build_fast_player_match_query else build_player_match_query
+    base_query <- builder(
+      stat = intent$stat,
+      seasons = seasons_filter,
+      player_id = intent$player_id,
+      opponent_id = intent$opponent_id,
+      comparison = intent$comparison,
+      threshold = intent$threshold
+    )
 
-  # Alias used in ORDER BY differs between the two tables.
-  tbl_alias <- if (identical(builder, build_fast_player_match_query)) "pms" else "stats"
+    # Alias used in ORDER BY differs between the two tables.
+    tbl_alias <- if (identical(builder, build_fast_player_match_query)) "pms" else "stats"
+    order_name_expr <- "players.canonical_name"
+  }
 
   # For highest/lowest intents we only ever display 1 row. Push ORDER BY + LIMIT
   # into SQL so the database returns one row instead of the full match history.
   if (identical(intent$intent_type, "highest") || identical(intent$intent_type, "lowest")) {
     order_dir <- if (identical(intent$intent_type, "lowest")) "ASC" else "DESC"
-    limited_query <- paste0(
-      base_query$query,
-      " ORDER BY total_value ", order_dir,
-      ", ", tbl_alias, ".season DESC, ", tbl_alias, ".round_number DESC, players.canonical_name ASC",
-      " LIMIT 1"
-    )
-    return(query_rows(conn, limited_query, base_query$params))
+      limited_query <- paste0(
+        base_query$query,
+        " ORDER BY total_value ", order_dir,
+        ", ", tbl_alias, ".season DESC, ", tbl_alias, ".round_number DESC, ", order_name_expr, " ASC",
+        " LIMIT 1"
+      )
+      return(query_rows(conn, limited_query, base_query$params))
   }
 
   # For list intents push ORDER BY + LIMIT into SQL so we only transfer the
@@ -1456,7 +1624,7 @@ fetch_query_result_rows <- function(conn, intent) {
     limited_query <- paste0(
       base_query$query,
       " ORDER BY total_value DESC",
-      ", ", tbl_alias, ".season DESC, ", tbl_alias, ".round_number DESC, players.canonical_name ASC",
+      ", ", tbl_alias, ".season DESC, ", tbl_alias, ".round_number DESC, ", order_name_expr, " ASC",
       " LIMIT ", list_limit
     )
     return(sort_query_result_rows(

@@ -23,18 +23,29 @@ const QUERY_STATUS_LABELS = {
 };
 const DEFAULT_QUERY_STATE = {
   title: "Supported question shapes",
-  description: "Keep the wording literal so the parser can show exactly how it read the question.",
+  description: "Keep the wording literal so the parser can show exactly how it read the player or team question.",
   items: [
-    "Player + stat + threshold + optional opponent/season",
-    "Player + highest/lowest + stat + optional opponent/season",
-    "List queries for players meeting a stat filter"
+    "Player or team + stat + threshold + optional opponent/season",
+    "Player or team + highest/lowest + stat + optional opponent/season",
+    "List queries for players or teams meeting a stat filter"
   ]
 };
 const FALLBACK_EXAMPLES = [
-  "How many times has Fowler scored 50 goals or more against the Vixens?",
-  "What is Fowler's highest goals total against the Swifts?",
-  "Which players scored 40+ goals in 2025?"
+  "How many times has Grace Nweke scored 50 goals or more against the Vixens?",
+  "What is Grace Nweke's highest goals total against the Swifts?",
+  "Which players scored 40+ goals in 2025?",
+  "What is the Swifts' highest goals total against the Vixens?"
 ];
+const TABLE_SCHEMAS = {
+  player: {
+    caption: "Matching player performances",
+    columns: ["Player", "Team", "Opponent", "Season", "Round", "Stat total", "Local start"]
+  },
+  team: {
+    caption: "Matching team performances",
+    columns: ["Team", "Opponent", "Season", "Round", "Stat total", "Local start"]
+  }
+};
 
 const elements = {
   apiBase: document.getElementById("api-base"),
@@ -55,6 +66,9 @@ const elements = {
   interpretationGrid: document.getElementById("interpretation-grid"),
   queryState: document.getElementById("query-state"),
   tableMeta: document.getElementById("table-meta"),
+  queryTable: document.getElementById("query-table"),
+  queryTableCaption: document.getElementById("query-table-caption"),
+  queryTableHead: document.getElementById("query-table-head"),
   queryRowsBody: document.getElementById("query-rows-body")
 };
 
@@ -120,6 +134,28 @@ function showLoadingStatus(messages, kicker) {
   });
 }
 
+function normalizeQuerySubjectType(subjectType = "player") {
+  return subjectType === "team" || subjectType === "teams" ? "team" : "player";
+}
+
+function setTableSchema(subjectType = "player") {
+  const schema = TABLE_SCHEMAS[normalizeQuerySubjectType(subjectType)] || TABLE_SCHEMAS.player;
+  if (elements.queryTableCaption) {
+    elements.queryTableCaption.textContent = schema.caption;
+  }
+  if (elements.queryTableHead) {
+    const row = document.createElement("tr");
+    schema.columns.forEach((label) => {
+      const th = document.createElement("th");
+      th.scope = "col";
+      th.textContent = label;
+      row.appendChild(th);
+    });
+    elements.queryTableHead.replaceChildren(row);
+  }
+  syncResponsiveTable(elements.queryTable);
+}
+
 function formatNumber(value) {
   if (value === null || value === undefined || value === "") {
     return "--";
@@ -158,7 +194,7 @@ function clearTable(message) {
   elements.queryRowsBody.replaceChildren();
   const row = document.createElement("tr");
   const cell = document.createElement("td");
-  cell.colSpan = 7;
+  cell.colSpan = elements.queryTableHead?.querySelectorAll("th").length || 1;
   cell.textContent = message;
   row.appendChild(cell);
   elements.queryRowsBody.appendChild(row);
@@ -244,6 +280,7 @@ function updateQuestionComposerState(value = "") {
 }
 
 function setIdleState() {
+  setTableSchema("player");
   setSummaryCards();
   elements.answerHeadline.textContent = "Ask a question to see the answer.";
   elements.answerMeta.textContent = "Each answer comes from the parsed intent and the matching records.";
@@ -263,7 +300,7 @@ function renderMeta(meta) {
 
   const seasons = [...meta.seasons].sort((left, right) => left - right);
   if (elements.heroSeasonRange) elements.heroSeasonRange.textContent = seasons[0] + "\u2013" + seasons[seasons.length - 1];
-  elements.querySeasonSummary.textContent = `${seasons[0]}-${seasons[seasons.length - 1]} archive coverage with ${meta.player_stats.length} tracked player stats in the catalog.`;
+  elements.querySeasonSummary.textContent = `${seasons[0]}-${seasons[seasons.length - 1]} archive coverage with ${meta.player_stats.length} player stats and ${meta.team_stats.length} team stats in the catalog.`;
 }
 
 function renderInterpretation(parsed = {}) {
@@ -271,10 +308,15 @@ function renderInterpretation(parsed = {}) {
   const seasonValue = Array.isArray(parsed.seasons) && parsed.seasons.length
     ? parsed.seasons.join(", ")
     : (parsed.season || "All seasons");
+  const subjectType = normalizeQuerySubjectType(parsed.subject_type);
+  const subjectValue = parsed.player_name
+    || parsed.team_name
+    || (parsed.subject_type === "players" ? "Players" : (parsed.subject_type === "teams" ? "Teams" : "--"));
 
   const cards = [
     ["Question type", QUERY_STATUS_LABELS[parsed.intent_type] || "--"],
-    ["Subject", parsed.player_name || (parsed.subject_type === "players" ? "Players" : "--")],
+    ["Subject", subjectValue],
+    ["Subject type", subjectType === "team" ? "Team" : "Player"],
     ["Stat", parsed.stat_label || "--"],
     ["Filter", parsed.comparison_label && parsed.threshold !== undefined && parsed.threshold !== null
       ? `${parsed.comparison_label} ${formatNumber(parsed.threshold)}`
@@ -288,36 +330,49 @@ function renderInterpretation(parsed = {}) {
   });
 }
 
-function renderRows(rows) {
+function renderRows(rows, subjectType = "player") {
   if (!Array.isArray(rows) || !rows.length) {
     clearTable("No matching records found.");
     return;
   }
 
+  const normalizedSubjectType = normalizeQuerySubjectType(subjectType);
   const fragment = document.createDocumentFragment();
   rows.forEach((entry) => {
     const row = document.createElement("tr");
 
-    const playerCell = document.createElement("td");
-    if (entry.player_id) {
-      const link = document.createElement("a");
-      link.className = "table-link";
-      link.href = playerProfileUrl(entry.player_id);
-      link.textContent = entry.player_name || "Unknown player";
-      playerCell.appendChild(link);
+    let cells;
+    if (normalizedSubjectType === "team") {
+      cells = [
+        entry.squad_name || entry.team_name || "Unknown team",
+        entry.opponent || "--",
+        formatNumber(entry.season),
+        formatNumber(entry.round_number),
+        formatNumber(entry.total_value),
+        formatDate(entry.local_start_time)
+      ];
     } else {
-      playerCell.textContent = entry.player_name || "Unknown player";
-    }
+      const playerCell = document.createElement("td");
+      if (entry.player_id) {
+        const link = document.createElement("a");
+        link.className = "table-link";
+        link.href = playerProfileUrl(entry.player_id);
+        link.textContent = entry.player_name || "Unknown player";
+        playerCell.appendChild(link);
+      } else {
+        playerCell.textContent = entry.player_name || "Unknown player";
+      }
 
-    const cells = [
-      playerCell,
-      entry.squad_name || "--",
-      entry.opponent || "--",
-      formatNumber(entry.season),
-      formatNumber(entry.round_number),
-      formatNumber(entry.total_value),
-      formatDate(entry.local_start_time)
-    ];
+      cells = [
+        playerCell,
+        entry.squad_name || "--",
+        entry.opponent || "--",
+        formatNumber(entry.season),
+        formatNumber(entry.round_number),
+        formatNumber(entry.total_value),
+        formatDate(entry.local_start_time)
+      ];
+    }
 
     cells.forEach((cell) => {
       if (cell instanceof HTMLElement) {
@@ -337,6 +392,7 @@ function renderRows(rows) {
 
 function renderUnsupported(result) {
   const reason = result.reason || "That question is outside the supported v1 grammar.";
+  setTableSchema("player");
   setSummaryCards("--", "--", "--", result.status === "ambiguous" ? "Ambiguous" : "Unsupported");
   elements.answerHeadline.textContent = reason;
   elements.answerMeta.textContent = "Try one of the examples above.";
@@ -363,6 +419,7 @@ function renderResult(result) {
 
   const summary = result.summary || {};
   const parsed = result.parsed || {};
+  const subjectType = normalizeQuerySubjectType(parsed.subject_type);
 
   setSummaryCards(
     QUERY_STATUS_LABELS[summary.question_type] || "--",
@@ -373,8 +430,9 @@ function renderResult(result) {
   elements.answerHeadline.textContent = result.answer || "No answer.";
   elements.answerMeta.textContent = "Generated from the parsed intent and the query template.";
   elements.queryState.hidden = true;
+  setTableSchema(subjectType);
   renderInterpretation(parsed);
-  renderRows(result.rows);
+  renderRows(result.rows, subjectType);
   elements.tableMeta.textContent = Array.isArray(result.rows) && result.rows.length
     ? `Showing ${result.rows.length} supporting row${result.rows.length === 1 ? "" : "s"} from ${formatNumber(summary.match_count)} matching performances.`
     : "No matching records.";

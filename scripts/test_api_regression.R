@@ -138,6 +138,15 @@ assert_true(identical(as.character(scalar_value(query_payload$status)), 'support
 assert_true(nzchar(as.character(scalar_value(query_payload$answer %||% ''))), 'Expected /query to return an answer string.')
 check_step('natural-language query endpoint returns a supported answer')
 
+team_query_payload <- request_json(
+  base_url,
+  '/query',
+  query = list(question = sprintf('Which teams scored 60+ goals in %s?', default_season), limit = 5)
+)
+assert_true(identical(as.character(scalar_value(team_query_payload$status)), 'supported'), 'Expected /query to support a representative team natural-language question.')
+assert_true(identical(as.character(scalar_value(team_query_payload$parsed$subject_type %||% '')), 'teams'), 'Expected team query parsing to report teams subject_type.')
+check_step('natural-language query endpoint supports representative team queries')
+
 invalid_summary <- request_json(base_url, '/summary', query = list(season = 1900), expected_status = 400L)
 assert_true(nzchar(as.character(invalid_summary$error %||% '')), 'Expected invalid requests to return an error payload.')
 check_step('validation errors return a 400 response')

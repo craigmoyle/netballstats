@@ -64,7 +64,7 @@
                   id="question-input"
                   name="question"
                   maxlength="220"
-                  placeholder="How many times has Fowler scored 50 goals or more against the Vixens?"
+                  placeholder="How many times has Grace Nweke scored 50 goals or more against the Vixens?"
                   aria-describedby="query-hint"
                 ></textarea>
                 <div class="query-submit-stack">
@@ -74,7 +74,7 @@
               </div>
               <div class="query-input-meta">
                 <p id="query-hint" class="query-hint">
-                  Supported today: count, highest/lowest, and list/filter questions against player match totals.
+                  Supported today: player and team count, highest/lowest, and list/filter questions against match totals.
                 </p>
                 <p id="question-character-count" class="query-character-count" aria-live="polite">0 / 220 characters</p>
               </div>
@@ -83,7 +83,7 @@
             <div class="query-form__notes" aria-label="Question writing guide">
               <article class="query-note">
                 <span class="query-note__label">Start with</span>
-                <p>A player, a stat, and either a threshold or a highest/lowest cue.</p>
+                <p>A player or a team, a stat, and either a threshold or a highest/lowest cue.</p>
               </article>
               <article class="query-note">
                 <span class="query-note__label">Optional filters</span>
@@ -94,12 +94,13 @@
             <div class="query-examples">
               <div class="query-examples__header">
                 <strong>Starter prompts</strong>
-                <p>Use one of these, then swap the player, opponent, stat, or season.</p>
+                <p>Use one of these, then swap the player or team, opponent, stat, or season.</p>
               </div>
               <div class="example-strip" id="example-strip" aria-label="Example question prompts">
-                <button type="button" class="example-chip" data-example="How many times has Fowler scored 50 goals or more against the Vixens?">Fowler 50+ against Vixens</button>
-                <button type="button" class="example-chip" data-example="What is Fowler's highest goals total against the Swifts?">Fowler highest against Swifts</button>
+                <button type="button" class="example-chip" data-example="How many times has Grace Nweke scored 50 goals or more against the Vixens?">Grace Nweke 50+ against Vixens</button>
+                <button type="button" class="example-chip" data-example="What is Grace Nweke's highest goals total against the Swifts?">Grace Nweke highest against Swifts</button>
                 <button type="button" class="example-chip" data-example="Which players scored 40+ goals in 2025?">Players with 40+ in 2025</button>
+                <button type="button" class="example-chip" data-example="What is the Swifts' highest goals total against the Vixens?">Swifts highest against Vixens</button>
               </div>
             </div>
           </form>
@@ -139,11 +140,11 @@
 
             <div id="query-state" class="query-state">
               <strong>Supported question shapes</strong>
-              <p>Keep the wording literal so the parser can show exactly how it read the question.</p>
+              <p>Keep the wording literal so the parser can show exactly how it read the player or team question.</p>
               <ul>
-                <li>Player + stat + threshold + optional opponent/season</li>
-                <li>Player + highest/lowest + stat + optional opponent/season</li>
-                <li>List queries for players meeting a stat filter</li>
+                <li>Player or team + stat + threshold + optional opponent/season</li>
+                <li>Player or team + highest/lowest + stat + optional opponent/season</li>
+                <li>List queries for players or teams meeting a stat filter</li>
               </ul>
             </div>
           </div>
@@ -157,9 +158,9 @@
             <p id="table-meta" class="table-meta">No rows loaded yet.</p>
           </div>
           <div class="table-wrapper table-wrapper--spotlight">
-            <table class="query-table stack-table">
-              <caption>Matching player performances</caption>
-              <thead>
+            <table class="query-table stack-table" id="query-table">
+              <caption id="query-table-caption">Matching player performances</caption>
+              <thead id="query-table-head">
                 <tr>
                   <th scope="col">Player</th>
                   <th scope="col">Team</th>

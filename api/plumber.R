@@ -1308,6 +1308,7 @@ function(question = "", limit = "12", res) {
         intent_type = intent$intent_type,
         subject_type = intent$subject_type,
         player_name = intent$player_name,
+        team_name = intent$team_name,
         stat = intent$stat,
         stat_label = intent$stat_label,
         comparison = intent$comparison,
