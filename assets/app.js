@@ -39,6 +39,7 @@ const state = {
     playerStat: "points",
     statMode: "total",
     rankingMode: "highest",
+    archiveMode: "aggregate",
     playerSearch: ""
   },
   views: {
@@ -67,6 +68,9 @@ const elements = {
   round: document.getElementById("round"),
   teamStat: document.getElementById("team-stat"),
   playerStat: document.getElementById("player-stat"),
+  archiveMode: document.getElementById("archive-mode"),
+  archiveModeHint: document.getElementById("archive-mode-hint"),
+  archiveModeButtons: document.querySelectorAll("[data-archive-mode]"),
   statMode: document.getElementById("stat-mode"),
   rankingMode: document.getElementById("ranking-mode"),
   rankingButtons: document.querySelectorAll("[data-ranking-mode]"),
@@ -88,6 +92,17 @@ const elements = {
   teamTrendChart: document.getElementById("team-trend-chart"),
   playerLeadersChart: document.getElementById("player-leaders-chart"),
   playerTrendChart: document.getElementById("player-trend-chart"),
+  competitionSeasonPanel: document.getElementById("competition-season-panel"),
+  playerTrendCard: document.getElementById("player-trend-card"),
+  teamTrendCard: document.getElementById("team-trend-card"),
+  playerTrendTitle: document.getElementById("player-trend-title"),
+  teamTrendTitle: document.getElementById("team-trend-title"),
+  playerPanelTitle: document.getElementById("player-panel-title"),
+  teamPanelTitle: document.getElementById("team-panel-title"),
+  playerPanelSummary: document.getElementById("player-panel-summary"),
+  teamPanelSummary: document.getElementById("team-panel-summary"),
+  playerLeadersHead: document.getElementById("player-leaders-head"),
+  teamLeadersHead: document.getElementById("team-leaders-head"),
   teamLeadersChartTitle: document.getElementById("team-leaders-chart-title"),
   playerLeadersChartTitle: document.getElementById("player-leaders-chart-title"),
   competitionValueHeading: document.getElementById("competition-value-heading"),
@@ -369,6 +384,10 @@ function isAverageMetric() {
   return state.filters.statMode === "average";
 }
 
+function isRecordMode() {
+  return state.filters.archiveMode === "records";
+}
+
 function statModeLabel() {
   return isAverageMetric() ? "Avg/game" : "Total";
 }
@@ -385,6 +404,10 @@ function rankingModeDescriptor() {
   return state.filters.rankingMode === "lowest" ? "Lowest first" : "Highest first";
 }
 
+function archiveModeLabel() {
+  return isRecordMode() ? "Single-game records" : "Archive totals";
+}
+
 function setRankingMode(nextMode = "highest") {
   const normalized = nextMode === "lowest" ? "lowest" : "highest";
   if (elements.rankingMode) {
@@ -399,18 +422,128 @@ function setRankingMode(nextMode = "highest") {
   });
 }
 
+function setArchiveMode(nextMode = "aggregate") {
+  const normalized = nextMode === "records" ? "records" : "aggregate";
+  if (elements.archiveMode) {
+    elements.archiveMode.value = normalized;
+  }
+
+  elements.archiveModeButtons.forEach((button) => {
+    const active = button.dataset.archiveMode === normalized;
+    button.classList.toggle("is-active", active);
+    button.classList.toggle("button--ghost", !active);
+    button.setAttribute("aria-pressed", `${active}`);
+  });
+}
+
+function replaceTableHead(tableHead, labels) {
+  if (!tableHead) return;
+  const row = document.createElement("tr");
+  labels.forEach((label) => {
+    const config = typeof label === "string" ? { text: label } : label;
+    const th = document.createElement("th");
+    th.scope = "col";
+    if (config.id) {
+      th.id = config.id;
+    }
+    th.textContent = config.text;
+    row.appendChild(th);
+  });
+  tableHead.replaceChildren(row);
+}
+
+function updateArchiveModePresentation() {
+  const recordMode = isRecordMode();
+
+  if (elements.statMode) {
+    elements.statMode.disabled = recordMode;
+    elements.statMode.setAttribute("aria-disabled", `${recordMode}`);
+  }
+
+  if (elements.archiveModeHint) {
+    elements.archiveModeHint.textContent = recordMode
+      ? "Single-game records focus on one-match highs or lows for the player and team sections below."
+      : "Switch the player and team sections below between aggregate leaders and single-game records.";
+  }
+
+  if (elements.competitionSeasonPanel) {
+    elements.competitionSeasonPanel.hidden = recordMode;
+  }
+  if (elements.playerTrendCard) {
+    elements.playerTrendCard.hidden = recordMode;
+  }
+  if (elements.teamTrendCard) {
+    elements.teamTrendCard.hidden = recordMode;
+  }
+
+  if (elements.playerPanelTitle) {
+    elements.playerPanelTitle.textContent = recordMode ? "Player records" : "Player leaderboard";
+  }
+  if (elements.teamPanelTitle) {
+    elements.teamPanelTitle.textContent = recordMode ? "Team records" : "Team leaderboard";
+  }
+  if (elements.playerPanelSummary) {
+    elements.playerPanelSummary.textContent = recordMode
+      ? "Single-game player records for the selected stat and filters."
+      : "Cross-season totals, including moves and name changes.";
+  }
+  if (elements.teamPanelSummary) {
+    elements.teamPanelSummary.textContent = recordMode
+      ? "Single-game team records for the selected stat and filters."
+      : "Compare team output across seasons and eras.";
+  }
+  if (elements.playerTrendTitle) {
+    elements.playerTrendTitle.textContent = recordMode ? "Season trend unavailable in record mode" : "Season trend for top players";
+  }
+  if (elements.teamTrendTitle) {
+    elements.teamTrendTitle.textContent = recordMode ? "Season trend unavailable in record mode" : "Season trend for top clubs";
+  }
+
+  replaceTableHead(
+    elements.playerLeadersHead,
+    recordMode
+      ? ["Rank", "Player", "Team", "Opponent", "Season", "Round", "Stat total", "Local start"]
+      : ["Rank", "Player", "Team", "Stat", { text: statModeLabel(), id: "player-value-heading" }, "Matches"]
+  );
+  replaceTableHead(
+    elements.teamLeadersHead,
+    recordMode
+      ? ["Rank", "Team", "Opponent", "Season", "Round", "Stat total", "Local start"]
+      : ["Rank", "Team", "Stat", { text: statModeLabel(), id: "team-value-heading" }, "Matches"]
+  );
+}
+
 function statValue(row) {
   if (row && row.value !== undefined && row.value !== null && row.value !== "") {
     return row.value;
+  }
+  if (isRecordMode()) {
+    return row?.total_value;
   }
   return isAverageMetric() ? row?.average_value : row?.total_value;
 }
 
 function updateValueHeadings() {
+  updateArchiveModePresentation();
+  if (isRecordMode()) {
+    syncResponsiveTable(elements.playerLeadersBody.closest("table"));
+    syncResponsiveTable(elements.teamLeadersBody.closest("table"));
+    return;
+  }
+
   const label = statModeLabel();
-  elements.competitionValueHeading.textContent = label;
-  elements.teamValueHeading.textContent = label;
-  elements.playerValueHeading.textContent = label;
+  const competitionValueHeading = document.getElementById("competition-value-heading");
+  const teamValueHeading = document.getElementById("team-value-heading");
+  const playerValueHeading = document.getElementById("player-value-heading");
+  if (competitionValueHeading) {
+    competitionValueHeading.textContent = label;
+  }
+  if (teamValueHeading) {
+    teamValueHeading.textContent = label;
+  }
+  if (playerValueHeading) {
+    playerValueHeading.textContent = label;
+  }
   [
     elements.competitionSeasonBody,
     elements.teamLeadersBody,
@@ -427,6 +560,7 @@ function syncFiltersFromForm() {
     playerStat: elements.playerStat.value,
     statMode: elements.statMode.value,
     rankingMode: elements.rankingMode.value || "highest",
+    archiveMode: elements.archiveMode.value || "aggregate",
     playerSearch: elements.playerSearch.value.trim()
   };
 }
@@ -440,6 +574,7 @@ function archiveTelemetryProperties() {
     has_player_search: Boolean(state.filters.playerSearch),
     stat_mode: state.filters.statMode || "unknown",
     ranking_mode: state.filters.rankingMode || "unknown",
+    archive_mode: state.filters.archiveMode || "unknown",
     team_stat: state.filters.teamStat || "unknown",
     player_stat: state.filters.playerStat || "unknown"
   };
@@ -451,7 +586,8 @@ function renderFilterSummary() {
     seasonSummaryLabel(state.filters.seasons),
     teamLabel(state.filters.teamId),
     state.filters.round ? `Round ${state.filters.round}` : "All rounds",
-    statModeDescriptor(),
+    archiveModeLabel(),
+    isRecordMode() ? "single-game totals" : statModeDescriptor(),
     rankingModeDescriptor(),
     `Team ${state.filters.teamStat || "-"}`,
     `Player ${state.filters.playerStat || "-"}`
@@ -463,10 +599,14 @@ function renderFilterSummary() {
 
   elements.activeFilterSummary.textContent = segments.join(" • ");
   if (elements.teamLeadersChartTitle) {
-    elements.teamLeadersChartTitle.textContent = `${rankingModeLabel()} clubs by the selected stat`;
+    elements.teamLeadersChartTitle.textContent = isRecordMode()
+      ? `${rankingModeLabel()} team records by the selected stat`
+      : `${rankingModeLabel()} clubs by the selected stat`;
   }
   if (elements.playerLeadersChartTitle) {
-    elements.playerLeadersChartTitle.textContent = `${rankingModeLabel()} players by the selected stat`;
+    elements.playerLeadersChartTitle.textContent = isRecordMode()
+      ? `${rankingModeLabel()} player records by the selected stat`
+      : `${rankingModeLabel()} players by the selected stat`;
   }
   updateValueHeadings();
 }
@@ -498,6 +638,7 @@ function applyMeta(meta) {
   elements.playerSearch.value = "";
   elements.statMode.value = "total";
   setRankingMode("highest");
+  setArchiveMode("aggregate");
   elements.teamStat.value = meta.team_stats.includes("points") ? "points" : meta.team_stats[0] || "";
   elements.playerStat.value = meta.player_stats.includes("points") ? "points" : meta.player_stats[0] || "";
   renderFilterSummary();
@@ -550,13 +691,25 @@ function renderTeamLeaders(rows) {
     const row = document.createElement("tr");
     row.setAttribute("data-rank", index + 1);
     row.style.setProperty("--row-accent", colour);
-    row.append(
-      createCell(`${index + 1}`),
-      createTeamCell(rowData.squad_name, colour),
-      createCell(rowData.stat),
-      createCell(formatNumber(statValue(rowData))),
-      createCell(formatNumber(rowData.matches_played))
-    );
+    if (isRecordMode()) {
+      row.append(
+        createCell(`${index + 1}`),
+        createTeamCell(rowData.squad_name, colour),
+        createCell(rowData.opponent || "-"),
+        createCell(`${rowData.season}`),
+        createCell(`R${rowData.round_number}`),
+        createCell(formatNumber(rowData.total_value)),
+        createCell(formatDate(rowData.local_start_time))
+      );
+    } else {
+      row.append(
+        createCell(`${index + 1}`),
+        createTeamCell(rowData.squad_name, colour),
+        createCell(rowData.stat),
+        createCell(formatNumber(statValue(rowData))),
+        createCell(formatNumber(rowData.matches_played))
+      );
+    }
     row.children[1].dataset.stackPrimary = "true";
     fragment.appendChild(row);
   });
@@ -576,14 +729,27 @@ function renderPlayerLeaders(rows) {
     const row = document.createElement("tr");
     row.setAttribute("data-rank", index + 1);
     row.style.setProperty("--row-accent", colour);
-    row.append(
-      createCell(`${index + 1}`),
-      createLinkCell(playerProfileUrl(rowData.player_id), rowData.player_name),
-      createTeamCell(rowData.squad_name || "-", colour),
-      createCell(rowData.stat),
-      createCell(formatNumber(statValue(rowData))),
-      createCell(formatNumber(rowData.matches_played))
-    );
+    if (isRecordMode()) {
+      row.append(
+        createCell(`${index + 1}`),
+        createLinkCell(playerProfileUrl(rowData.player_id), rowData.player_name),
+        createTeamCell(rowData.squad_name || "-", colour),
+        createCell(rowData.opponent || "-"),
+        createCell(`${rowData.season}`),
+        createCell(`R${rowData.round_number}`),
+        createCell(formatNumber(rowData.total_value)),
+        createCell(formatDate(rowData.local_start_time))
+      );
+    } else {
+      row.append(
+        createCell(`${index + 1}`),
+        createLinkCell(playerProfileUrl(rowData.player_id), rowData.player_name),
+        createTeamCell(rowData.squad_name || "-", colour),
+        createCell(rowData.stat),
+        createCell(formatNumber(statValue(rowData))),
+        createCell(formatNumber(rowData.matches_played))
+      );
+    }
     row.children[1].dataset.stackPrimary = "true";
     fragment.appendChild(row);
   });
@@ -709,12 +875,19 @@ function renderTeamCharts(leaderRows, trendRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
 
   renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
-    ariaLabel: `${rankingModeLabel()} team leaderboard ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
+    ariaLabel: isRecordMode()
+      ? `${rankingModeLabel()} single-game team records chart for ${state.filters.teamStat}`
+      : `${rankingModeLabel()} team leaderboard ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
     emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.squad_name,
-    valueAccessor: (row) => statValue(row),
+    valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
     colourAccessor: (row, index) => resolveTeamColour(row.squad_name, row.squad_colour, index)
   });
+
+  if (isRecordMode()) {
+    clearChart(elements.teamTrendChart, "Record mode focuses on single-match performances. Switch back to totals to see season trends.");
+    return;
+  }
 
   renderTrendChart(elements.teamTrendChart, trendRows, {
     ariaLabel: `Team season ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
@@ -731,12 +904,19 @@ function renderPlayerCharts(leaderRows, trendRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
 
   renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
-    ariaLabel: `${rankingModeLabel()} player leaderboard ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
+    ariaLabel: isRecordMode()
+      ? `${rankingModeLabel()} single-game player records chart for ${state.filters.playerStat}`
+      : `${rankingModeLabel()} player leaderboard ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
     emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.player_name,
-    valueAccessor: (row) => statValue(row),
+    valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
     colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
   });
+
+  if (isRecordMode()) {
+    clearChart(elements.playerTrendChart, "Record mode focuses on single-match performances. Switch back to totals to see season trends.");
+    return;
+  }
 
   renderTrendChart(elements.playerTrendChart, trendRows, {
     ariaLabel: `Player season ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
@@ -782,35 +962,41 @@ async function runQueries() {
     ] = await Promise.all([
       fetchJson("/summary", baseParams),
       fetchJson("/matches", { ...baseParams, limit: MATCHES_LIMIT }),
-      fetchJson("/team-leaders", {
-        ...baseParams,
-        stat: state.filters.teamStat,
-        metric: state.filters.statMode,
-        ranking: state.filters.rankingMode,
-        limit: leaderboardFetchLimit
-      }),
-      fetchJson("/player-leaders", {
-        ...baseParams,
-        stat: state.filters.playerStat,
-        search: state.filters.playerSearch,
-        metric: state.filters.statMode,
-        ranking: state.filters.rankingMode,
-        limit: leaderboardFetchLimit
-      }),
-      fetchOptionalJson("/competition-season-series", {
+      fetchJson(
+        isRecordMode() ? "/team-game-highs" : "/team-leaders",
+        {
+          ...baseParams,
+          stat: state.filters.teamStat,
+          ...(isRecordMode() ? {} : { metric: state.filters.statMode }),
+          ranking: state.filters.rankingMode,
+          limit: leaderboardFetchLimit
+        }
+      ),
+      fetchJson(
+        isRecordMode() ? "/player-game-highs" : "/player-leaders",
+        {
+          ...baseParams,
+          stat: state.filters.playerStat,
+          search: state.filters.playerSearch,
+          ...(isRecordMode() ? {} : { metric: state.filters.statMode }),
+          ranking: state.filters.rankingMode,
+          limit: leaderboardFetchLimit
+        }
+      ),
+      isRecordMode() ? Promise.resolve({ data: [], error: "" }) : fetchOptionalJson("/competition-season-series", {
         seasons: state.filters.seasons,
         round: state.filters.round,
         stat: state.filters.teamStat,
         metric: state.filters.statMode
       }),
-      fetchOptionalJson("/team-season-series", {
+      isRecordMode() ? Promise.resolve({ data: [], error: "" }) : fetchOptionalJson("/team-season-series", {
         ...baseParams,
         stat: state.filters.teamStat,
         metric: state.filters.statMode,
         ranking: state.filters.rankingMode,
         limit: CHART_RANK_LIMIT
       }),
-      fetchOptionalJson("/player-season-series", {
+      isRecordMode() ? Promise.resolve({ data: [], error: "" }) : fetchOptionalJson("/player-season-series", {
         ...baseParams,
         stat: state.filters.playerStat,
         search: state.filters.playerSearch,
@@ -937,6 +1123,13 @@ elements.resetFilters.addEventListener("click", () => {
 elements.rankingButtons.forEach((button) => {
   button.addEventListener("click", () => {
     setRankingMode(button.dataset.rankingMode);
+    renderFilterSummary();
+  });
+});
+
+elements.archiveModeButtons.forEach((button) => {
+  button.addEventListener("click", () => {
+    setArchiveMode(button.dataset.archiveMode);
     renderFilterSummary();
   });
 });

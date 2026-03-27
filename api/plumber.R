@@ -1210,7 +1210,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 
 #* @get /team-game-highs
 #* @get /api/team-game-highs
-function(season = "", seasons = "", team_id = "", round = "", stat = "points", limit = "10", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", ranking = "highest", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
@@ -1223,6 +1223,8 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", l
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 50L)
     stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
+    ranking <- parse_ranking_mode(ranking)
+    order_direction <- ranking_order_sql(ranking)
 
     query <- paste(
       "SELECT stats.squad_id, stats.squad_name,",
@@ -1237,7 +1239,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", l
     filters$query <- paste0(
       filters$query,
       " GROUP BY stats.squad_id, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
-      " ORDER BY total_value DESC, stats.season DESC, stats.round_number DESC, stats.squad_name ASC LIMIT ?limit"
+      " ORDER BY total_value ", order_direction, ", stats.season DESC, stats.round_number DESC, stats.squad_name ASC LIMIT ?limit"
     )
     filters$params$limit <- limit
 
@@ -1249,7 +1251,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", l
 
 #* @get /player-game-highs
 #* @get /api/player-game-highs
-function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", limit = "10", res) {
+function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", ranking = "highest", limit = "10", res) {
   conn <- tryCatch(open_db(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
@@ -1262,6 +1264,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 50L)
     stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "points")
+    ranking <- parse_ranking_mode(ranking)
     list(data = fetch_player_game_high_rows(
       conn,
       seasons = seasons,
@@ -1269,6 +1272,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
       round = round,
       stat = stat,
       search = search,
+      ranking = ranking,
       limit = limit
     ))
   }, error = function(error) {

@@ -139,6 +139,16 @@ assert_true(!is.na(highest_value) && !is.na(lowest_value), 'Expected ranked team
 assert_true(highest_value >= lowest_value, 'Expected highest-mode team leaders to rank at least as high as lowest-mode leaders.')
 check_step('team leaders endpoint supports highest and lowest ranking modes')
 
+team_game_highs_payload <- request_json(base_url, '/team-game-highs', query = list(season = default_season, stat = 'goals', ranking = 'highest', limit = 3))
+team_game_lows_payload <- request_json(base_url, '/team-game-highs', query = list(season = default_season, stat = 'goals', ranking = 'lowest', limit = 3))
+assert_true(is.list(team_game_highs_payload$data) && length(team_game_highs_payload$data) >= 1, 'Expected /team-game-highs to return rows.')
+assert_true(is.list(team_game_lows_payload$data) && length(team_game_lows_payload$data) >= 1, 'Expected /team-game-highs lowest mode to return rows.')
+check_step('team game records endpoint supports highest and lowest ranking modes')
+
+player_game_highs_payload <- request_json(base_url, '/player-game-highs', query = list(season = default_season, stat = 'goals', ranking = 'highest', limit = 3))
+assert_true(is.list(player_game_highs_payload$data) && length(player_game_highs_payload$data) >= 1, 'Expected /player-game-highs to return rows.')
+check_step('player game records endpoint returns rows')
+
 query_payload <- request_json(
   base_url,
   '/query',

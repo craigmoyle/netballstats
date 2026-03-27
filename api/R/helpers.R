@@ -1535,11 +1535,12 @@ sort_player_series_rows <- function(rows, metric = "total", ranking = "highest")
   rows[order(rows$season, -rows[[order_column]], rows$player_name, na.last = TRUE), , drop = FALSE]
 }
 
-fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "points", search = "", limit = 10L) {
+fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "points", search = "", ranking = "highest", limit = 10L) {
   # Single query over all requested seasons; avoids one round-trip per season.
   # When seasons is NULL (no filter), omit the IN clause so the planner can do
   # a straight index scan on stat without a large IN list covering every season.
   seasons_filter <- if (!is.null(seasons) && length(seasons)) as.integer(seasons) else NULL
+  order_direction <- ranking_order_sql(ranking)
 
   if (has_player_match_stats(conn)) {
     # Fast path: player_match_stats is pre-aggregated at match level — no
@@ -1559,7 +1560,10 @@ fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, ro
       round_number = round, table_alias = "pms"
     )
     search_filters <- apply_player_search_filter(filters$query, filters$params, search, "pms.player_id")
-    filters$query  <- paste0(search_filters$query, " ORDER BY pms.match_value DESC, pms.round_number DESC, players.canonical_name ASC LIMIT ?limit")
+    filters$query  <- paste0(
+      search_filters$query,
+      " ORDER BY pms.match_value ", order_direction, ", pms.season DESC, pms.round_number DESC, players.canonical_name ASC LIMIT ?limit"
+    )
     filters$params <- search_filters$params
     filters$params$limit <- limit
     return(query_rows(conn, filters$query, filters$params))
@@ -1588,12 +1592,15 @@ fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, ro
   filters$query <- paste0(
     search_filters$query,
     " GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
-    " ORDER BY total_value DESC, stats.round_number DESC, players.canonical_name ASC LIMIT ?limit"
+    " ORDER BY total_value ", order_direction, ", stats.season DESC, stats.round_number DESC, players.canonical_name ASC LIMIT ?limit"
   )
   filters$params <- search_filters$params
   filters$params$limit <- limit
 
-  sort_query_result_rows(query_rows(conn, filters$query, filters$params), "list")
+  sort_query_result_rows(
+    query_rows(conn, filters$query, filters$params),
+    if (identical(ranking, "lowest")) "lowest" else "highest"
+  )
 }
 
 fetch_query_result_rows <- function(conn, intent) {
