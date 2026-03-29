@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="/assets/theme.js"></script>
     <title>Player Profile | Netball Stats Database</title>
-    <meta name="description" content="Super Netball player profile with games played, career totals, and season-by-season statistics.">
+    <meta name="description" content="Super Netball player profile with games played, career totals, and season stats.">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
@@ -32,7 +32,7 @@
           <p id="player-subtitle" class="player-subtitle">Loading player record…</p>
           <h1 id="player-name" class="player-title">Loading player profile</h1>
           <p id="player-intro" class="intro-copy player-intro">
-            Pulling together career totals, games played, and season-by-season stats.
+            Loading career totals and season splits.
           </p>
           <div id="player-squads" class="tag-list" aria-label="Player clubs"></div>
         </div>
@@ -41,7 +41,7 @@
           <div class="hero-aside__card">
             <span class="hero-aside__label">Career span</span>
             <strong id="career-span">--</strong>
-            <p id="career-span-summary">Waiting for player seasons and club history.</p>
+            <p id="career-span-summary">Loading seasons and clubs.</p>
           </div>
         </aside>
       </section>
@@ -83,7 +83,7 @@
         </div>
         <div class="table-wrapper table-wrapper--spotlight">
           <table class="stack-table" aria-describedby="career-stats-caption">
-            <caption id="career-stats-caption" class="table-caption">Totals and per-game averages for the curated player stat set.</caption>
+            <caption id="career-stats-caption" class="table-caption">Career totals and per-game averages.</caption>
             <thead>
               <tr>
                 <th scope="col">Stat</th>
@@ -109,7 +109,7 @@
         </div>
         <div class="table-wrapper">
           <table class="season-table" aria-describedby="season-table-caption">
-            <caption id="season-table-caption" class="table-caption">Season totals for the selected impact stats.</caption>
+            <caption id="season-table-caption" class="table-caption">Season totals for key stats.</caption>
             <thead>
               <tr id="season-stats-head"></tr>
             </thead>

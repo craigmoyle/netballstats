@@ -11,9 +11,9 @@ const {
   trackEvent = () => {}
 } = window.NetballStatsTelemetry || {};
 const PLAYER_LOADING_MESSAGES = [
-  "Pulling the player record…",
-  "Balancing career totals and season splits…",
-  "Laying out the stat ledger…"
+  "Loading player record…",
+  "Loading career totals…",
+  "Loading season splits…"
 ];
 const PLAYER_STAT_DEFINITIONS = [
   ["netPoints", "NetPoints"],
@@ -248,7 +248,7 @@ function renderCareerStats(careerStats) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.colSpan = 4;
-    cell.textContent = "No career stats were available for this player.";
+    cell.textContent = "No career stats for this player.";
     row.appendChild(cell);
     elements.careerStatsBody.appendChild(row);
     syncResponsiveTable(elements.careerStatsBody.closest("table"));
@@ -273,8 +273,8 @@ function renderSeasonTable(profile) {
   const seasonSummaries = profile.season_summaries || [];
 
   elements.seasonTableCaption.textContent = state.metric === "average"
-    ? "Per-game averages for the selected impact stats."
-    : "Season totals for the selected impact stats.";
+    ? "Per-game averages for key stats."
+    : "Season totals for key stats.";
 
   elements.seasonStatsHead.replaceChildren();
   ["Season", "Clubs", "Games", ...stats.map((stat) => statLabel(stat))].forEach((label) => {
@@ -290,7 +290,7 @@ function renderSeasonTable(profile) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
     cell.colSpan = 3 + stats.length;
-    cell.textContent = "No season summaries were available for this player.";
+    cell.textContent = "No season summaries for this player.";
     row.appendChild(cell);
     elements.seasonStatsBody.appendChild(row);
     return;
@@ -341,13 +341,13 @@ function renderProfile(profile) {
   document.title = `${playerName} | Netball Stats Database`;
   elements.playerName.textContent = playerName;
   elements.playerSubtitle.textContent = `Player ${profile.player?.player_id ?? ""}`.trim();
-  elements.playerIntro.textContent = `${formatNumber(overview.games_played)} games across ${formatNumber(overview.seasons_played)} seasons with ${formatNumber(overview.teams_played)} clubs represented in the archive.`;
+  elements.playerIntro.textContent = `${formatNumber(overview.games_played)} games · ${formatNumber(overview.seasons_played)} seasons · ${formatNumber(overview.teams_played)} clubs in the archive.`;
   elements.careerSpan.textContent = overview.first_season && overview.last_season
     ? `${overview.first_season} to ${overview.last_season}`
     : "Single season";
   elements.careerSpanSummary.textContent = (overview.squad_names || []).length
-    ? `Clubs tracked: ${(overview.squad_names || []).join(", ")}`
-    : "Club history unavailable for this profile.";
+    ? `Clubs: ${(overview.squad_names || []).join(", ")}`
+    : "Club history unavailable.";
 
   elements.summaryGames.textContent = formatNumber(overview.games_played);
   elements.summarySeasons.textContent = formatNumber(overview.seasons_played);
@@ -369,7 +369,7 @@ async function initialise() {
     return;
   }
 
-  showLoadingStatus(PLAYER_LOADING_MESSAGES, "Player ledger");
+  showLoadingStatus(PLAYER_LOADING_MESSAGES, "Loading profile");
 
   try {
     const profile = await fetchJson("/player-profile", { player_id: playerId });
@@ -380,7 +380,7 @@ async function initialise() {
       team_count_bucket: bucketCount(profile.overview?.teams_played, [0, 1, 2, 3, 5]),
       stat_count_bucket: bucketCount((profile.available_stats || []).length, [0, 1, 3, 5, 10, 15, 20])
     });
-    showStatus("Player profile ready.", "success", { kicker: "Career snapshot ready", autoHideMs: 2200 });
+    showStatus("Player profile ready.", "success", { kicker: "Ready", autoHideMs: 2200 });
   } catch (error) {
     showStatus(error.message || "Unable to load the player profile.", "error", { kicker: "Profile unavailable" });
   }

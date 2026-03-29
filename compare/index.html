@@ -31,14 +31,14 @@
         <div class="hero-copy">
           <p class="eyebrow">Head to head across seasons</p>
           <h1>Compare players or teams</h1>
-          <p class="intro-copy">Pick two or more names, choose a stat, and track who led across each season.</p>
+          <p class="intro-copy">Pick names, a stat, and seasons to compare them side by side.</p>
         </div>
 
         <aside class="hero-aside" aria-label="Comparison summary">
           <div class="hero-aside__card">
             <span class="hero-aside__label">Comparison mode</span>
             <strong id="compare-hero-mode">Players</strong>
-            <p id="compare-hero-summary">Load recent seasons, then add names to start a head-to-head view.</p>
+            <p id="compare-hero-summary">Add names to start the head-to-head.</p>
           </div>
         </aside>
       </section>
@@ -51,7 +51,7 @@
           <div>
             <h2>Build a comparison</h2>
           </div>
-          <p id="compare-summary" class="muted filter-summary">Pick players or teams, choose a stat, then compare season by season.</p>
+          <p id="compare-summary" class="muted filter-summary">Choose names, a stat, and seasons.</p>
         </div>
 
         <form id="compare-form" class="filters compare-builder" novalidate>
@@ -79,13 +79,13 @@
               <div id="player-search-results" class="entity-picker" role="listbox" hidden></div>
             </div>
             <div id="selected-player-chips" class="tag-list compare-chip-list" aria-live="polite"></div>
-            <p id="player-selection-meta" class="compare-selection-meta muted">Select 2 to 6 players.</p>
+            <p id="player-selection-meta" class="compare-selection-meta muted">Choose 2 to 6 players.</p>
           </div>
 
           <div id="team-picker-field" class="field field--wide" hidden>
             <div class="field__label-row">
               <span class="field-label">Teams</span>
-              <p id="team-selection-meta" class="compare-selection-meta muted">Select 2 to 8 teams.</p>
+              <p id="team-selection-meta" class="compare-selection-meta muted">Choose 2 to 8 teams.</p>
             </div>
             <div id="team-choices" class="season-choices compare-team-choices" role="group" aria-label="Team choices"></div>
           </div>
@@ -127,7 +127,7 @@
           <div>
             <h2>Season trend</h2>
           </div>
-          <p id="compare-results-meta" class="muted">Select names to load a comparison chart.</p>
+          <p id="compare-results-meta" class="muted">Choose names to load the chart.</p>
         </div>
         <div id="compare-trend-chart" class="chart-shell" role="img" aria-label="Comparison trend chart"></div>
       </section>
@@ -138,7 +138,7 @@
         </div>
         <div class="table-wrapper">
             <table class="compare-table stack-table" aria-describedby="compare-table-caption">
-            <caption id="compare-table-caption" class="table-caption">Comparison rows will appear here once you choose players or teams.</caption>
+            <caption id="compare-table-caption" class="table-caption">Comparison rows appear here once you choose players or teams.</caption>
             <thead id="compare-table-head"></thead>
             <tbody id="compare-table-body"></tbody>
             <tfoot id="compare-table-foot"></tfoot>

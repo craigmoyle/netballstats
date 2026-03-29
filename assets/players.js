@@ -5,8 +5,8 @@ const {
   cycleStatusBanner = () => {}
 } = window.NetballStatsUI || {};
 const DIRECTORY_LOADING_MESSAGES = [
-  "Opening the player ledger…",
-  "Indexing career pages across the archive…"
+  "Loading player directory…",
+  "Indexing profile pages…"
 ];
 const {
   bucketCount = () => "unknown",
@@ -146,7 +146,7 @@ function renderPlayers(players) {
       : "";
     meta.textContent = spanText
       ? `${formatNumber(player.games_played)} games • ${spanText}`
-      : "Open the full profile for career totals, games played, and season-by-season stats.";
+      : "Open the profile for career totals and season splits.";
 
     const footer = document.createElement("div");
     footer.className = "directory-card__footer";
@@ -177,13 +177,13 @@ function renderPlayers(players) {
 }
 
 async function initialise() {
-  showLoadingStatus(DIRECTORY_LOADING_MESSAGES, "Directory in motion");
+  showLoadingStatus(DIRECTORY_LOADING_MESSAGES, "Loading directory");
 
   try {
     const payload = await fetchJson("/players");
     state.players = payload.data || [];
     elements.directoryTotal.textContent = formatNumber(state.players.length);
-    elements.directorySummary.textContent = "Career pages are live for every player currently in the database.";
+    elements.directorySummary.textContent = "Profiles are live for every player in the archive.";
     renderPlayers(state.players);
     trackEvent("player_directory_loaded", {
       player_count_bucket: bucketCount(state.players.length, [0, 10, 25, 50, 100, 250, 500])
@@ -192,7 +192,7 @@ async function initialise() {
   } catch (error) {
     showStatus(error.message || "Unable to load the player directory.", "error", { kicker: "Directory unavailable" });
     elements.directoryResultsMeta.textContent = "Player directory unavailable.";
-    elements.directoryGrid.innerHTML = '<div class="empty-state" data-kicker="Archive note">The player directory is taking a breather. Try again shortly.</div>';
+    elements.directoryGrid.innerHTML = '<div class="empty-state" data-kicker="Archive note">The player directory is unavailable. Try again shortly.</div>';
   }
 }
 

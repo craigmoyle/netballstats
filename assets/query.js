@@ -22,8 +22,8 @@ const QUERY_STATUS_LABELS = {
   list: "List"
 };
 const DEFAULT_QUERY_STATE = {
-  title: "Supported question shapes",
-  description: "Keep the wording literal so the parser can show exactly how it read the player or team question.",
+  title: "Supported questions",
+  description: "Keep the wording literal so the parser can read it cleanly.",
   items: [
     "Player or team + stat + threshold + optional opponent/season",
     "Player or team + highest/lowest + stat + optional opponent/season",
@@ -283,24 +283,24 @@ function setIdleState() {
   setTableSchema("player");
   setSummaryCards();
   elements.answerHeadline.textContent = "Ask a question to see the answer.";
-  elements.answerMeta.textContent = "Each answer comes from the parsed intent and the matching records.";
+  elements.answerMeta.textContent = "Answers come from the parsed query and matching rows.";
   elements.interpretationGrid.replaceChildren();
   renderDefaultQueryState();
   elements.queryState.hidden = false;
   elements.tableMeta.textContent = "";
-  clearTable("Ask a question to see the matching records.");
+  clearTable("Ask a question to see matching rows.");
   updateQuestionComposerState(elements.questionInput.value);
 }
 
 function renderMeta(meta) {
   if (!meta || !Array.isArray(meta.seasons) || !meta.seasons.length) {
-    elements.querySeasonSummary.textContent = "Count, highest/lowest, and list questions over the archive.";
+    elements.querySeasonSummary.textContent = "Count, highest/lowest, and list questions across the archive.";
     return;
   }
 
   const seasons = [...meta.seasons].sort((left, right) => left - right);
   if (elements.heroSeasonRange) elements.heroSeasonRange.textContent = seasons[0] + "\u2013" + seasons[seasons.length - 1];
-  elements.querySeasonSummary.textContent = `${seasons[0]}-${seasons[seasons.length - 1]} archive coverage with ${meta.player_stats.length} player stats and ${meta.team_stats.length} team stats in the catalog.`;
+  elements.querySeasonSummary.textContent = `${seasons[0]}-${seasons[seasons.length - 1]} archive · ${meta.player_stats.length} player stats · ${meta.team_stats.length} team stats.`;
 }
 
 function renderInterpretation(parsed = {}) {
@@ -391,7 +391,7 @@ function renderRows(rows, subjectType = "player") {
 }
 
 function renderUnsupported(result) {
-  const reason = result.reason || "That question is outside the supported v1 grammar.";
+  const reason = result.reason || "That question is outside the current parser.";
   setTableSchema("player");
   setSummaryCards("--", "--", "--", result.status === "ambiguous" ? "Ambiguous" : "Unsupported");
   elements.answerHeadline.textContent = reason;
@@ -399,7 +399,7 @@ function renderUnsupported(result) {
   elements.interpretationGrid.replaceChildren();
   elements.queryState.hidden = false;
   renderQueryState({
-    title: result.status === "ambiguous" ? "Need a more specific question" : "Supported question shapes",
+    title: result.status === "ambiguous" ? "Need a more specific question" : "Supported questions",
     description: reason,
     extraParagraphs: Array.isArray(result.candidates) && result.candidates.length
       ? [`Possible matches: ${result.candidates.join(", ")}`]
@@ -408,7 +408,7 @@ function renderUnsupported(result) {
   });
 
   elements.tableMeta.textContent = "";
-  clearTable("Ask a supported question to see matching records.");
+  clearTable("Ask a supported question to see matching rows.");
 }
 
 function renderResult(result) {
@@ -428,13 +428,13 @@ function renderResult(result) {
     "Supported"
   );
   elements.answerHeadline.textContent = result.answer || "No answer.";
-  elements.answerMeta.textContent = "Generated from the parsed intent and the query template.";
+  elements.answerMeta.textContent = "Built from the parsed query and matching rows.";
   elements.queryState.hidden = true;
   setTableSchema(subjectType);
   renderInterpretation(parsed);
   renderRows(result.rows, subjectType);
   elements.tableMeta.textContent = Array.isArray(result.rows) && result.rows.length
-    ? `Showing ${result.rows.length} supporting row${result.rows.length === 1 ? "" : "s"} from ${formatNumber(summary.match_count)} matching performances.`
+    ? `Showing ${result.rows.length} row${result.rows.length === 1 ? "" : "s"} from ${formatNumber(summary.match_count)} matching performance${summary.match_count === 1 ? "" : "s"}.`
     : "No matching records.";
 }
 
@@ -468,7 +468,7 @@ async function runQuestion(question, source = "manual") {
     submitBtn.textContent = "Running…";
   }
 
-  showLoadingStatus(QUERY_LOADING_MESSAGES, "Reading the archive");
+  showLoadingStatus(QUERY_LOADING_MESSAGES, "Reading archive");
   setSummaryCards("…", "…", "…", "Running");
   trackEvent("ask_stats_submitted", {
     source,
@@ -493,12 +493,12 @@ async function runQuestion(question, source = "manual") {
     });
     showStatus(
       result.status === "supported"
-        ? "Answer ready. Supporting rows are listed below."
-        : "The parser could not safely support that wording yet.",
+        ? "Answer ready."
+        : "That wording is not supported yet.",
       result.status === "supported" ? "success" : "error",
       result.status === "supported"
-        ? { kicker: "Question resolved", autoHideMs: 2200 }
-        : { kicker: "Parser boundary" }
+        ? { kicker: "Ready", autoHideMs: 2200 }
+        : { kicker: "Parser limit" }
     );
   } catch (error) {
     renderUnsupported({
@@ -533,7 +533,7 @@ async function init() {
     applyMetaConfig(meta);
     renderMeta(meta);
   } catch (error) {
-    elements.querySeasonSummary.textContent = "Stats metadata unavailable. The parser may still work.";
+    elements.querySeasonSummary.textContent = "Metadata unavailable. The parser may still work.";
   }
 
   const params = new URLSearchParams(window.location.search);

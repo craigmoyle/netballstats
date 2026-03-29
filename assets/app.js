@@ -50,13 +50,13 @@ const state = {
 };
 
 const ARCHIVE_LOADING_MESSAGES = [
-  "Pulling match sheets from the archive…",
-  "Balancing team and player leaders…",
-  "Lining up season tables and charts…"
+  "Loading match log…",
+  "Loading leaderboards…",
+  "Loading season context…"
 ];
 const ARCHIVE_STARTUP_MESSAGES = [
   "Waking the stats service…",
-  "Waiting for the archive to come online…"
+  "Starting the archive…"
 ];
 
 const elements = {
@@ -462,8 +462,8 @@ function updateArchiveModePresentation() {
 
   if (elements.archiveModeHint) {
     elements.archiveModeHint.textContent = recordMode
-      ? "Single-game records focus on one-match highs or lows for the player and team sections below."
-      : "Switch the player and team sections below between aggregate leaders and single-game records.";
+      ? "Single-game highs or lows for the player and team sections."
+      : "Switch player and team sections between totals and single-game records.";
   }
 
   if (elements.competitionSeasonPanel) {
@@ -484,19 +484,19 @@ function updateArchiveModePresentation() {
   }
   if (elements.playerPanelSummary) {
     elements.playerPanelSummary.textContent = recordMode
-      ? "Single-game player records for the selected stat and filters."
-      : "Cross-season totals, including moves and name changes.";
+      ? "Single-game player records for the selected stat."
+      : "Top player lines across the selected seasons.";
   }
   if (elements.teamPanelSummary) {
     elements.teamPanelSummary.textContent = recordMode
-      ? "Single-game team records for the selected stat and filters."
-      : "Compare team output across seasons and eras.";
+      ? "Single-game team records for the selected stat."
+      : "Team view of the selected stat across seasons.";
   }
   if (elements.playerTrendTitle) {
-    elements.playerTrendTitle.textContent = recordMode ? "Season trend unavailable in record mode" : "Season trend for top players";
+    elements.playerTrendTitle.textContent = recordMode ? "No season trend in record mode" : "Season trend for top players";
   }
   if (elements.teamTrendTitle) {
-    elements.teamTrendTitle.textContent = recordMode ? "Season trend unavailable in record mode" : "Season trend for top clubs";
+    elements.teamTrendTitle.textContent = recordMode ? "No season trend in record mode" : "Season trend for top clubs";
   }
 
   replaceTableHead(
@@ -892,7 +892,7 @@ function renderTeamCharts(leaderRows, trendRows) {
   renderTrendChart(elements.teamTrendChart, trendRows, {
     ariaLabel: `Team season ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
     emptyMessage: "No results for these filters.",
-    singleSeasonMessage: "Select two or more seasons to see trends.",
+    singleSeasonMessage: "Choose two or more seasons for a trend.",
     idAccessor: (row) => row.squad_id,
     labelAccessor: (row) => row.squad_name,
     valueAccessor: (row) => statValue(row),
@@ -921,7 +921,7 @@ function renderPlayerCharts(leaderRows, trendRows) {
   renderTrendChart(elements.playerTrendChart, trendRows, {
     ariaLabel: `Player season ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
     emptyMessage: "No results for these filters.",
-    singleSeasonMessage: "Select two or more seasons to see trends.",
+    singleSeasonMessage: "Choose two or more seasons for a trend.",
     idAccessor: (row) => row.player_id,
     labelAccessor: (row) => row.player_name,
     valueAccessor: (row) => statValue(row),
@@ -941,7 +941,7 @@ async function runQueries() {
 
   syncFiltersFromForm();
   renderFilterSummary();
-  showLoadingStatus(ARCHIVE_LOADING_MESSAGES, "Archive in motion");
+  showLoadingStatus(ARCHIVE_LOADING_MESSAGES, "Loading archive");
   const leaderboardFetchLimit = Math.max(LEADERS_LIMIT, CHART_RANK_LIMIT);
 
   const baseParams = {
@@ -1032,15 +1032,15 @@ async function runQueries() {
     renderPlayerCharts(playerLeaderRows, playerSeriesPayload.data || []);
     showStatus(
       chartWarnings.length
-        ? "Archive ready. Some charts are still catching up."
-        : "Archive ready for these filters.",
+        ? "Archive ready. Some charts are still loading."
+        : "Archive ready.",
       chartWarnings.length ? "neutral" : "success",
-      chartWarnings.length ? { kicker: "Partial chart refresh" } : { kicker: "Archive ready", autoHideMs: 2200 }
+      chartWarnings.length ? { kicker: "Charts pending" } : { kicker: "Ready", autoHideMs: 2200 }
     );
   } catch (error) {
     if (seq !== runQuerySeq) return;
-    showStatus(error.message || "Couldn't load stats.", "error", { kicker: "Archive interrupted" });
-    clearAllTables("Couldn't load stats.");
+    showStatus(error.message || "Couldn't load the archive.", "error", { kicker: "Archive unavailable" });
+    clearAllTables("Couldn't load the archive.");
     clearAllCharts("Couldn't load charts.");
   } finally {
     if (seq === runQuerySeq && submitBtn) {
@@ -1060,7 +1060,7 @@ async function initialise() {
       meta = await fetchJson("/meta");
     } catch (firstError) {
       // Retry once to handle cold-start delays (R/Plumber can take 20-30s to start).
-        showLoadingStatus(ARCHIVE_STARTUP_MESSAGES, "Cold start");
+        showLoadingStatus(ARCHIVE_STARTUP_MESSAGES, "Starting up");
         await new Promise((resolve) => window.setTimeout(resolve, 5000));
         meta = await fetchJson("/meta");
       }

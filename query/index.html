@@ -31,7 +31,7 @@
           <p class="eyebrow">2017-2026 · Structured queries</p>
           <h1>Ask the stats</h1>
           <p class="intro-copy">
-            Ask any Super Netball question. Each answer shows exactly how it was read and the records it drew from.
+            Ask a Super Netball question and see how the archive read it.
           </p>
 
         </div>
@@ -40,7 +40,7 @@
           <div class="hero-aside__card">
             <span class="hero-aside__label">Archive scope</span>
             <strong id="hero-season-range">--</strong>
-            <p id="query-season-summary">Loading available seasons and supported scope…</p>
+            <p id="query-season-summary">Loading seasons and question types…</p>
           </div>
 
         </aside>
@@ -75,7 +75,7 @@
               </div>
               <div class="query-input-meta">
                 <p id="query-hint" class="query-hint">
-                  Supported today: player and team count, highest/lowest, and list/filter questions against match totals.
+                  Supports count, highest/lowest, and list questions on match totals.
                 </p>
                 <p id="question-character-count" class="query-character-count" aria-live="polite">0 / 220 characters</p>
               </div>
@@ -84,18 +84,18 @@
             <div class="query-form__notes" aria-label="Question writing guide">
               <article class="query-note">
                 <span class="query-note__label">Start with</span>
-                <p>A player or a team, a stat, and either a threshold or a highest/lowest cue.</p>
+                  <p>A player or team, a stat, and a threshold or highest/lowest cue.</p>
               </article>
               <article class="query-note">
                 <span class="query-note__label">Optional filters</span>
-                <p>Add an opponent or season when you want a tighter slice of the archive.</p>
+                  <p>Add an opponent or season for a narrower slice.</p>
               </article>
             </div>
 
             <div class="query-examples">
               <div class="query-examples__header">
                 <strong>Starter prompts</strong>
-                <p>Use one of these, then swap the player or team, opponent, stat, or season.</p>
+                <p>Swap the player or team, opponent, stat, or season.</p>
               </div>
               <div class="example-strip" id="example-strip" aria-label="Example question prompts">
                 <button type="button" class="example-chip" data-example="How many times has Grace Nweke scored 50 goals or more against the Vixens?">Grace Nweke 50+ against Vixens</button>
@@ -131,17 +131,17 @@
         <section class="panel">
           <div class="answer-stage">
             <div class="answer-stage__card">
-              <h2 id="answer-headline" class="answer-stage__headline">Run a question to see the parsed answer here.</h2>
-              <p id="answer-meta" class="answer-stage__meta">
-                The answer sentence is generated from a fixed query template and the matching rows below.
-              </p>
+                <h2 id="answer-headline" class="answer-stage__headline">Ask a question to see the answer.</h2>
+                <p id="answer-meta" class="answer-stage__meta">
+                  Answers come from the parsed query and matching rows.
+                </p>
             </div>
 
             <div id="interpretation-grid" class="interpretation-grid" aria-label="Parsed interpretation"></div>
 
             <div id="query-state" class="query-state">
-              <strong>Supported question shapes</strong>
-              <p>Keep the wording literal so the parser can show exactly how it read the player or team question.</p>
+                <strong>Supported questions</strong>
+                <p>Keep the wording literal so the parser can read it clearly.</p>
               <ul>
                 <li>Player or team + stat + threshold + optional opponent/season</li>
                 <li>Player or team + highest/lowest + stat + optional opponent/season</li>
@@ -174,7 +174,7 @@
               </thead>
               <tbody id="query-rows-body">
                 <tr>
-                  <td colspan="7">Run a supported question to see the matching rows.</td>
+                  <td colspan="7">Ask a supported question to see the matching rows.</td>
                 </tr>
               </tbody>
             </table>

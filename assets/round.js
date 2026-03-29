@@ -45,9 +45,9 @@
     minute: "2-digit"
   });
   const loadingMessages = [
-    "Checking the latest completed fixtures…",
-    "Finding the sharpest stat lines…",
-    "Marking any season or archive highs…"
+    "Loading the latest round…",
+    "Loading standout lines…",
+    "Checking for records…"
   ];
 
   function unwrapValue(value) {
@@ -393,10 +393,10 @@
     elements.heroLabel.textContent = seasonLabel;
     elements.heading.textContent = seasonLabel;
     elements.meta.textContent = unwrapValue(payload.round_end_time)
-      ? `Completed by ${formatDate(payload.round_end_time, { includeTime: true })}.`
+      ? `Completed ${formatDate(payload.round_end_time, { includeTime: true })}.`
       : "Latest completed fixtures.";
     elements.heroSummary.textContent = `${formatNumber(summary.total_matches)} matches · ${formatNumber(summary.total_goals)} goals · biggest margin ${formatNumber(summary.biggest_margin)}`;
-    elements.intro.textContent = "Every completed result from the round, plus the stat lines and clean-ball moments worth keeping in view.";
+    elements.intro.textContent = "Every scoreline, standout line, and low-turnover result from the round.";
 
     elements.summaryMatches.textContent = formatNumber(summary.total_matches);
     elements.summaryGoals.textContent = formatNumber(summary.total_goals);
@@ -409,8 +409,8 @@
         ? "Draw"
         : `${formatNumber(summary.closest_margin)} goal${Number(summary.closest_margin) === 1 ? "" : "s"}`;
 
-    elements.playerCaption.textContent = `Player performances from ${seasonLabel}.`;
-    elements.teamCaption.textContent = `Team performances from ${seasonLabel}.`;
+    elements.playerCaption.textContent = `Player spotlights from ${seasonLabel}.`;
+    elements.teamCaption.textContent = `Team spotlights from ${seasonLabel}.`;
   }
 
   function applyEmptyState(message) {
@@ -431,7 +431,7 @@
 
   async function loadRoundRecap() {
     cycleStatusBanner(elements.status, loadingMessages, {
-      kicker: "Loading round recap",
+      kicker: "Loading recap",
       tone: "loading"
     });
 
@@ -443,14 +443,14 @@
       renderStandoutTable(elements.playerBody, payload.standout_players || [], "player");
       renderStandoutTable(elements.teamBody, payload.standout_teams || [], "team");
 
-      showStatusBanner(elements.status, "Round recap loaded.", "success", {
+      showStatusBanner(elements.status, "Round recap ready.", "success", {
         kicker: "Ready",
         autoHideMs: 2200
       });
     } catch (error) {
-      applyEmptyState(error.message || "Could not load the latest completed round.");
-      showStatusBanner(elements.status, error.message || "Could not load the round recap.", "error", {
-        kicker: "Round unavailable"
+      applyEmptyState(error.message || "Couldn't load the latest round.");
+      showStatusBanner(elements.status, error.message || "Couldn't load the round recap.", "error", {
+        kicker: "Recap unavailable"
       });
     }
   }
