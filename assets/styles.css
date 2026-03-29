@@ -292,6 +292,22 @@ code {
   }
 }
 
+@media (min-width: 900px) and (max-width: 1450px) {
+  .hero-panel--home {
+    align-items: flex-start;
+  }
+
+  .hero-copy--home {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .hero-aside {
+    width: 100%;
+    justify-items: start;
+  }
+}
+
 .intro-copy {
   max-width: 54ch;
   font-size: var(--text-body-size-lg);

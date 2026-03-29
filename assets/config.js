@@ -35,8 +35,11 @@
     goal2: "2 Point Goals",
     goalAssists: "Goal Assists",
     goalAttempts: "Goal Attempts",
+    missedGoalTurnover: "Missed Goal Turnovers",
     netPoints: "Net Points",
     obstructionPenalties: "Obstructions",
+    timeInPossession: "Time in Possession",
+    tossUpWin: "Toss Up Wins",
     unforcedTurnovers: "Unforced Turnovers"
   });
 
