@@ -38,6 +38,7 @@
     missedGoalTurnover: "Missed Goal Turnovers",
     netPoints: "Net Points",
     obstructionPenalties: "Obstructions",
+    points: "Points",
     timeInPossession: "Time in Possession",
     tossUpWin: "Toss Up Wins",
     unforcedTurnovers: "Unforced Turnovers"

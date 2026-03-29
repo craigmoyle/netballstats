@@ -1369,6 +1369,17 @@ tr[data-rank="3"] td:first-child {
   box-shadow: inset 3px 0 0 var(--row-accent, transparent);
 }
 
+/* Prevent cell wrapping in leader tables at desktop widths — the .table-wrapper
+   already provides overflow-x: auto so the table scrolls rather than wraps. */
+@media (min-width: 681px) {
+  #player-leaders-table td,
+  #player-leaders-table th,
+  #team-leaders-table td,
+  #team-leaders-table th {
+    white-space: nowrap;
+  }
+}
+
 /* Match result win/loss semantic coloring */
 .result-winner {
   color: var(--success);

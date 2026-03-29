@@ -323,6 +323,18 @@
     elements.matchGrid.appendChild(fragment);
   }
 
+  function ordinalSuffix(n) {
+    const abs = Math.abs(n);
+    const mod100 = abs % 100;
+    if (mod100 >= 11 && mod100 <= 13) return `${n}th`;
+    switch (abs % 10) {
+      case 1: return `${n}st`;
+      case 2: return `${n}nd`;
+      case 3: return `${n}rd`;
+      default: return `${n}th`;
+    }
+  }
+
   function standoutValueLabel(entry) {
     const statKey = unwrapValue(entry?.stat);
     const statLabelValue = unwrapValue(entry?.stat_label);
@@ -335,6 +347,13 @@
 
   function standoutNote(entry) {
     const notes = [];
+
+    const rank = unwrapValue(entry?.historical_rank);
+    if (rank != null && !Number.isNaN(Number(rank))) {
+      const n = Number(rank);
+      const dir = unwrapValue(entry?.ranking) === "lowest" ? "lowest" : "highest";
+      notes.push(`${ordinalSuffix(n)} ${dir} all-time`);
+    }
 
     if (Array.isArray(entry?.badges) && entry.badges.length) {
       notes.push(entry.badges.join(" · "));
