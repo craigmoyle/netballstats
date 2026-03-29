@@ -345,6 +345,34 @@
     return `${formatNumber(entry?.value)} ${statLabel}`;
   }
 
+  function createNoteCell(entry) {
+    const cell = document.createElement("td");
+    cell.className = "standout-note";
+
+    const rank = unwrapValue(entry?.historical_rank);
+    if (rank != null && !Number.isNaN(Number(rank))) {
+      const n = Number(rank);
+      const dir = unwrapValue(entry?.ranking) === "lowest" ? "lowest" : "highest";
+      const rankSpan = document.createElement("span");
+      rankSpan.className = "standout-note__rank";
+      rankSpan.textContent = `${ordinalSuffix(n)} ${dir} all-time`;
+      cell.appendChild(rankSpan);
+    }
+
+    if (Array.isArray(entry?.badges) && entry.badges.length) {
+      const list = document.createElement("span");
+      list.className = "standout-badge-list";
+      entry.badges.forEach((label) => list.appendChild(createBadge(label)));
+      cell.appendChild(list);
+    }
+
+    if (!cell.childNodes.length) {
+      cell.textContent = "—";
+    }
+
+    return cell;
+  }
+
   function standoutNote(entry) {
     const notes = [];
 
@@ -382,7 +410,7 @@
           createCell(entry.squad_name || "--"),
           createCell(entry.opponent || "--"),
           createCell(standoutValueLabel(entry), "round-standout-value"),
-          createCell(standoutNote(entry), "standout-note")
+          createNoteCell(entry)
         );
       } else {
         row.append(
@@ -390,7 +418,7 @@
           createCell(entry.subject_name || "Team"),
           createCell(entry.opponent || "--"),
           createCell(standoutValueLabel(entry), "round-standout-value"),
-          createCell(standoutNote(entry), "standout-note")
+          createNoteCell(entry)
         );
       }
 

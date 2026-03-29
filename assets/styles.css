@@ -2034,13 +2034,24 @@ caption.table-caption {
 /* Note (col 5) takes remaining width */
 
 .round-standout-value {
-  white-space: nowrap;
   font-weight: 600;
+  overflow-wrap: break-word;
 }
 
 .standout-note {
   color: var(--muted);
   font-size: var(--type-xs);
+}
+
+.standout-note__rank {
+  display: block;
+  margin-bottom: 0.3rem;
+}
+
+.standout-badge-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
 }
 
 .query-board {
