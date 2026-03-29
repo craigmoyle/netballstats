@@ -174,6 +174,11 @@ code {
   border-radius: 0;
 }
 
+.hero-panel--home {
+  align-items: end;
+  gap: var(--space-sm) var(--space-lg);
+}
+
 /* Query and player pages retain the card treatment */
 .query-page .hero-panel,
 .player-hero {
@@ -214,9 +219,19 @@ code {
   gap: 0.6rem;
 }
 
+.hero-copy--home {
+  max-width: min(48rem, 100%);
+  gap: 0.75rem;
+}
+
 .hero-copy .eyebrow,
 .hero-copy .intro-copy {
   display: none;
+}
+
+.hero-copy--home .eyebrow,
+.hero-copy--home .intro-copy {
+  display: block;
 }
 
 .query-page .hero-copy {
@@ -344,6 +359,14 @@ code {
   border: 1px solid var(--border-strong);
 }
 
+.hero-aside__card--archive {
+  max-width: 18rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 52%),
+    var(--panel-alt);
+  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.2);
+}
+
 .hero-aside__card strong {
   display: block;
   font-family: var(--display-font);
@@ -385,6 +408,42 @@ code {
 
 .hero-shell .summary-band {
   margin-top: var(--space-sm);
+}
+
+.home-overview {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr);
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+  padding: var(--space-md);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 4%, transparent), transparent 44%),
+    color-mix(in srgb, var(--panel-solid) 94%, var(--panel-alt));
+  box-shadow: var(--shadow);
+}
+
+.home-overview__intro,
+.home-overview__stats {
+  display: grid;
+  align-content: start;
+  gap: var(--space-xs);
+}
+
+.home-overview__intro h2 {
+  margin: 0;
+  max-width: 22ch;
+  font-family: var(--body-font);
+  font-size: clamp(1.8rem, 3vw, 2.5rem);
+  font-weight: 600;
+  line-height: 1.04;
+  letter-spacing: 0.01em;
+}
+
+.home-overview__stats {
+  padding-left: var(--space-sm);
+  border-left: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
 }
 
 .query-panel {
@@ -443,6 +502,7 @@ code {
   display: grid;
   justify-items: end;
   gap: 0.85rem;
+  max-width: 30rem;
 }
 
 .panel h2 {
@@ -834,10 +894,29 @@ button[aria-busy="true"] {
   gap: 0;
 }
 
+.home-overview .summary-band {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 0;
+}
+
 .summary-card {
   display: flex;
   align-items: baseline;
   gap: 0.45rem;
+}
+
+.home-overview .summary-card {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  padding: 0.95rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 4%, transparent), transparent 48%),
+    color-mix(in srgb, var(--panel-alt) 88%, transparent);
 }
 
 .summary-card:not(:last-child)::after {
@@ -847,8 +926,16 @@ button[aria-busy="true"] {
   font-size: var(--type-label);
 }
 
+.home-overview .summary-card:not(:last-child)::after {
+  display: none;
+}
+
 .summary-card span {
   display: inline;
+}
+
+.home-overview .summary-card span {
+  display: block;
 }
 
 .summary-card__label {
@@ -869,6 +956,12 @@ button[aria-busy="true"] {
   order: -1;
 }
 
+.home-overview .summary-card__value {
+  order: 0;
+  font-size: clamp(1.8rem, 3.5vw, 2.4rem);
+  letter-spacing: 0.03em;
+}
+
 .summary-card__value--small {
   font-size: clamp(1rem, 1.8vw, 1.3rem);
 }
@@ -881,6 +974,11 @@ button[aria-busy="true"] {
   margin: 0.35rem 0 0;
   font-size: var(--type-sm);
   text-align: right;
+}
+
+.home-overview .refresh-note {
+  margin: 0;
+  text-align: left;
 }
 
 .results-grid {
@@ -2244,6 +2342,17 @@ caption.table-caption {
     border-radius: var(--radius-sm);
   }
 
+  .home-overview {
+    grid-template-columns: 1fr;
+  }
+
+  .home-overview__stats {
+    padding-left: 0;
+    border-left: 0;
+    padding-top: var(--space-xs);
+    border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  }
+
   .filters--dashboard {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
@@ -2520,6 +2629,10 @@ caption.table-caption {
     border-radius: var(--radius-card);
   }
 
+  .home-overview {
+    padding: 1rem;
+  }
+
   .hero-copy h1 {
     font-size: clamp(2rem, 9vw, 3rem);
   }
@@ -2569,6 +2682,10 @@ caption.table-caption {
     row-gap: 0.25rem;
   }
 
+  .home-overview .summary-band {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .summary-card__value {
     font-size: clamp(1.25rem, 6vw, 1.55rem);
   }
@@ -2613,6 +2730,10 @@ caption.table-caption {
     font-size: clamp(1.85rem, 10vw, 2.6rem);
   }
 
+  .home-overview .summary-band {
+    grid-template-columns: 1fr;
+  }
+
   .field input,
   .field select {
     padding: 0.8rem 0.9rem;
@@ -2643,6 +2764,19 @@ caption.table-caption {
 [data-theme="light"] .round-page .hero-panel,
 [data-theme="light"] .player-hero {
   background: var(--panel-solid);
+}
+
+[data-theme="light"] .home-overview {
+  background:
+    linear-gradient(180deg, rgba(26, 138, 122, 0.05), transparent 44%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.75), rgba(255, 250, 242, 0.92));
+}
+
+[data-theme="light"] .home-overview .summary-card {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(255, 248, 240, 0.92)),
+    var(--panel-solid);
+  border-color: rgba(130, 90, 30, 0.12);
 }
 
 [data-theme="light"] .round-fact-card,
