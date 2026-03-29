@@ -2361,6 +2361,14 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     ranking = "highest",
     limit = 1L
   )
+  player_points_row <- fetch_player_points_high(
+    conn,
+    seasons = season_value,
+    round = round_value,
+    competition_phase = competition_phase,
+    ranking = "highest",
+    limit = 1L
+  )
   # --- Batch spotlight queries (replaces ~195 sequential queries with ~14) ---
   PLAYER_BATCH_STATS <- c(
     "goalAssists", "feeds", "gain", "deflections", "intercepts",
