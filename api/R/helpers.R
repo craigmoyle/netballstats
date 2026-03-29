@@ -2158,6 +2158,24 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     ranking = "lowest",
     limit = 1L
   )
+  team_goalsFromCentrePass_row <- fetch_team_game_high_rows(
+    conn,
+    seasons = season_value,
+    round = round_value,
+    competition_phase = competition_phase,
+    stat = "goalsFromCentrePass",
+    ranking = "highest",
+    limit = 1L
+  )
+  team_goalsFromGain_row <- fetch_team_game_high_rows(
+    conn,
+    seasons = season_value,
+    round = round_value,
+    competition_phase = competition_phase,
+    stat = "goalsFromGain",
+    ranking = "highest",
+    limit = 1L
+  )
 
   player_points_row <- fetch_player_points_high(
     conn,
@@ -2209,6 +2227,42 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     round = round_value,
     competition_phase = competition_phase,
     stat = "deflections",
+    ranking = "highest",
+    limit = 1L
+  )
+  player_goals_row <- fetch_player_game_high_rows(
+    conn,
+    seasons = season_value,
+    round = round_value,
+    competition_phase = competition_phase,
+    stat = "goals",
+    ranking = "highest",
+    limit = 1L
+  )
+  player_goalAttempts_row <- fetch_player_game_high_rows(
+    conn,
+    seasons = season_value,
+    round = round_value,
+    competition_phase = competition_phase,
+    stat = "goalAttempts",
+    ranking = "highest",
+    limit = 1L
+  )
+  player_centrePassReceives_row <- fetch_player_game_high_rows(
+    conn,
+    seasons = season_value,
+    round = round_value,
+    competition_phase = competition_phase,
+    stat = "centrePassReceives",
+    ranking = "highest",
+    limit = 1L
+  )
+  player_rebounds_row <- fetch_player_game_high_rows(
+    conn,
+    seasons = season_value,
+    round = round_value,
+    competition_phase = competition_phase,
+    stat = "rebounds",
     ranking = "highest",
     limit = 1L
   )
@@ -2314,6 +2368,74 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
       historical_rank = compute_archive_rank(
         conn, "player", "intercepts", "highest", extract_first_numeric(player_intercept_row)
       )
+    ),
+    performance_entry_from_row(
+      player_goals_row,
+      "Most goals",
+      subject_type = "player",
+      ranking = "highest",
+      badges = game_record_badges(
+        conn,
+        subject_type = "player",
+        stat = "goals",
+        ranking = "highest",
+        total_value = extract_first_numeric(player_goals_row),
+        season = season_value
+      ),
+      historical_rank = compute_archive_rank(
+        conn, "player", "goals", "highest", extract_first_numeric(player_goals_row)
+      )
+    ),
+    performance_entry_from_row(
+      player_goalAttempts_row,
+      "Most goal attempts",
+      subject_type = "player",
+      ranking = "highest",
+      badges = game_record_badges(
+        conn,
+        subject_type = "player",
+        stat = "goalAttempts",
+        ranking = "highest",
+        total_value = extract_first_numeric(player_goalAttempts_row),
+        season = season_value
+      ),
+      historical_rank = compute_archive_rank(
+        conn, "player", "goalAttempts", "highest", extract_first_numeric(player_goalAttempts_row)
+      )
+    ),
+    performance_entry_from_row(
+      player_centrePassReceives_row,
+      "Most centre pass receives",
+      subject_type = "player",
+      ranking = "highest",
+      badges = game_record_badges(
+        conn,
+        subject_type = "player",
+        stat = "centrePassReceives",
+        ranking = "highest",
+        total_value = extract_first_numeric(player_centrePassReceives_row),
+        season = season_value
+      ),
+      historical_rank = compute_archive_rank(
+        conn, "player", "centrePassReceives", "highest", extract_first_numeric(player_centrePassReceives_row)
+      )
+    ),
+    performance_entry_from_row(
+      player_rebounds_row,
+      "Most rebounds",
+      subject_type = "player",
+      ranking = "highest",
+      badges = game_record_badges(
+        conn,
+        subject_type = "player",
+        stat = "rebounds",
+        ranking = "highest",
+        total_value = extract_first_numeric(player_rebounds_row),
+        season = season_value
+      ),
+      historical_rank = compute_archive_rank(
+        conn, "player", "rebounds", "highest", extract_first_numeric(player_rebounds_row)
+      )
     )
   ))
 
@@ -2417,6 +2539,40 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
       ),
       historical_rank = compute_archive_rank(
         conn, "team", "generalPlayTurnovers", "lowest", extract_first_numeric(team_turnover_row)
+      )
+    ),
+    performance_entry_from_row(
+      team_goalsFromCentrePass_row,
+      "Most goals from centre pass",
+      subject_type = "team",
+      ranking = "highest",
+      badges = game_record_badges(
+        conn,
+        subject_type = "team",
+        stat = "goalsFromCentrePass",
+        ranking = "highest",
+        total_value = extract_first_numeric(team_goalsFromCentrePass_row),
+        season = season_value
+      ),
+      historical_rank = compute_archive_rank(
+        conn, "team", "goalsFromCentrePass", "highest", extract_first_numeric(team_goalsFromCentrePass_row)
+      )
+    ),
+    performance_entry_from_row(
+      team_goalsFromGain_row,
+      "Most goals from gain",
+      subject_type = "team",
+      ranking = "highest",
+      badges = game_record_badges(
+        conn,
+        subject_type = "team",
+        stat = "goalsFromGain",
+        ranking = "highest",
+        total_value = extract_first_numeric(team_goalsFromGain_row),
+        season = season_value
+      ),
+      historical_rank = compute_archive_rank(
+        conn, "team", "goalsFromGain", "highest", extract_first_numeric(team_goalsFromGain_row)
       )
     )
   ))

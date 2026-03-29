@@ -35,6 +35,8 @@
     goal2: "2 Point Goals",
     goalAssists: "Goal Assists",
     goalAttempts: "Goal Attempts",
+    goalsFromCentrePass: "Goals from Centre Pass",
+    goalsFromGain: "Goals from Gain",
     missedGoalTurnover: "Missed Goal Turnovers",
     netPoints: "Net Points",
     obstructionPenalties: "Obstructions",
