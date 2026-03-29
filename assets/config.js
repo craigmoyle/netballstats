@@ -23,6 +23,51 @@
     return `${text || ""}`.replace(/\s+/g, " ").trim();
   }
 
+  const STAT_LABEL_OVERRIDES = Object.freeze({
+    attempts1: "1 Point Goal Attempts",
+    attempts2: "2 Point Goal Attempts",
+    centrePassReceives: "Centre Pass Receives",
+    contactPenalties: "Contacts",
+    feeds: "Feeds into Circle",
+    gain: "Gains",
+    generalPlayTurnovers: "General Play Turnovers",
+    goal1: "1 Point Goals",
+    goal2: "2 Point Goals",
+    goalAssists: "Goal Assists",
+    goalAttempts: "Goal Attempts",
+    netPoints: "Net Points",
+    obstructionPenalties: "Obstructions",
+    unforcedTurnovers: "Unforced Turnovers"
+  });
+
+  const LOW_IS_BETTER_STATS = new Set([
+    "contactPenalties",
+    "generalPlayTurnovers",
+    "obstructionPenalties",
+    "unforcedTurnovers"
+  ]);
+
+  function formatStatLabel(stat) {
+    const normalized = cleanLabel(stat);
+    if (!normalized) {
+      return "";
+    }
+
+    if (STAT_LABEL_OVERRIDES[normalized]) {
+      return STAT_LABEL_OVERRIDES[normalized];
+    }
+
+    const spaced = normalized
+      .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+      .replace(/_/g, " ");
+
+    return cleanLabel(spaced.replace(/\b[a-z]/g, (match) => match.toUpperCase()));
+  }
+
+  function statPrefersLowerValue(stat) {
+    return LOW_IS_BETTER_STATS.has(cleanLabel(stat));
+  }
+
   const statusState = new WeakMap();
 
   function clearStatusTimers(element) {
@@ -161,7 +206,9 @@
     {
       clearStatusTimers,
       cycleStatusBanner,
+      formatStatLabel,
       showStatusBanner,
+      statPrefersLowerValue,
       syncResponsiveTable
     }
   );

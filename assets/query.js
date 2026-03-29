@@ -3,6 +3,7 @@ const API_BASE_URL = (config.apiBaseUrl || "/api").replace(/\/$/, "");
 const DEFAULT_TIMEOUT_MS = 30000;
 const {
   cycleStatusBanner = () => {},
+  formatStatLabel = (stat) => stat,
   syncResponsiveTable = () => {}
 } = window.NetballStatsUI || {};
 const {
@@ -32,9 +33,9 @@ const DEFAULT_QUERY_STATE = {
 };
 const FALLBACK_EXAMPLES = [
   "How many times has Grace Nweke scored 50 goals or more against the Vixens?",
-  "What is Grace Nweke's highest goals total against the Swifts?",
-  "Which players scored 40+ goals in 2025?",
-  "What is the Swifts' highest goals total against the Vixens?"
+  "What is Liz Watson's highest goal assist total against the Firebirds?",
+  "Which players had 5+ gains in 2025?",
+  "Which teams had the lowest general play turnovers in 2025?"
 ];
 const TABLE_SCHEMAS = {
   player: {
@@ -312,12 +313,13 @@ function renderInterpretation(parsed = {}) {
   const subjectValue = parsed.player_name
     || parsed.team_name
     || (parsed.subject_type === "players" ? "Players" : (parsed.subject_type === "teams" ? "Teams" : "--"));
+  const statValue = parsed.stat ? formatStatLabel(parsed.stat) : (parsed.stat_label || "--");
 
   const cards = [
     ["Question type", QUERY_STATUS_LABELS[parsed.intent_type] || "--"],
     ["Subject", subjectValue],
     ["Subject type", subjectType === "team" ? "Team" : "Player"],
-    ["Stat", parsed.stat_label || "--"],
+    ["Stat", statValue],
     ["Filter", parsed.comparison_label && parsed.threshold !== undefined && parsed.threshold !== null
       ? `${parsed.comparison_label} ${formatNumber(parsed.threshold)}`
       : "None"],
@@ -424,7 +426,7 @@ function renderResult(result) {
   setSummaryCards(
     QUERY_STATUS_LABELS[summary.question_type] || "--",
     formatNumber(summary.match_count),
-    summary.stat_label || "--",
+    parsed.stat ? formatStatLabel(parsed.stat) : (summary.stat_label || "--"),
     "Supported"
   );
   elements.answerHeadline.textContent = result.answer || "No answer.";
@@ -506,8 +508,8 @@ async function runQuestion(question, source = "manual") {
       reason: error.message || "Something went wrong.",
       examples: [
         "How many times has Fowler scored 50 goals or more against the Vixens?",
-        "What is Fowler's highest goals total against the Swifts?",
-        "Which players scored 40+ goals in 2025?"
+        "What is Liz Watson's highest goal assist total against the Firebirds?",
+        "Which teams had the lowest general play turnovers in 2025?"
       ]
     });
     trackEvent("ask_stats_completed", {

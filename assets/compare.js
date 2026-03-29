@@ -26,6 +26,8 @@ const {
 } = window.NetballCharts;
 const {
   cycleStatusBanner = () => {},
+  formatStatLabel = (stat) => stat,
+  statPrefersLowerValue = () => false,
   syncResponsiveTable = () => {}
 } = window.NetballStatsUI || {};
 const {
@@ -209,7 +211,7 @@ function currentStatKey() {
 }
 
 function currentStatLabel() {
-  return elements.compareStat.selectedOptions[0]?.textContent || currentStatKey() || "stat";
+  return elements.compareStat.selectedOptions[0]?.textContent || formatStatLabel(currentStatKey()) || "stat";
 }
 
 function currentMetricLabel() {
@@ -386,7 +388,7 @@ function populateStatSelect() {
   currentStatCatalog().forEach((stat) => {
     const option = document.createElement("option");
     option.value = stat;
-    option.textContent = stat;
+    option.textContent = formatStatLabel(stat);
     elements.compareStat.appendChild(option);
   });
 
@@ -868,7 +870,9 @@ function renderComparisonTable(rows, entities) {
       .filter(Boolean)
       .map((row) => Number(metricDisplayValue(row)))
       .filter((value) => Number.isFinite(value));
-    const maxValue = values.length ? Math.max(...values) : null;
+    const preferredValue = values.length
+      ? (statPrefersLowerValue(currentStatKey()) ? Math.min(...values) : Math.max(...values))
+      : null;
 
     entities.forEach((entity) => {
       const rowData = rowMap.get(`${entity.id}:${season}`);
@@ -876,7 +880,7 @@ function renderComparisonTable(rows, entities) {
       if (rowData) {
         const value = Number(metricDisplayValue(rowData));
         cell.textContent = formatNumber(value);
-        if (values.length > 1 && value === maxValue) {
+        if (values.length > 1 && value === preferredValue) {
           cell.classList.add("compare-table__best");
         }
       } else {
@@ -897,12 +901,14 @@ function renderComparisonTable(rows, entities) {
 
   const aggregateValues = entities.map((entity) => aggregateEntityValue(rows, entity.id));
   const numericAggregates = aggregateValues.filter((value) => Number.isFinite(value));
-  const maxAggregate = numericAggregates.length ? Math.max(...numericAggregates) : null;
+  const preferredAggregate = numericAggregates.length
+    ? (statPrefersLowerValue(currentStatKey()) ? Math.min(...numericAggregates) : Math.max(...numericAggregates))
+    : null;
 
   aggregateValues.forEach((value) => {
     const cell = document.createElement("td");
     cell.textContent = value === null || value === undefined ? "-" : formatNumber(value);
-    if (numericAggregates.length > 1 && value === maxAggregate) {
+    if (numericAggregates.length > 1 && value === preferredAggregate) {
       cell.classList.add("compare-table__best");
     }
     footRow.appendChild(cell);

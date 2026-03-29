@@ -4,6 +4,7 @@ const DEFAULT_TIMEOUT_MS = 30000;
 const SUPER_SHOT_START_SEASON = 2020;
 const {
   cycleStatusBanner = () => {},
+  formatStatLabel = (stat) => stat,
   syncResponsiveTable = () => {}
 } = window.NetballStatsUI || {};
 const {
@@ -16,7 +17,7 @@ const PLAYER_LOADING_MESSAGES = [
   "Loading season splits…"
 ];
 const PLAYER_STAT_DEFINITIONS = [
-  ["netPoints", "NetPoints"],
+  ["netPoints", "Net Points"],
   ["intercepts", "Intercepts"],
   ["obstructionPenalties", "Obstructions"],
   ["contactPenalties", "Contacts"],
@@ -31,8 +32,8 @@ const PLAYER_STAT_DEFINITIONS = [
   ["attempts1", "1 Point Goal Attempts"],
   ["goal2", "2 Point Goals"],
   ["attempts2", "2 Point Goal Attempts"],
-  ["feeds", "Feeds"],
-  ["goalAssists", "Assists"]
+  ["feeds", "Feeds into Circle"],
+  ["goalAssists", "Goal Assists"]
 ];
 const PLAYER_STAT_ORDER = PLAYER_STAT_DEFINITIONS.map(([key]) => key);
 const PLAYER_STAT_LABELS = new Map(PLAYER_STAT_DEFINITIONS);
@@ -144,7 +145,7 @@ function createCell(text, label) {
 }
 
 function statLabel(statKey) {
-  return PLAYER_STAT_LABELS.get(statKey) || statKey;
+  return PLAYER_STAT_LABELS.get(statKey) || formatStatLabel(statKey);
 }
 
 function statKeysForProfile(statKey) {

@@ -21,6 +21,7 @@ const {
 } = window.NetballCharts;
 const {
   cycleStatusBanner = () => {},
+  formatStatLabel = (stat) => stat,
   syncResponsiveTable = () => {}
 } = window.NetballStatsUI || {};
 const {
@@ -622,12 +623,12 @@ function applyMeta(meta) {
   );
   populateSelect(
     elements.teamStat,
-    meta.team_stats.map((stat) => ({ value: stat, label: stat })),
+    meta.team_stats.map((stat) => ({ value: stat, label: formatStatLabel(stat) })),
     "Choose a team stat"
   );
   populateSelect(
     elements.playerStat,
-    meta.player_stats.map((stat) => ({ value: stat, label: stat })),
+    meta.player_stats.map((stat) => ({ value: stat, label: formatStatLabel(stat) })),
     "Choose a player stat"
   );
 
@@ -705,7 +706,7 @@ function renderTeamLeaders(rows) {
       row.append(
         createCell(`${index + 1}`),
         createTeamCell(rowData.squad_name, colour),
-        createCell(rowData.stat),
+        createCell(formatStatLabel(rowData.stat)),
         createCell(formatNumber(statValue(rowData))),
         createCell(formatNumber(rowData.matches_played))
       );
@@ -745,7 +746,7 @@ function renderPlayerLeaders(rows) {
         createCell(`${index + 1}`),
         createLinkCell(playerProfileUrl(rowData.player_id), rowData.player_name),
         createTeamCell(rowData.squad_name || "-", colour),
-        createCell(rowData.stat),
+        createCell(formatStatLabel(rowData.stat)),
         createCell(formatNumber(statValue(rowData))),
         createCell(formatNumber(rowData.matches_played))
       );
@@ -773,7 +774,7 @@ function renderCompetitionSeasonTable(rows, errorMessage) {
     const row = document.createElement("tr");
     row.append(
       createCell(`${rowData.season}`),
-      createCell(rowData.stat),
+      createCell(formatStatLabel(rowData.stat)),
       createCell(formatNumber(statValue(rowData))),
       createCell(formatNumber(rowData.matches_played))
     );

@@ -2,6 +2,7 @@
   const {
     showStatusBanner = () => {},
     cycleStatusBanner = () => {},
+    formatStatLabel = (stat) => stat,
     syncResponsiveTable = () => {}
   } = window.NetballStatsUI || {};
 
@@ -323,8 +324,12 @@
   }
 
   function standoutValueLabel(entry) {
+    const statKey = unwrapValue(entry?.stat);
     const statLabelValue = unwrapValue(entry?.stat_label);
-    const statLabel = typeof statLabelValue === "string" ? statLabelValue.toLowerCase() : "value";
+    const statSource = typeof statKey === "string" && statKey
+      ? statKey
+      : (typeof statLabelValue === "string" ? statLabelValue : "");
+    const statLabel = statSource ? formatStatLabel(statSource).toLowerCase() : "value";
     return `${formatNumber(entry?.value)} ${statLabel}`;
   }
 
