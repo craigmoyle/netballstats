@@ -2487,6 +2487,9 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
   biggest_margin_match <- round_summary$biggest_margin_match
   closest_match <- round_summary$closest_match
 
+  # Rehydrate convenience aliases from batch data for notable_facts
+  team_turnover_row <- team_rows_low[["generalPlayTurnovers"]]
+
   notable_facts <- Filter(Negate(is.null), list(
     if (nrow(team_points_row)) {
       build_round_fact(
@@ -2551,14 +2554,7 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
           format_query_number(extract_first_numeric(team_turnover_row)),
           team_turnover_row$opponent[[1]]
         ),
-        game_record_badges(
-          conn,
-          subject_type = "team",
-          stat = "generalPlayTurnovers",
-          ranking = "lowest",
-          total_value = extract_first_numeric(team_turnover_row),
-          season = season_value
-        )
+        spotlight_badges("generalPlayTurnovers", "lowest", extract_first_numeric(team_turnover_row), team_season_low, team_archive_low)
       )
     },
     if (!is.null(closest_match)) {
