@@ -1737,8 +1737,14 @@ caption.table-caption {
 }
 
 .season-table {
-  min-width: 860px;
+  table-layout: fixed;
+  width: 100%;
 }
+
+/* Explicit widths for fixed columns so stats share the remaining space evenly */
+.season-table th:first-child  { width: 3.75rem; }
+.season-table th:nth-child(2) { width: 10rem; }
+.season-table th:nth-child(3) { width: 3.5rem; }
 
 .season-table td,
 .season-table th:first-child,
@@ -1748,19 +1754,25 @@ caption.table-caption {
 }
 
 .season-table th {
-  min-width: 7.25rem;
   white-space: normal;
   line-height: 1.1;
   vertical-align: bottom;
 }
 
 .season-table td:nth-child(2) {
-  min-width: 10rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .season-table td,
 .season-table th {
+  padding: 0.65rem 0.5rem;
   word-break: normal;
+}
+
+.season-table td {
+  font-size: var(--type-xs);
 }
 
 .empty-state {
