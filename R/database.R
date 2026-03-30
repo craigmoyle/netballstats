@@ -80,6 +80,11 @@ postgres_connection_args <- function() {
     )
   }
 
+  sslrootcert <- trimws(Sys.getenv("NETBALL_STATS_DB_SSLROOTCERT", ""))
+  if (nzchar(sslrootcert)) {
+    connection_args$sslrootcert <- sslrootcert
+  }
+
   connection_args$connect_timeout <- postgres_connect_timeout_seconds()
   connection_args$options <- sprintf(
     "-c statement_timeout=%d",

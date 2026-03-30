@@ -138,6 +138,7 @@ var keyVaultName = take('${normalizedPrefix}-${resourceToken}-kv', 24)
 var workspaceName = take('${namePrefix}-logs-${resourceToken}', 63)
 var browserTelemetryInsightsName = take('${namePrefix}-browser-ai-${resourceToken}', 64)
 var userAssignedIdentityName = take('${namePrefix}-api-mi-${resourceToken}', 64)
+var dbJobIdentityName = take('${namePrefix}-dbjob-mi-${resourceToken}', 64)
 var virtualNetworkName = take('${namePrefix}-vnet-${resourceToken}', 64)
 var containerAppsInfrastructureSubnetName = 'aca-infrastructure'
 var postgresDelegatedSubnetName = 'postgres-flex'
@@ -193,6 +194,14 @@ resource userAssignedIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@
   tags: tags
 }
 
+// Separate identity for DB refresh jobs so the API identity cannot access
+// admin credentials (FIND-07: principle of least privilege).
+resource dbJobIdentity 'Microsoft.ManagedIdentity/userAssignedIdentities@2024-11-30' = {
+  name: dbJobIdentityName
+  location: location
+  tags: tags
+}
+
 resource containerRegistry 'Microsoft.ContainerRegistry/registries@2025-04-01' = {
   name: containerRegistryName
   location: location
@@ -212,6 +221,17 @@ resource acrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' 
   scope: containerRegistry
   properties: {
     principalId: userAssignedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: acrPullRoleDefinitionId
+  }
+}
+
+// DB refresh job identity also needs AcrPull to pull the API image (FIND-07).
+resource dbJobAcrPullAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(containerRegistry.id, dbJobIdentity.id, 'AcrPull')
+  scope: containerRegistry
+  properties: {
+    principalId: dbJobIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: acrPullRoleDefinitionId
   }
@@ -250,11 +270,23 @@ resource postgresApiPasswordSecret 'Microsoft.KeyVault/vaults/secrets@2025-05-01
   }
 }
 
+// API identity: scoped to the read-only API secret only (FIND-07: least privilege).
 resource keyVaultSecretsUserAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
-  name: guid(keyVault.id, userAssignedIdentity.id, 'KeyVaultSecretsUser')
-  scope: keyVault
+  name: guid(postgresApiPasswordSecret.id, userAssignedIdentity.id, 'KeyVaultSecretsUser')
+  scope: postgresApiPasswordSecret
   properties: {
     principalId: userAssignedIdentity.properties.principalId
+    principalType: 'ServicePrincipal'
+    roleDefinitionId: keyVaultSecretsUserRoleDefinitionId
+  }
+}
+
+// DB job identity: scoped to the admin secret only (FIND-07: least privilege).
+resource dbJobKeyVaultAssignment 'Microsoft.Authorization/roleAssignments@2022-04-01' = {
+  name: guid(postgresAdminPasswordSecret.id, dbJobIdentity.id, 'KeyVaultSecretsUser')
+  scope: postgresAdminPasswordSecret
+  properties: {
+    principalId: dbJobIdentity.properties.principalId
     principalType: 'ServicePrincipal'
     roleDefinitionId: keyVaultSecretsUserRoleDefinitionId
   }
@@ -382,14 +414,87 @@ resource postgresDatabase 'Microsoft.DBforPostgreSQL/flexibleServers/databases@2
 
 // Azure PostgreSQL requires extensions to be allow-listed before they can be
 // created. pg_trgm is used for LIKE '%...%' trigram indexes on player search names.
+// pgaudit enables DDL/DML/role-change audit logging (FIND-09).
 resource postgresExtensionsParam 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2025-08-01' = {
   parent: postgresServer
   name: 'azure.extensions'
   properties: {
-    value: 'pg_trgm'
+    value: 'pg_trgm,pgaudit'
     source: 'user-override'
   }
   dependsOn: [postgresDatabase]
+}
+
+// pgaudit log scope: capture DDL, data modifications, and role changes (FIND-09).
+resource postgresAuditLogParam 'Microsoft.DBforPostgreSQL/flexibleServers/configurations@2025-08-01' = {
+  parent: postgresServer
+  name: 'pgaudit.log'
+  properties: {
+    value: 'ddl,mod,role'
+    source: 'user-override'
+  }
+  dependsOn: [postgresExtensionsParam]
+}
+
+// Export PostgreSQL audit logs to Log Analytics for incident response (FIND-09).
+resource postgresDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'postgres-diag'
+  scope: postgresServer
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        category: 'PostgreSQLLogs'
+        enabled: true
+        retentionPolicy: {
+          enabled: true
+          days: 90
+        }
+      }
+    ]
+  }
+}
+
+// Export ACR login and repository events to Log Analytics for supply-chain
+// incident response (FIND-10).
+resource acrDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'acr-diag'
+  scope: containerRegistry
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        category: 'ContainerRegistryLoginEvents'
+        enabled: true
+      }
+      {
+        category: 'ContainerRegistryRepositoryEvents'
+        enabled: true
+      }
+    ]
+  }
+}
+
+// Export Key Vault audit events to Log Analytics for secret-access anomaly
+// detection (FIND-10).
+resource keyVaultDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-05-01-preview' = {
+  name: 'kv-diag'
+  scope: keyVault
+  properties: {
+    workspaceId: logAnalyticsWorkspace.id
+    logs: [
+      {
+        category: 'AuditEvent'
+        enabled: true
+      }
+    ]
+    metrics: [
+      {
+        category: 'AllMetrics'
+        enabled: true
+      }
+    ]
+  }
 }
 
 resource postgresFirewallRule 'Microsoft.DBforPostgreSQL/flexibleServers/firewallRules@2025-08-01' = if (!enablePrivatePostgresNetworking && allowAzureServicesPostgresFirewallRule) {
@@ -530,7 +635,11 @@ resource apiContainerApp 'Microsoft.App/containerApps@2025-07-01' = {
             }
             {
               name: 'NETBALL_STATS_DB_SSLMODE'
-              value: 'require'
+              value: 'verify-full'
+            }
+            {
+              name: 'NETBALL_STATS_DB_SSLROOTCERT'
+              value: '/usr/local/share/azure-postgres-ca.pem'
             }
             {
               name: 'NETBALL_STATS_DB_CONNECT_TIMEOUT_SECONDS'
@@ -638,7 +747,11 @@ var dbRefreshEnv = [
   }
   {
     name: 'NETBALL_STATS_DB_SSLMODE'
-    value: 'require'
+    value: 'verify-full'
+  }
+  {
+    name: 'NETBALL_STATS_DB_SSLROOTCERT'
+    value: '/usr/local/share/azure-postgres-ca.pem'
   }
   {
     name: 'NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS'
@@ -654,7 +767,7 @@ resource dbRefreshJobSat 'Microsoft.App/jobs@2025-02-02-preview' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${userAssignedIdentity.id}': {}
+      '${dbJobIdentity.id}': {}
     }
   }
   properties: {
@@ -670,14 +783,14 @@ resource dbRefreshJobSat 'Microsoft.App/jobs@2025-02-02-preview' = {
       replicaRetryLimit: 1
       registries: [
         {
-          identity: userAssignedIdentity.id
+          identity: dbJobIdentity.id
           server: containerRegistry.properties.loginServer
         }
       ]
       secrets: [
         {
           name: 'postgres-admin-password'
-          identity: userAssignedIdentity.id
+          identity: dbJobIdentity.id
           keyVaultUrl: postgresAdminPasswordSecret.properties.secretUriWithVersion
         }
       ]
@@ -701,8 +814,8 @@ resource dbRefreshJobSat 'Microsoft.App/jobs@2025-02-02-preview' = {
     }
   }
   dependsOn: [
-    acrPullAssignment
-    keyVaultSecretsUserAssignment
+    dbJobAcrPullAssignment
+    dbJobKeyVaultAssignment
     postgresDatabase
     postgresFirewallRule
   ]
@@ -716,7 +829,7 @@ resource dbRefreshJobSun 'Microsoft.App/jobs@2025-02-02-preview' = {
   identity: {
     type: 'UserAssigned'
     userAssignedIdentities: {
-      '${userAssignedIdentity.id}': {}
+      '${dbJobIdentity.id}': {}
     }
   }
   properties: {
@@ -732,14 +845,14 @@ resource dbRefreshJobSun 'Microsoft.App/jobs@2025-02-02-preview' = {
       replicaRetryLimit: 1
       registries: [
         {
-          identity: userAssignedIdentity.id
+          identity: dbJobIdentity.id
           server: containerRegistry.properties.loginServer
         }
       ]
       secrets: [
         {
           name: 'postgres-admin-password'
-          identity: userAssignedIdentity.id
+          identity: dbJobIdentity.id
           keyVaultUrl: postgresAdminPasswordSecret.properties.secretUriWithVersion
         }
       ]
@@ -763,8 +876,8 @@ resource dbRefreshJobSun 'Microsoft.App/jobs@2025-02-02-preview' = {
     }
   }
   dependsOn: [
-    acrPullAssignment
-    keyVaultSecretsUserAssignment
+    dbJobAcrPullAssignment
+    dbJobKeyVaultAssignment
     postgresDatabase
     postgresFirewallRule
   ]

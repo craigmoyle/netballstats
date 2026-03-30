@@ -1,12 +1,48 @@
 .git
 .gitignore
 .DS_Store
+
+# Frontend build output and sources (not needed in API container)
+dist/
+assets/
+index.html
+player/
+players/
+query/
+compare/
+round/
+config/
+_headers
+
+# Infrastructure, CI/CD, and deploy config
+infra/
+.github/
+azure.yaml
+render.yaml
+staticwebapp.config.json
+
+# Documentation and threat models
+*.md
+*.Rmd
+threat-model-*/
+
+# Local development files
+local-pg/
+.env
+.env.*
+
+# Node
+node_modules/
+package*.json
+
+# R artefacts
+renv/library
+renv/staging
+
+# Storage and SQLite
 storage/*
 !storage/.gitkeep
-node_modules
 *.sqlite
 *.sqlite-journal
 *.sqlite-shm
 *.sqlite-wal
-renv/library
-renv/staging
