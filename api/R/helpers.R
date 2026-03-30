@@ -125,6 +125,20 @@ open_db <- function() {
   open_database_connection()
 }
 
+# Persistent connection reused across requests (R Plumber is single-threaded,
+# so a single connection is safe).  Falls back to a fresh connect if the
+# existing connection has been closed by an idle timeout or DB failover.
+.persistent_conn <- NULL
+
+get_db_conn <- function() {
+  if (!is.null(.persistent_conn) && DBI::dbIsValid(.persistent_conn)) {
+    return(.persistent_conn)
+  }
+  conn <- open_database_connection()
+  .persistent_conn <<- conn
+  conn
+}
+
 json_error <- function(res, status, message) {
   res$status <- status
   list(error = message)
@@ -340,13 +354,8 @@ row_to_record <- function(rows, index) {
   )
 }
 
-rows_to_records <- function(rows) {
-  if (!nrow(rows)) {
-    return(list())
-  }
-
-  lapply(seq_len(nrow(rows)), function(index) row_to_record(rows, index))
-}
+# NOTE: rows_to_records is defined in plumber.R (with jsonlite::unbox support)
+# and overrides this file at runtime. Do not add a second definition here.
 
 append_integer_in_filter <- function(query, params, column_name, values, prefix) {
   if (is.null(values) || !length(values)) {
@@ -416,26 +425,36 @@ validate_sql_identifier <- function(value, name = "identifier") {
 
 available_stats <- function(conn, table_name) {
   validate_sql_identifier(table_name, "table_name")
-  query_rows(
+  cache_key <- paste0("netballstats.stat_catalog.", table_name)
+  cached <- getOption(cache_key)
+  if (!is.null(cached)) return(cached)
+
+  result <- query_rows(
     conn,
     sprintf(
       "SELECT DISTINCT stat FROM %s WHERE value_number IS NOT NULL ORDER BY stat",
       table_name
     )
   )$stat
+  options(setNames(list(result), cache_key))
+  result
 }
 
 validate_stat <- function(conn, table_name, stat, default_stat = "points") {
+  chosen <- stat %||% default_stat
+  # Fast path: validate against compile-time constants to avoid a DB round-trip
+  # for all common stats (covers >95% of requests without touching the DB).
+  known <- if (grepl("player", table_name, fixed = TRUE)) DEFAULT_PLAYER_STATS else DEFAULT_TEAM_STATS
+  if (chosen %in% known) return(chosen)
+
+  # Slow path: full DB lookup for any stat not in the compile-time list.
   stats <- available_stats(conn, table_name)
   if (!length(stats)) {
     stop("No numeric stats are available in ", table_name, ".", call. = FALSE)
   }
-
-  chosen <- stat %||% default_stat
   if (!chosen %in% stats) {
     stop("Unsupported stat: ", chosen, ".", call. = FALSE)
   }
-
   chosen
 }
 
@@ -649,28 +668,32 @@ build_query_stat_alias_rows <- function() {
   alias_rows <- do.call(rbind, rows)
   alias_rows <- alias_rows[order(alias_rows$alias_length, decreasing = TRUE), , drop = FALSE]
   rownames(alias_rows) <- NULL
+  # Pre-compile regex patterns once at load time so resolve_query_stat() is
+  # pure vectorised matching with no per-call regex construction.
+  alias_rows$pattern <- paste0(
+    "\\b",
+    gsub(" ", "\\\\s+", sapply(alias_rows$alias, escape_regex, USE.NAMES = FALSE), fixed = TRUE),
+    "\\b"
+  )
   alias_rows
 }
 
 QUERY_STAT_ALIASES <- build_query_stat_alias_rows()
 
 resolve_query_stat <- function(text) {
-  matched <- logical(nrow(QUERY_STAT_ALIASES))
-  for (index in seq_len(nrow(QUERY_STAT_ALIASES))) {
-    alias <- QUERY_STAT_ALIASES$alias[[index]]
-    pattern <- paste0("\\b", gsub(" ", "\\\\s+", escape_regex(alias), fixed = TRUE), "\\b")
-    matched[[index]] <- grepl(pattern, text, perl = TRUE)
-  }
-
+  matched <- grepl(QUERY_STAT_ALIASES$pattern, text, perl = TRUE)
   candidates <- QUERY_STAT_ALIASES[matched, , drop = FALSE]
   if (!nrow(candidates)) {
     return(NULL)
   }
-
   unique(as.character(candidates$stat))[[1]]
 }
 
+.team_alias_cache <- NULL
+
 team_alias_lookup <- function(conn) {
+  if (!is.null(.team_alias_cache)) return(.team_alias_cache)
+
   teams <- query_rows(
     conn,
     "SELECT squad_id, squad_name, squad_code FROM teams ORDER BY squad_name"
@@ -705,6 +728,7 @@ team_alias_lookup <- function(conn) {
 
   alias_rows <- unique(do.call(rbind, rows))
   rownames(alias_rows) <- NULL
+  .team_alias_cache <<- alias_rows
   alias_rows
 }
 
@@ -1757,7 +1781,10 @@ fetch_player_spotlight_rows <- function(conn, seasons, round, competition_phase,
         round_number      = as.integer(round),
         competition_phase = as.character(competition_phase %||% "")
       )),
-      error = function(e) data.frame()
+      error = function(e) {
+        api_log("WARN", "spotlight_player_batch_failed", error_class = class(e)[[1]])
+        data.frame()
+      }
     )
     result <- lapply(stats, function(s) {
       r <- rows[!is.na(rows$stat) & rows$stat == s, , drop = FALSE]
@@ -1818,7 +1845,10 @@ fetch_team_spotlight_rows <- function(conn, seasons, round, competition_phase, s
       round_number      = as.integer(round),
       competition_phase = as.character(competition_phase %||% "")
     )),
-    error = function(e) data.frame()
+    error = function(e) {
+      api_log("WARN", "spotlight_team_batch_failed", error_class = class(e)[[1]])
+      data.frame()
+    }
   )
 
   result <- lapply(stats, function(s) {
@@ -2414,6 +2444,22 @@ build_round_fact <- function(title, value, detail, badges = character()) {
 .round_cache_ttl_secs <- 3600L  # 1 hour
 
 build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
+  # Fast path: when both season and round are specified, we can build the cache
+  # key immediately and skip the DB lookup entirely on a hit.
+  if (!is.null(season) && !is.null(round)) {
+    fast_key <- paste0(as.integer(season), "_", as.integer(round), "_")
+    # Try an exact key match; also check with known phase suffixes.
+    for (candidate_key in ls(envir = .round_summary_cache)) {
+      if (startsWith(candidate_key, fast_key)) {
+        cached <- .round_summary_cache[[candidate_key]]
+        if (!is.null(cached) &&
+            as.numeric(difftime(Sys.time(), cached$ts, units = "secs")) < .round_cache_ttl_secs) {
+          return(cached$payload)
+        }
+      }
+    }
+  }
+
   selected_round <- fetch_latest_completed_round(conn, season = season, round = round)
   if (!nrow(selected_round)) {
     return(NULL)

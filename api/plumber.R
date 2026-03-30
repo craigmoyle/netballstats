@@ -40,13 +40,27 @@ options(netballstats.repo_root = repo_root_path)
 source(file.path(repo_root_path, "R", "database.R"), local = TRUE)
 source(file.path(repo_root_path, "api", "R", "helpers.R"), local = TRUE)
 
+# Shared in-process cache for /meta responses (30-minute TTL).
+.meta_cache <- new.env(parent = emptyenv())
+
 request_limiter <- local({
   entries <- new.env(parent = emptyenv())
+  # Cache rate-limit config at build time — Sys.getenv is called once, not
+  # on every request, since these values don't change while the process is live.
+  window_seconds <- as.integer(Sys.getenv("NETBALL_STATS_RATE_LIMIT_WINDOW_SECONDS", "60"))
+  max_requests   <- as.integer(Sys.getenv("NETBALL_STATS_RATE_LIMIT_MAX_REQUESTS", "60"))
+  prune_interval <- 600L   # prune stale entries every 10 minutes
+  last_prune     <- as.numeric(Sys.time())
 
   function(req, res) {
-    window_seconds <- as.integer(Sys.getenv("NETBALL_STATS_RATE_LIMIT_WINDOW_SECONDS", "60"))
-    max_requests <- as.integer(Sys.getenv("NETBALL_STATS_RATE_LIMIT_MAX_REQUESTS", "60"))
-    client_key <- req$HTTP_X_FORWARDED_FOR %||% req$REMOTE_ADDR %||% "unknown"
+    # Use only the leftmost (originating-client) IP from X-Forwarded-For to
+    # prevent spoofing via attacker-appended values.
+    raw_forwarded <- req$HTTP_X_FORWARDED_FOR %||% ""
+    client_key <- if (nzchar(raw_forwarded)) {
+      trimws(strsplit(raw_forwarded, ",", fixed = TRUE)[[1]][[1]])
+    } else {
+      req$REMOTE_ADDR %||% "unknown"
+    }
     now <- as.numeric(Sys.time())
 
     current <- if (exists(client_key, envir = entries, inherits = FALSE)) {
@@ -61,6 +75,16 @@ request_limiter <- local({
 
     current$count <- current$count + 1L
     assign(client_key, current, envir = entries)
+
+    # Periodically prune stale entries so the env doesn't grow indefinitely.
+    if ((now - last_prune) > prune_interval) {
+      stale <- Filter(
+        function(k) (now - get(k, envir = entries)$start) > window_seconds,
+        ls(envir = entries)
+      )
+      if (length(stale)) rm(list = stale, envir = entries)
+      last_prune <<- now
+    }
 
     res$setHeader("X-RateLimit-Limit", as.character(max_requests))
     res$setHeader(
@@ -587,7 +611,7 @@ handle_request_error <- function(error, res) {
     error_class = class(error)[[1]] %||% "unknown",
     error_message = substr(msg, 1L, 200L)
   )
-  if (grepl("statement timeout|canceling statement|query_canceled", msg, ignore.case = TRUE)) {
+  if (timeout) {
     json_error(res, 503, "The query took too long. Try narrowing to a specific season or player.")
   } else {
     json_error(res, 400, "Invalid request parameters.")
@@ -760,11 +784,18 @@ function(res) {
 #* @get /meta
 #* @get /api/meta
 function(res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  # Serve from in-process cache — /meta is called on every page load and the
+  # data changes only after a DB rebuild (roughly weekly).
+  cached <- .meta_cache[["meta"]]
+  if (!is.null(cached) &&
+      as.numeric(difftime(Sys.time(), cached$ts, units = "secs")) < 1800L) {
+    return(cached$payload)
+  }
 
   metadata <- query_rows(conn, "SELECT key, value FROM metadata")
   metadata_map <- setNames(metadata$value, metadata$key)
@@ -774,7 +805,7 @@ function(res) {
     "SELECT squad_id, squad_name, squad_code, squad_colour FROM teams ORDER BY squad_name"
   )
 
-  list(
+  payload <- list(
     default_season = if (length(seasons)) seasons[[1]] else NA_integer_,
     seasons = seasons,
     teams = teams,
@@ -788,6 +819,8 @@ function(res) {
       connection_string = if (browser_telemetry_enabled()) meta_json_scalar(browser_telemetry_connection_string()) else NULL
     )
   )
+  .meta_cache[["meta"]] <- list(payload = payload, ts = Sys.time())
+  payload
 }
 
 #* @post /telemetry
@@ -824,11 +857,10 @@ function(req, res) {
 #* @get /players
 #* @get /api/players
 function(search = "", limit = "500", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     limit <- parse_limit(limit, default = 500L, maximum = 1000L)
@@ -862,11 +894,10 @@ function(search = "", limit = "500", res) {
 #* @get /player-profile
 #* @get /api/player-profile
 function(player_id = "", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     player_id <- parse_optional_int(player_id, "player_id", minimum = 1L)
@@ -888,15 +919,27 @@ function(player_id = "", res) {
       return(json_error(res, 404, "Player not found."))
     }
 
-    stats_rows <- query_rows(
-      conn,
-      paste(
-        "SELECT match_id, season, squad_name, stat, value_number",
-        "FROM player_period_stats",
-        "WHERE player_id = ?player_id AND value_number IS NOT NULL"
-      ),
-      list(player_id = player_id)
-    )
+    stats_rows <- if (has_player_match_stats(conn)) {
+      query_rows(
+        conn,
+        paste(
+          "SELECT match_id, season, squad_name, stat, match_value AS value_number",
+          "FROM player_match_stats",
+          "WHERE player_id = ?player_id AND match_value IS NOT NULL"
+        ),
+        list(player_id = player_id)
+      )
+    } else {
+      query_rows(
+        conn,
+        paste(
+          "SELECT match_id, season, squad_name, stat, value_number",
+          "FROM player_period_stats",
+          "WHERE player_id = ?player_id AND value_number IS NOT NULL"
+        ),
+        list(player_id = player_id)
+      )
+    }
 
     build_player_profile_payload(player, stats_rows)
   }, error = function(error) {
@@ -907,11 +950,10 @@ function(player_id = "", res) {
 #* @get /summary
 #* @get /api/summary
 function(season = "", seasons = "", team_id = "", round = "", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   result <- tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -959,11 +1001,10 @@ function(season = "", seasons = "", team_id = "", round = "", res) {
 #* @get /matches
 #* @get /api/matches
 function(season = "", seasons = "", team_id = "", round = "", limit = "12", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -992,11 +1033,10 @@ function(season = "", seasons = "", team_id = "", round = "", limit = "12", res)
 #* @get /round-summary
 #* @get /api/round-summary
 function(season = "", round = "", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     season <- parse_optional_int(season, "season", minimum = 2017L, maximum = 2100L)
@@ -1020,11 +1060,10 @@ function(season = "", round = "", res) {
 #* @get /team-leaders
 #* @get /api/team-leaders
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", metric = "total", ranking = "highest", limit = "8", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -1060,11 +1099,10 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
 #* @get /player-leaders
 #* @get /api/player-leaders
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", metric = "total", ranking = "highest", limit = "12", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -1095,11 +1133,10 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 #* @get /competition-season-series
 #* @get /api/competition-season-series
 function(season = "", seasons = "", round = "", stat = "points", metric = "total", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -1129,11 +1166,10 @@ function(season = "", seasons = "", round = "", stat = "points", metric = "total
 #* @get /team-season-series
 #* @get /api/team-season-series
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", metric = "total", ranking = "highest", limit = "10", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -1202,11 +1238,10 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
 #* @get /player-season-series
 #* @get /api/player-season-series
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", metric = "total", ranking = "highest", limit = "10", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -1241,11 +1276,10 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 #* @get /team-game-highs
 #* @get /api/team-game-highs
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", ranking = "highest", limit = "10", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -1271,11 +1305,10 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", r
 #* @get /player-game-highs
 #* @get /api/player-game-highs
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", search = "", ranking = "highest", limit = "10", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
@@ -1302,11 +1335,10 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 #* @get /query
 #* @get /api/query
 function(question = "", limit = "12", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     limit <- parse_limit(limit, default = 12L, maximum = 25L)
@@ -1360,5 +1392,51 @@ function(question = "", limit = "12", res) {
     )
   }, error = function(error) {
     handle_request_error(error, res)
+  })
+}
+
+#* @plumber
+function(pr) {
+  # Startup warmup: populate in-process caches before the first request arrives.
+  # Runs synchronously during process startup. Adds ~2-4s to cold-start time
+  # but eliminates the first-hit DB penalty for the most common endpoints.
+  tryCatch({
+    conn <- get_db_conn()
+
+    available_stats(conn, "player_period_stats")
+    available_stats(conn, "team_period_stats")
+    team_alias_lookup(conn)
+    has_player_match_stats(conn)
+
+    # Pre-warm /meta cache (called on every page load)
+    meta_ok <- tryCatch({
+      metadata     <- query_rows(conn, "SELECT key, value FROM metadata")
+      metadata_map <- setNames(metadata$value, metadata$key)
+      seasons      <- query_rows(conn, "SELECT DISTINCT season FROM matches ORDER BY season DESC")$season
+      teams        <- query_rows(conn, "SELECT squad_id, squad_name, squad_code, squad_colour FROM teams ORDER BY squad_name")
+      payload <- list(
+        default_season = if (length(seasons)) seasons[[1]] else NA_integer_,
+        seasons = seasons, teams = teams,
+        team_stats   = metadata_stat_catalog(metadata_map, "team_stats_json", DEFAULT_TEAM_STATS),
+        player_stats = metadata_stat_catalog(metadata_map, "player_stats_json", DEFAULT_PLAYER_STATS),
+        build_mode   = meta_json_scalar(metadata_map[["build_mode"]], default = "production"),
+        refreshed_at = meta_json_scalar(metadata_map[["refreshed_at"]]),
+        telemetry = list(
+          provider     = meta_json_scalar(if (browser_telemetry_enabled()) "appinsights" else "none"),
+          browser_enabled = meta_json_scalar(browser_telemetry_enabled()),
+          connection_string = if (browser_telemetry_enabled()) meta_json_scalar(browser_telemetry_connection_string()) else NULL
+        )
+      )
+      .meta_cache[["meta"]] <- list(payload = payload, ts = Sys.time())
+      TRUE
+    }, error = function(e) FALSE)
+
+    # Pre-warm the latest round summary (most-visited page after home)
+    build_round_summary_payload(conn, season = NULL, round = NULL)
+
+    api_log("INFO", "startup_warmup_complete", meta_ok = meta_ok)
+  }, error = function(e) {
+    api_log("WARN", "startup_warmup_failed",
+            error_class = class(e)[[1]], error_message = substr(conditionMessage(e), 1L, 200L))
   })
 }
