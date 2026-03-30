@@ -430,7 +430,7 @@ resource postgresAuditLogParam 'Microsoft.DBforPostgreSQL/flexibleServers/config
   parent: postgresServer
   name: 'pgaudit.log'
   properties: {
-    value: 'ddl,mod,role'
+    value: 'ddl,write,role'
     source: 'user-override'
   }
   dependsOn: [postgresExtensionsParam]
@@ -446,10 +446,6 @@ resource postgresDiagnosticSettings 'Microsoft.Insights/diagnosticSettings@2021-
       {
         category: 'PostgreSQLLogs'
         enabled: true
-        retentionPolicy: {
-          enabled: true
-          days: 90
-        }
       }
     ]
   }
