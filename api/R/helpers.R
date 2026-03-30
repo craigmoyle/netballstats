@@ -803,12 +803,16 @@ resolve_query_player <- function(conn, question) {
   direct_lookup <- query_rows(
     conn,
     paste(
-      "SELECT DISTINCT players.player_id, player_aliases.alias_name, player_aliases.alias_search_name,",
-      "players.canonical_name",
-      "FROM players",
-      "LEFT JOIN player_aliases ON players.player_id = player_aliases.player_id",
-      "WHERE players.search_name LIKE ?search OR player_aliases.alias_search_name LIKE ?search",
-      "ORDER BY players.canonical_name ASC"
+      "SELECT player_id, alias_name, alias_search_name, canonical_name FROM (",
+      "  SELECT p.player_id, p.canonical_name AS alias_name, p.search_name AS alias_search_name,",
+      "    p.canonical_name FROM players p WHERE p.search_name LIKE ?search",
+      "  UNION ALL",
+      "  SELECT pa.player_id, pa.alias_name, pa.alias_search_name, p.canonical_name",
+      "  FROM player_aliases pa",
+      "  JOIN players p ON p.player_id = pa.player_id",
+      "  WHERE pa.alias_search_name LIKE ?search",
+      ") combined",
+      "ORDER BY canonical_name ASC"
     ),
     list(search = paste0("%", normalized_phrase, "%"))
   )
@@ -1740,6 +1744,8 @@ extract_first_numeric <- function(rows, column = "total_value") {
 # never user input) and returns a SQL IN list string.
 safe_stat_in_sql <- function(stats) {
   valid <- stats[grepl("^[A-Za-z0-9]+$", stats)]
+  dropped <- setdiff(stats, valid)
+  if (length(dropped)) stop("Invalid stat names rejected from SQL list: ", paste(dropped, collapse = ", "))
   if (!length(valid)) return("")
   paste(sprintf("'%s'", valid), collapse = ", ")
 }
@@ -2279,29 +2285,23 @@ margin_record_badges <- function(conn, margin_value, season) {
     return(character())
   }
 
-  season_row <- query_rows(
+  row <- query_rows(
     conn,
     paste(
-      "SELECT MAX(ABS(home_score - away_score)) AS margin_value",
+      "SELECT",
+      "  MAX(CASE WHEN season = ?season THEN ABS(home_score - away_score) END) AS season_max,",
+      "  MAX(ABS(home_score - away_score)) AS archive_max",
       "FROM matches",
-      "WHERE home_score IS NOT NULL AND away_score IS NOT NULL AND season = ?season"
+      "WHERE home_score IS NOT NULL AND away_score IS NOT NULL"
     ),
     list(season = as.integer(season))
   )
-  archive_row <- query_rows(
-    conn,
-    paste(
-      "SELECT MAX(ABS(home_score - away_score)) AS margin_value",
-      "FROM matches",
-      "WHERE home_score IS NOT NULL AND away_score IS NOT NULL"
-    )
-  )
 
   badges <- character()
-  if (numeric_equal(margin_value, extract_first_numeric(season_row, "margin_value"))) {
+  if (numeric_equal(margin_value, extract_first_numeric(row, "season_max"))) {
     badges <- c(badges, record_badge_label("season", "highest"))
   }
-  if (numeric_equal(margin_value, extract_first_numeric(archive_row, "margin_value"))) {
+  if (numeric_equal(margin_value, extract_first_numeric(row, "archive_max"))) {
     badges <- c(badges, record_badge_label("archive", "highest"))
   }
 
