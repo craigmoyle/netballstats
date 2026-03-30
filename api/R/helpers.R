@@ -419,6 +419,26 @@ apply_stat_filters <- function(query, params, seasons = NULL, team_id = NULL, ro
   list(query = query, params = params)
 }
 
+opponent_name_sql <- function(subject_squad_column, aggregate = FALSE) {
+  expr <- paste0(
+    "CASE WHEN matches.home_squad_id = ", subject_squad_column,
+    " THEN matches.away_squad_name ELSE matches.home_squad_name END"
+  )
+
+  if (isTRUE(aggregate)) {
+    return(paste0("MAX(", expr, ")"))
+  }
+
+  expr
+}
+
+opponent_id_sql <- function(subject_squad_column) {
+  paste0(
+    "CASE WHEN matches.home_squad_id = ", subject_squad_column,
+    " THEN matches.away_squad_id ELSE matches.home_squad_id END"
+  )
+}
+
 validate_sql_identifier <- function(value, name = "identifier") {
   if (!grepl("^[A-Za-z][A-Za-z0-9_]*$", value)) {
     stop(name, " must start with a letter and contain only letters, digits, and underscores.", call. = FALSE)
@@ -1088,7 +1108,7 @@ parse_query_intent <- function(conn, question, limit = 12L) {
 build_player_match_query <- function(stat, seasons = NULL, player_id = NULL, opponent_id = NULL, comparison = NULL, threshold = NULL) {
   query <- paste(
     "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
-    "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+    paste0(opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,"),
     "stats.season AS season, stats.round_number AS round_number, stats.match_id AS match_id, matches.local_start_time AS local_start_time,",
     "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
     "FROM player_period_stats AS stats",
@@ -1109,7 +1129,7 @@ build_player_match_query <- function(stat, seasons = NULL, player_id = NULL, opp
   if (!is.null(opponent_id)) {
     query <- paste0(
       query,
-      " AND (CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_id ELSE matches.home_squad_id END) = ?opponent_id"
+      " AND (", opponent_id_sql("stats.squad_id"), ") = ?opponent_id"
     )
     params$opponent_id <- opponent_id
   }
@@ -1148,7 +1168,7 @@ has_player_match_stats <- function(conn) {
 build_fast_player_match_query <- function(stat, seasons = NULL, player_id = NULL, opponent_id = NULL, comparison = NULL, threshold = NULL) {
   query <- paste(
     "SELECT pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
-    "CASE WHEN matches.home_squad_id = pms.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END AS opponent,",
+    paste0(opponent_name_sql("pms.squad_id"), " AS opponent,"),
     "pms.season AS season, pms.round_number AS round_number, pms.match_id AS match_id, matches.local_start_time AS local_start_time,",
     "?stat AS stat, pms.match_value AS total_value",
     "FROM player_match_stats AS pms",
@@ -1169,7 +1189,7 @@ build_fast_player_match_query <- function(stat, seasons = NULL, player_id = NULL
   if (!is.null(opponent_id)) {
     query <- paste0(
       query,
-      " AND (CASE WHEN matches.home_squad_id = pms.squad_id THEN matches.away_squad_id ELSE matches.home_squad_id END) = ?opponent_id"
+      " AND (", opponent_id_sql("pms.squad_id"), ") = ?opponent_id"
     )
     params$opponent_id <- opponent_id
   }
@@ -1184,7 +1204,7 @@ build_fast_player_match_query <- function(stat, seasons = NULL, player_id = NULL
 build_team_match_query <- function(stat, seasons = NULL, team_id = NULL, opponent_id = NULL, comparison = NULL, threshold = NULL) {
   query <- paste(
     "SELECT stats.squad_id AS team_id, stats.squad_name,",
-    "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+    paste0(opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,"),
     "stats.season AS season, stats.round_number AS round_number, stats.match_id AS match_id, matches.local_start_time AS local_start_time,",
     "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
     "FROM team_period_stats AS stats",
@@ -1200,7 +1220,7 @@ build_team_match_query <- function(stat, seasons = NULL, team_id = NULL, opponen
   if (!is.null(opponent_id)) {
     query <- paste0(
       query,
-      " AND (CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_id ELSE matches.home_squad_id END) = ?opponent_id"
+      " AND (", opponent_id_sql("stats.squad_id"), ") = ?opponent_id"
     )
     params$opponent_id <- opponent_id
   }
@@ -1616,7 +1636,7 @@ fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, ro
     # GROUP BY needed. ORDER BY + LIMIT uses idx_pms_stat_value directly.
     query <- paste(
       "SELECT pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
-      "CASE WHEN matches.home_squad_id = pms.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END AS opponent,",
+      paste0(opponent_name_sql("pms.squad_id"), " AS opponent,"),
       "pms.season, pms.round_number, pms.match_id, matches.local_start_time,",
       "?stat AS stat, pms.match_value AS total_value",
       "FROM player_match_stats AS pms",
@@ -1645,7 +1665,7 @@ fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, ro
   # Fallback: aggregate period rows at query time (slower on B1ms)
   query <- paste(
     "SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
-    "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+    paste0(opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,"),
     "stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
     "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
     "FROM player_period_stats AS stats",
@@ -1685,7 +1705,7 @@ fetch_team_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, roun
 
   query <- paste(
     "SELECT stats.squad_id, stats.squad_name,",
-    "MAX(CASE WHEN matches.home_squad_id = stats.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+    paste0(opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,"),
     "stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
     "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
     "FROM team_period_stats AS stats",
@@ -1764,8 +1784,7 @@ fetch_player_spotlight_rows <- function(conn, seasons, round, competition_phase,
     query <- paste0(
       "WITH ranked AS (",
       " SELECT pms.stat, pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
-      "   CASE WHEN matches.home_squad_id = pms.squad_id",
-      "     THEN matches.away_squad_name ELSE matches.home_squad_name END AS opponent,",
+      "   ", opponent_name_sql("pms.squad_id"), " AS opponent,",
       "   pms.season, pms.round_number, pms.match_id, matches.local_start_time,",
       "   pms.match_value AS total_value,",
       "   ROW_NUMBER() OVER (PARTITION BY pms.stat",
@@ -1826,8 +1845,7 @@ fetch_team_spotlight_rows <- function(conn, seasons, round, competition_phase, s
   query <- paste0(
     "WITH agg AS (",
     " SELECT stats.stat, stats.squad_id, stats.squad_name,",
-    "   MAX(CASE WHEN matches.home_squad_id = stats.squad_id",
-    "     THEN matches.away_squad_name ELSE matches.home_squad_name END) AS opponent,",
+    "   ", opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,",
     "   stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
     "   ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
     " FROM team_period_stats stats",
@@ -2070,7 +2088,7 @@ fetch_player_points_high <- function(conn, seasons = NULL, round = NULL, competi
 
   query <- paste(
     "SELECT pms1.player_id, players.canonical_name AS player_name, pms1.squad_name,",
-    "CASE WHEN matches.home_squad_id = pms1.squad_id THEN matches.away_squad_name ELSE matches.home_squad_name END AS opponent,",
+    paste0(opponent_name_sql("pms1.squad_id"), " AS opponent,"),
     "pms1.season, pms1.round_number, pms1.match_id, matches.local_start_time,",
     "'points' AS stat,",
     "(COALESCE(pms1.match_value, 0) + 2 * COALESCE(pms2.match_value, 0)) AS total_value",

@@ -63,6 +63,14 @@ check_step <- function(label) {
   cat(sprintf('✓ %s\n', label))
 }
 
+normalize_sql <- function(query) {
+  gsub("\\s+", " ", trimws(query))
+}
+
+assert_contains <- function(text, needle, message) {
+  assert_true(grepl(needle, text, fixed = TRUE), message)
+}
+
 request_json <- function(base_url, path, query = list(), expected_status = 200L) {
   url <- build_endpoint_url(base_url, path, query)
   response <- httr::GET(url, httr::timeout(30))
@@ -196,6 +204,112 @@ possessive_subject <- helpers_env$extract_query_subject_phrase(
 )
 assert_true(identical(possessive_subject, 'the Swifts'), 'Expected possessive team phrasing to normalize to the team subject.')
 check_step('parser normalizes possessive team phrasing')
+
+player_builder_inputs <- list(
+  stat = 'goals',
+  seasons = c(2022L, 2023L),
+  player_id = 804L,
+  opponent_id = 806L,
+  comparison = 'gte',
+  threshold = 20
+)
+period_player_query <- do.call(helpers_env$build_player_match_query, player_builder_inputs)
+fast_player_query <- do.call(helpers_env$build_fast_player_match_query, player_builder_inputs)
+period_player_sql <- normalize_sql(period_player_query$query)
+fast_player_sql <- normalize_sql(fast_player_query$query)
+
+assert_true(identical(period_player_query$params, fast_player_query$params), 'Expected player match query builders to keep parameter payloads aligned.')
+assert_contains(period_player_sql, 'FROM player_period_stats AS stats', 'Expected player-period builder to query player_period_stats.')
+assert_contains(fast_player_sql, 'FROM player_match_stats AS pms', 'Expected player-match builder to query player_match_stats.')
+assert_contains(period_player_sql, 'stats.season IN (?season_1, ?season_2)', 'Expected player-period builder to retain season array filters.')
+assert_contains(fast_player_sql, 'pms.season IN (?season_1, ?season_2)', 'Expected player-match builder to retain season array filters.')
+assert_contains(period_player_sql, 'AND stats.player_id = ?player_id', 'Expected player-period builder to retain player filters.')
+assert_contains(fast_player_sql, 'AND pms.player_id = ?player_id', 'Expected player-match builder to retain player filters.')
+assert_contains(period_player_sql, 'END) = ?opponent_id', 'Expected player-period builder to retain opponent filters.')
+assert_contains(fast_player_sql, 'END) = ?opponent_id', 'Expected player-match builder to retain opponent filters.')
+assert_contains(period_player_sql, 'HAVING SUM(stats.value_number) >= ?threshold', 'Expected player-period builder thresholds to stay in HAVING clauses.')
+assert_contains(fast_player_sql, 'AND pms.match_value >= ?threshold', 'Expected player-match builder thresholds to stay in WHERE clauses.')
+assert_contains(period_player_sql, 'GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time', 'Expected player-period builder to keep match-level grouping.')
+assert_true(!grepl(' GROUP BY ', fast_player_sql, fixed = TRUE), 'Expected player-match builder to avoid redundant GROUP BY clauses.')
+check_step('player match query builders keep filters and threshold placement aligned')
+
+comparison_cases <- list(lt = '<', eq = '=')
+for (comparison_name in names(comparison_cases)) {
+  expected_operator <- comparison_cases[[comparison_name]]
+  period_comparison_query <- normalize_sql(helpers_env$build_player_match_query(
+    stat = 'goals',
+    comparison = comparison_name,
+    threshold = 12
+  )$query)
+  fast_comparison_query <- normalize_sql(helpers_env$build_fast_player_match_query(
+    stat = 'goals',
+    comparison = comparison_name,
+    threshold = 12
+  )$query)
+
+  assert_contains(
+    period_comparison_query,
+    sprintf('HAVING SUM(stats.value_number) %s ?threshold', expected_operator),
+    sprintf('Expected player-period builder to keep %s threshold operators.', comparison_name)
+  )
+  assert_contains(
+    fast_comparison_query,
+    sprintf('AND pms.match_value %s ?threshold', expected_operator),
+    sprintf('Expected player-match builder to keep %s threshold operators.', comparison_name)
+  )
+}
+check_step('player match query builders preserve comparison operator mapping')
+
+capture_player_game_high_query <- function(use_match_stats, ...) {
+  original_has_player_match_stats <- helpers_env$has_player_match_stats
+  original_query_rows <- helpers_env$query_rows
+  captured <- NULL
+
+  on.exit({
+    helpers_env$has_player_match_stats <- original_has_player_match_stats
+    helpers_env$query_rows <- original_query_rows
+  }, add = TRUE)
+
+  helpers_env$has_player_match_stats <- function(conn) use_match_stats
+  helpers_env$query_rows <- function(conn, query, params = list()) {
+    captured <<- list(query = query, params = params)
+    data.frame()
+  }
+
+  helpers_env$fetch_player_game_high_rows(
+    conn = NULL,
+    ...
+  )
+
+  captured
+}
+
+player_game_high_inputs <- list(
+  seasons = c(2021L, 2022L),
+  team_id = 804L,
+  round = 5L,
+  competition_phase = 'Final',
+  stat = 'goals',
+  ranking = 'lowest',
+  limit = 4L
+)
+fast_player_game_high_query <- do.call(capture_player_game_high_query, c(list(use_match_stats = TRUE), player_game_high_inputs))
+period_player_game_high_query <- do.call(capture_player_game_high_query, c(list(use_match_stats = FALSE), player_game_high_inputs))
+fast_player_game_high_sql <- normalize_sql(fast_player_game_high_query$query)
+period_player_game_high_sql <- normalize_sql(period_player_game_high_query$query)
+
+assert_true(identical(fast_player_game_high_query$params, period_player_game_high_query$params), 'Expected player game-high query paths to keep parameter payloads aligned.')
+assert_contains(fast_player_game_high_sql, 'pms.season IN (?season_1, ?season_2)', 'Expected player game-high fast path to retain season arrays.')
+assert_contains(period_player_game_high_sql, 'stats.season IN (?season_1, ?season_2)', 'Expected player game-high fallback path to retain season arrays.')
+assert_contains(fast_player_game_high_sql, 'AND pms.squad_id = ?team_id', 'Expected player game-high fast path to retain team filters.')
+assert_contains(period_player_game_high_sql, 'AND stats.squad_id = ?team_id', 'Expected player game-high fallback path to retain team filters.')
+assert_contains(fast_player_game_high_sql, 'AND pms.round_number = ?round_number', 'Expected player game-high fast path to retain round filters.')
+assert_contains(period_player_game_high_sql, 'AND stats.round_number = ?round_number', 'Expected player game-high fallback path to retain round filters.')
+assert_contains(fast_player_game_high_sql, "AND COALESCE(matches.competition_phase, '') = ?competition_phase", 'Expected player game-high fast path to retain competition phase filters.')
+assert_contains(period_player_game_high_sql, "AND COALESCE(matches.competition_phase, '') = ?competition_phase", 'Expected player game-high fallback path to retain competition phase filters.')
+assert_contains(fast_player_game_high_sql, 'ORDER BY pms.match_value ASC', 'Expected player game-high fast path to preserve lowest-ranking ordering.')
+assert_contains(period_player_game_high_sql, 'GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time ORDER BY total_value ASC', 'Expected player game-high fallback path to preserve match grouping before ordering.')
+check_step('player game-high query paths keep filter and ordering clauses aligned')
 
 invalid_summary <- request_json(base_url, '/summary', query = list(season = 1900), expected_status = 400L)
 assert_true(nzchar(as.character(invalid_summary$error %||% '')), 'Expected invalid requests to return an error payload.')
