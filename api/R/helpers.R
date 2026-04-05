@@ -2556,6 +2556,7 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
   PLAYER_BATCH_STATS <- c(
     "goalAssists", "feeds", "gain", "deflections", "intercepts",
     "goals", "goalAttempts", "centrePassReceives", "rebounds",
+    "offensiveRebounds", "defensiveRebounds",
     "netPoints", "goal2", "attempts2"
   )
   TEAM_BATCH_HIGHEST <- c(
@@ -2643,6 +2644,8 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     entry_player("goalAttempts",       "Most goal attempts"),
     entry_player("centrePassReceives", "Most centre pass receives"),
     entry_player("rebounds",           "Most rebounds"),
+    entry_player("offensiveRebounds",  "Most offensive rebounds"),
+    entry_player("defensiveRebounds",  "Most defensive rebounds"),
     entry_player("netPoints",          "Most net points"),
     entry_player("goal2",              "Most super shots"),
     entry_player("attempts2",          "Most super shot attempts")
