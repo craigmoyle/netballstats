@@ -51,6 +51,8 @@ jobs:
             --format sarif \
             --output trivy-results.sarif \
             --severity CRITICAL,HIGH \
+            --ignorefile .trivyignore \
+            --skip-files '**/openssl/*/doc/keys.html' \
             netballstats-api:scan
 
       # github/codeql-action is a first-party GitHub action; pinned by commit SHA.
