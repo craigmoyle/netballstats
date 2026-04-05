@@ -1,0 +1,6 @@
+# False positive: example/test private keys in the openssl R package documentation HTML.
+# These are well-known demo keys from https://github.com/jeroen/openssl - not real secrets.
+# Suppressed via --skip-files in the workflow; this file documents the rationale.
+#
+# No CVE suppressions currently needed - linux-libc-dev is purged in Dockerfile.azure
+# after the build step, eliminating the kernel header CVEs at image scan time.
