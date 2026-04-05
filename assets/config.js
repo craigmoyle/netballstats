@@ -24,33 +24,49 @@
   }
 
   const STAT_LABEL_OVERRIDES = Object.freeze({
+    attempt_from_zone1: "Zone 1 Attempts",
+    attempt_from_zone2: "Zone 2 Attempts",
     attempts1: "1 Point Goal Attempts",
     attempts2: "Super Shot Attempts",
     centrePassReceives: "Centre Pass Receives",
+    centrePassToGoalPerc: "Centre Pass to Goal %",
     contactPenalties: "Contacts",
-    defensiveRebounds: "Defensive Rebounds",
+    deflectionPossessionGain: "Deflection Possession Gains",
+    deflectionWithGain: "Deflections (with Gain)",
+    deflectionWithNoGain: "Deflections (no Gain)",
+    feedWithAttempt: "Feeds with Attempt",
     feeds: "Feeds into Circle",
     gain: "Gains",
+    gainToGoalPerc: "Gain to Goal %",
     generalPlayTurnovers: "General Play Turnovers",
     goal1: "1 Point Goals",
     goal2: "Super Shots",
+    goal_from_zone1: "Zone 1 Goals",
+    goal_from_zone2: "Zone 2 Goals",
     goalAssists: "Goal Assists",
     goalAttempts: "Goal Attempts",
+    goals1: "1 Point Goals",
+    goals2: "Super Goals",
     goalsFromCentrePass: "Goals from Centre Pass",
     goalsFromGain: "Goals from Gain",
+    interceptPassThrown: "Intercept Passes Thrown",
     missedGoalTurnover: "Missed Goal Turnovers",
+    missedShotConversion: "Missed Shot Conversions",
     netPoints: "Net Points",
     obstructionPenalties: "Obstructions",
-    offensiveRebounds: "Offensive Rebounds",
     points: "Points",
+    possessionChanges: "Possession Changes",
+    secondPhaseReceive: "Second Phase Receives",
     timeInPossession: "Time in Possession",
-    tossUpWin: "Toss Up Wins",
+    turnoverHeld: "Turnovers Held",
+    turnoverToGoalPerc: "Turnover to Goal %",
     unforcedTurnovers: "Unforced Turnovers"
   });
 
   const LOW_IS_BETTER_STATS = new Set([
     "contactPenalties",
     "generalPlayTurnovers",
+    "interceptPassThrown",
     "obstructionPenalties",
     "unforcedTurnovers"
   ]);
