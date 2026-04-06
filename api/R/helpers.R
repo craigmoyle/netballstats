@@ -2909,7 +2909,7 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
       "  (SELECT MODE() WITHIN GROUP (ORDER BY pmp2.starting_position_code)",
       "   FROM player_match_positions pmp2",
       "   WHERE pmp2.player_id = stats.player_id",
-      "     AND pmp2.starting_position_code NOT IN ('I', 'S'))",
+      "     AND pmp2.starting_position_code NOT IN ('I', 'S', '-'))",
       ") AS position_code"
     )
   } else {
