@@ -2899,10 +2899,8 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
   # the table only exists after a full DB rebuild, so this path is automatically
   # skipped on SQLite local-dev instances.
   #
-  # The position join uses a pre-aggregated subquery (one row per player+match) to
-  # avoid row multiplication. Without this, joining player_match_positions directly
-  # (which has one row per player+period+match) would multiply each stat row by the
-  # number of periods, overcounting all conditional SUMs.
+  # player_match_positions has one row per player+match (not per period), so the
+  # direct LEFT JOIN below does not multiply rows from player_match_stats.
   #
   # Two-level position resolution:
   #   1. Per-season MODE of the player's dominant match position across queried matches.
@@ -2923,17 +2921,11 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
   } else {
     ", NULL AS position_code"
   }
-  # Pre-aggregate positions to one row per player+match to avoid stat row multiplication.
+  # player_match_positions has one row per player+match (not per period), so a
+  # direct LEFT JOIN is safe — no row multiplication occurs.
   position_join <- if (has_positions) {
-    paste(
-      "LEFT JOIN (",
-      "  SELECT player_id, match_id,",
-      "    MODE() WITHIN GROUP (ORDER BY starting_position_code) AS starting_position_code",
-      "  FROM player_match_positions",
-      "  WHERE starting_position_code NOT IN ('I', 'S', '-')",
-      "  GROUP BY player_id, match_id",
-      ") pmp ON pmp.player_id = stats.player_id AND pmp.match_id = stats.match_id"
-    )
+    paste0("LEFT JOIN player_match_positions pmp",
+           " ON pmp.player_id = stats.player_id AND pmp.match_id = stats.match_id")
   } else {
     ""
   }
@@ -2957,9 +2949,6 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
     "SUM(CASE WHEN stats.stat = 'pickups' THEN stats.match_value ELSE 0 END) AS total_pickups,",
     "SUM(CASE WHEN stats.stat = 'goalMisses' THEN stats.match_value ELSE 0 END) AS total_missed_goals,",
     "SUM(CASE WHEN stats.stat = 'generalPlayTurnovers' THEN stats.match_value ELSE 0 END) AS total_gpto,",
-    "SUM(CASE WHEN stats.stat = 'interceptPassThrown' THEN stats.match_value ELSE 0 END) AS total_pass_int,",
-    "SUM(CASE WHEN stats.stat = 'badPasses' THEN stats.match_value ELSE 0 END) AS total_bad_pass,",
-    "SUM(CASE WHEN stats.stat = 'badHands' THEN stats.match_value ELSE 0 END) AS total_bad_hands,",
     "SUM(CASE WHEN stats.stat = 'penalties' THEN stats.match_value ELSE 0 END) AS total_penalties,",
     "SUM(CASE WHEN stats.stat = 'quartersPlayed' THEN stats.match_value ELSE 0 END) AS total_quarters",
     position_select,
@@ -3065,10 +3054,10 @@ fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L
     as.numeric(all_rows$total_def_reb)      *  4.0 +
     as.numeric(all_rows$total_pickups)      *  6.0 +
     as.numeric(all_rows$total_missed_goals) * -4.0 +
+    # generalPlayTurnovers is a composite of all turnover types (bad passes,
+    # bad hands, intercepted passes, etc.) — applying -4 once covers all of them.
+    # Do NOT also add individual turnover-type penalties here.
     as.numeric(all_rows$total_gpto)         * -4.0 +
-    as.numeric(all_rows$total_pass_int)     * -4.0 +
-    as.numeric(all_rows$total_bad_pass)     * -4.0 +
-    as.numeric(all_rows$total_bad_hands)    * -4.0 +
     as.numeric(all_rows$total_penalties)    * -0.5
 
   avg_fs <- round(fantasy_score / pmax(as.numeric(games), 1L), 2)
