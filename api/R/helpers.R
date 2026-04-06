@@ -2938,6 +2938,8 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
     "COUNT(DISTINCT stats.match_id) AS games_played,",
     "SUM(CASE WHEN stats.stat = 'goal1' THEN stats.match_value ELSE 0 END) AS total_goal1,",
     "SUM(CASE WHEN stats.stat = 'goal2' THEN stats.match_value ELSE 0 END) AS total_goal2,",
+    "SUM(CASE WHEN stats.stat = 'goals' THEN stats.match_value ELSE 0 END) AS total_goals_legacy,",
+    "MAX(CASE WHEN stats.stat = 'goal1' THEN 1 ELSE 0 END) AS has_goal1_data,",
     "SUM(CASE WHEN stats.stat = 'offensiveRebounds' THEN stats.match_value ELSE 0 END) AS total_off_reb,",
     "SUM(CASE WHEN stats.stat = 'defensiveRebounds' THEN stats.match_value ELSE 0 END) AS total_def_reb,",
     "SUM(CASE WHEN stats.stat = 'feeds' THEN stats.match_value ELSE 0 END) AS total_feeds,",
@@ -3042,8 +3044,15 @@ fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L
 
   fantasy_score <-
     court_time_pts +
-    as.numeric(all_rows$total_goal1)        *  2.0 +
-    as.numeric(all_rows$total_goal2)        *  6.0 +
+    # For 2020+ seasons use goal1 (1-pt) and goal2 (2-pt super shots).
+    # For pre-2020 seasons (ANZ Championship, Super Netball 2017-2019) only
+    # the legacy 'goals' stat exists; treat each goal as 2 pts.
+    ifelse(
+      as.integer(all_rows$has_goal1_data) == 1L,
+      as.numeric(all_rows$total_goal1) * 2.0 +
+        as.numeric(all_rows$total_goal2) * 6.0,
+      as.numeric(all_rows$total_goals_legacy) * 2.0
+    ) +
     as.numeric(all_rows$total_off_reb)      *  4.0 +
     as.numeric(all_rows$total_feeds)        *  2.0 +
     as.numeric(all_rows$total_cpr)          * cpr_mult +
