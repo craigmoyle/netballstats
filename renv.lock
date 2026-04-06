@@ -1446,14 +1446,43 @@
     },
     "superNetballR": {
       "Package": "superNetballR",
-      "Version": "0.3.0",
+      "Version": "0.3.1",
       "Source": "GitHub",
+      "Title": "Download and Tidy Super Netball Statistics",
+      "Authors@R": "c( person(\"Steve\", \"Lane\", email = \"lane.s@unimelb.edu.au\", role = \"aut\"), person(\"Craig\", \"Moyle\", email = \"craig.moyle@mantelgroup.com.au\", role = c(\"aut\", \"cre\")) )",
+      "Description": "Tools to download Champion Data match feeds for Super Netball and the ANZ Championship / NZ National Netball League, and transform team and player statistics into tidy data frames for analysis.",
+      "Depends": [
+        "R (>= 4.1.0)"
+      ],
+      "License": "MIT + file LICENSE",
+      "Encoding": "UTF-8",
+      "LazyData": "true",
+      "Suggests": [
+        "ggplot2",
+        "knitr",
+        "rmarkdown",
+        "shiny",
+        "testthat (>= 3.0.0)"
+      ],
+      "VignetteBuilder": "knitr",
+      "Imports": [
+        "dplyr (>= 1.1.0)",
+        "httr",
+        "purrr",
+        "tidyr"
+      ],
+      "URL": "https://github.com/craigmoyle/superNetballR_updated",
+      "BugReports": "https://github.com/craigmoyle/superNetballR_updated/issues",
+      "Config/testthat/edition": "3",
+      "RoxygenNote": "7.3.3",
+      "Author": "Steve Lane [aut], Craig Moyle [aut, cre]",
+      "Maintainer": "Craig Moyle <craig.moyle@mantelgroup.com.au>",
       "RemoteType": "github",
       "RemoteHost": "api.github.com",
       "RemoteUsername": "craigmoyle",
       "RemoteRepo": "superNetballR_updated",
-      "RemoteRef": "87b3abe9858b032c6f72171bd36135fd0ee9f4ba",
-      "RemoteSha": "87b3abe9858b032c6f72171bd36135fd0ee9f4ba"
+      "RemoteRef": "v0.3.1",
+      "RemoteSha": "04f037aa43ffaf973ba7db63bd3d84ffb217cf3c"
     },
     "swagger": {
       "Package": "swagger",
