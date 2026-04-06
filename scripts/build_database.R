@@ -582,6 +582,28 @@ write_database <- function(tables, build_mode) {
       "  AND pmp.starting_position_code IN ('GK', 'GD')"
     ))
 
+    # Synthesise deflections = deflectionWithGain + deflectionWithNoGain for seasons
+    # where Champion Data only provides the sub-components (e.g. ANZ Championship
+    # 2008-2016). The NOT EXISTS guard prevents double-counting for Super Netball
+    # seasons that already report the aggregate directly.
+    DBI::dbExecute(conn, paste(
+      "INSERT INTO player_match_stats",
+      "  (player_id, match_id, season, round_number, squad_id, squad_name, stat, match_value)",
+      "SELECT gain.player_id, gain.match_id, gain.season, gain.round_number,",
+      "  gain.squad_id, gain.squad_name, 'deflections',",
+      "  COALESCE(gain.match_value, 0) + COALESCE(nogain.match_value, 0)",
+      "FROM player_match_stats gain",
+      "LEFT JOIN player_match_stats nogain",
+      "  ON gain.player_id = nogain.player_id AND gain.match_id = nogain.match_id",
+      "  AND nogain.stat = 'deflectionWithNoGain'",
+      "WHERE gain.stat = 'deflectionWithGain'",
+      "  AND NOT EXISTS (",
+      "    SELECT 1 FROM player_match_stats x",
+      "    WHERE x.player_id = gain.player_id AND x.match_id = gain.match_id",
+      "      AND x.stat = 'deflections'",
+      "  )"
+    ))
+
     # Pre-aggregate period-level team stats to match level. Reduces per-stat row count by ~4x,
     # eliminates GROUP BY in fetch_team_game_high_rows, and enables fast archive-rank range scans
     # analogous to the player_match_stats path.
@@ -597,6 +619,25 @@ write_database <- function(tables, build_mode) {
     ))
     DBI::dbExecute(conn, "CREATE INDEX idx_tms_stat_value ON team_match_stats(stat, match_value DESC, squad_id, match_id)")
     DBI::dbExecute(conn, "CREATE INDEX idx_tms_stat_squad_season ON team_match_stats(stat, squad_id, season, match_id)")
+
+    # Synthesise deflections for team_match_stats where only sub-components exist.
+    DBI::dbExecute(conn, paste(
+      "INSERT INTO team_match_stats",
+      "  (squad_id, match_id, season, round_number, squad_name, stat, match_value)",
+      "SELECT gain.squad_id, gain.match_id, gain.season, gain.round_number,",
+      "  gain.squad_name, 'deflections',",
+      "  COALESCE(gain.match_value, 0) + COALESCE(nogain.match_value, 0)",
+      "FROM team_match_stats gain",
+      "LEFT JOIN team_match_stats nogain",
+      "  ON gain.squad_id = nogain.squad_id AND gain.match_id = nogain.match_id",
+      "  AND nogain.stat = 'deflectionWithNoGain'",
+      "WHERE gain.stat = 'deflectionWithGain'",
+      "  AND NOT EXISTS (",
+      "    SELECT 1 FROM team_match_stats x",
+      "    WHERE x.squad_id = gain.squad_id AND x.match_id = gain.match_id",
+      "      AND x.stat = 'deflections'",
+      "  )"
+    ))
 
     configure_postgres_api_user(conn)
 
