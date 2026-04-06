@@ -205,7 +205,7 @@ parse_season_filter <- function(season = "", seasons = "") {
   parsed_seasons <- parse_optional_int_vector(
     seasons,
     "seasons",
-    minimum = 2017L,
+    minimum = 2008L,
     maximum = 2100L,
     max_items = 20L
   )
@@ -213,7 +213,7 @@ parse_season_filter <- function(season = "", seasons = "") {
     return(parsed_seasons)
   }
 
-  parsed_season <- parse_optional_int(season, "season", minimum = 2017L, maximum = 2100L)
+  parsed_season <- parse_optional_int(season, "season", minimum = 2008L, maximum = 2100L)
   if (is.null(parsed_season)) {
     return(NULL)
   }
