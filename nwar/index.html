@@ -105,13 +105,14 @@
         </div>
         <div class="stat-explainer">
           <p>Netball Wins Above Replacement (nWAR) estimates how many additional wins each player contributes compared to a replacement-level player — roughly the average performance of the bottom 15% of qualified players at the same position.</p>
-          <p>The metric uses a <strong>fantasy scoring system</strong> based on the <a href="https://fantasynetballblog.wordpress.com/2025/03/18/2025-fn-scoring-system/" rel="noopener noreferrer" target="_blank">2025 Fantasy Netball Blog scoring system</a>. Points are awarded for positive actions and deducted for errors — giving a single number that captures each player's total contribution per game.</p>
+          <p class="muted"><strong>A note on methodology:</strong> nWAR is a fun exploratory metric, not a rigorous statistical model. The scoring weights are borrowed from fantasy netball rather than derived from win probability modelling, the "wins" conversion is a rough calibration, and real player value depends on team systems and match context that a single number can never fully capture. Treat it as a conversation starter, not a verdict.</p>
+          <p>The metric uses a <strong>fantasy scoring system</strong> based on the <a href="https://fantasynetballblog.wordpress.com/2025/03/18/2025-fn-scoring-system/" rel="noopener noreferrer" target="_blank">2025 Fantasy Netball Blog scoring system</a> developed by <strong>Ian Harkin</strong> at <a href="https://netballscoop.com.au/" rel="noopener noreferrer" target="_blank">Netball Scoop</a>. Points are awarded for positive actions and deducted for errors — giving a single number that captures each player's total contribution per game.</p>
           <h3>Scoring weights</h3>
           <ul>
             <li><strong>Court time</strong> — 10 pts per game + 5 pts per quarter played</li>
-            <li><strong>Attack</strong> — goal (×2), super shot (×6), offensive rebound (×4), feed (×2), centre pass receive GA/WA (×0.5) or GD/WD (×3), second phase receive (×1)</li>
+            <li><strong>Attack</strong> — goal (×2), super shot (×6), offensive rebound (×4), feed (×2), centre pass receive GA/WA/GS/C/GK (×0.5) or GD/WD (×3), second phase receive (×1)</li>
             <li><strong>Defence</strong> — possession gain (×6), intercept (×8), deflection (×6), defensive rebound (×4), pickup (×6)</li>
-            <li><strong>Errors</strong> — missed goal, general play turnover, pass intercepted, bad pass, bad hands (each ×−4); penalty (×−0.5)</li>
+            <li><strong>Errors</strong> — missed goal (×−4), general play turnover (×−4), penalty (×−0.5)</li>
           </ul>
           <h3>Formula</h3>
           <ol>
