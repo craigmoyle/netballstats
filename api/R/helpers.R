@@ -2869,11 +2869,13 @@ fetch_query_result_rows <- function(conn, intent) {
 # Netball Wins Above Replacement (nWAR) constants.
 # NWAR_POINTS_PER_WIN: Champion Data's netPoints stat is a composite player-contribution
 # metric, not raw goal differential. Typical values: top performers 80–111/game;
-# replacement-level players 20–38/game. Calibration target: the best single-season
-# performer earns ~6–8 nWAR; a solid rotation player earns ~1.5–2.5 nWAR; a fringe
-# qualifier earns ~0.3–0.5 nWAR.  Derived empirically from 2024 data: setting this
-# constant so the season leader (npar ≈ 73, games = 16) produces nWAR ≈ 6–7.
-NWAR_POINTS_PER_WIN      <- 175.0
+# replacement-level shooters ~0–2/game (many backup GS/GA qualify but contribute
+# near-zero); replacement-level defenders/midcourt ~9–13/game.
+# Calibration target: elite player earns ~6–8 nWAR per full season;
+# solid starter earns ~2–3 nWAR; fringe qualifier earns ~0.3–0.8 nWAR.
+# Derived empirically from 2024 data: targets Jhaniele Fowler-Nembhard (111.41 avg,
+# repl=0.5, 16 games) at ~7 nWAR → PPW = 110.91 × 16 / 7 ≈ 253 → rounded to 250.
+NWAR_POINTS_PER_WIN      <- 250.0
 # NWAR_REPLACEMENT_PERCENTILE: bottom fraction of qualified players used to define
 # the replacement-level baseline (e.g. 0.15 = bottom 15%).
 NWAR_REPLACEMENT_PERCENTILE <- 0.15
