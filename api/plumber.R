@@ -868,14 +868,14 @@ function(req, res) {
 
 #* @get /players
 #* @get /api/players
-function(search = "", limit = "500", res) {
+function(search = "", limit = "2000", res) {
   conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
 
   tryCatch({
-    limit <- parse_limit(limit, default = 500L, maximum = 1000L)
+    limit <- parse_limit(limit, default = 2000L, maximum = 2000L)
     parsed_search <- parse_search(search, name = "search")
 
     query <- paste(
