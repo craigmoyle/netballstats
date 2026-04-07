@@ -75,15 +75,18 @@
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel query-panel query-panel--home reveal">
+      <section class="panel query-panel query-panel--home archive-control-desk reveal">
         <div id="status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
-        <div class="panel__heading panel__heading--split">
-          <div>
-            <p class="panel__eyebrow">Start here</p>
-            <h2>Set the archive lens</h2>
-            <p class="panel__lead">Pick seasons, a stat, and a mode. Add a player, team, or round if you need a smaller slice.</p>
+        <div class="archive-control-desk__header">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <p class="panel__eyebrow">Start here</p>
+              <h2>Set the archive lens</h2>
+              <p class="panel__lead">Pick seasons, a stat, and a mode. Add a player, team, or round if you need a smaller slice.</p>
+            </div>
+            <p id="active-filter-summary" class="muted filter-summary">Loading query options…</p>
           </div>
-          <p id="active-filter-summary" class="muted filter-summary">Loading query options…</p>
+          <p id="archive-context-note" class="archive-context-note">Use the archive to find a player or team, then open the deeper dossier or season context below.</p>
         </div>
 
         <form id="filters-form" class="filters filters--dashboard" novalidate>
