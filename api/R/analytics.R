@@ -184,6 +184,73 @@ player_analytics_match_rows <- function(conn, metric_key, seasons = NULL, team_i
       match_id = integer(0), metric_value = numeric(0), stringsAsFactors = FALSE
     ))
   }
+  stat_filter_sql <- "('goal1','goal2','goalAttempts','feeds','goalAssists','centrePassReceives','generalPlayTurnovers','unforcedTurnovers','interceptPassThrown','gain','intercepts','deflections','rebounds')"
+  if (!is.null(player_id)) {
+    target_matches_query <- paste(
+      "WITH target_matches AS (",
+      "  SELECT DISTINCT stats.match_id, stats.squad_id, stats.season, stats.round_number",
+      "  FROM player_match_stats AS stats",
+      "  WHERE stats.player_id = ?filter_player_id",
+      "    AND stats.stat IN", stat_filter_sql
+    )
+    target_matches_filters <- apply_stat_filters(
+      target_matches_query,
+      list(filter_player_id = as.integer(player_id)),
+      seasons = seasons,
+      team_id = team_id,
+      round_number = round,
+      table_alias = "stats"
+    )
+    query <- paste(
+      target_matches_filters$query,
+      "), player_base AS (",
+      "  SELECT stats.player_id, players.canonical_name AS player_name, MAX(stats.squad_name) AS squad_name,",
+      "    stats.squad_id, stats.match_id, target_matches.season, target_matches.round_number,",
+      "    SUM(CASE WHEN stats.stat = 'goal1' THEN stats.match_value ELSE 0 END) AS goal1,",
+      "    SUM(CASE WHEN stats.stat = 'goal2' THEN stats.match_value ELSE 0 END) AS goal2,",
+      "    SUM(CASE WHEN stats.stat = 'goalAttempts' THEN stats.match_value ELSE 0 END) AS goal_attempts,",
+      "    SUM(CASE WHEN stats.stat = 'feeds' THEN stats.match_value ELSE 0 END) AS feeds,",
+      "    SUM(CASE WHEN stats.stat = 'goalAssists' THEN stats.match_value ELSE 0 END) AS goal_assists,",
+      "    SUM(CASE WHEN stats.stat = 'centrePassReceives' THEN stats.match_value ELSE 0 END) AS centre_pass_receives,",
+      "    SUM(CASE WHEN stats.stat = 'generalPlayTurnovers' THEN stats.match_value ELSE 0 END) AS general_play_turnovers,",
+      "    SUM(CASE WHEN stats.stat = 'unforcedTurnovers' THEN stats.match_value ELSE 0 END) AS unforced_turnovers,",
+      "    SUM(CASE WHEN stats.stat = 'interceptPassThrown' THEN stats.match_value ELSE 0 END) AS intercept_pass_thrown,",
+      "    SUM(CASE WHEN stats.stat = 'gain' THEN stats.match_value ELSE 0 END) AS gain,",
+      "    SUM(CASE WHEN stats.stat = 'intercepts' THEN stats.match_value ELSE 0 END) AS intercepts,",
+      "    SUM(CASE WHEN stats.stat = 'deflections' THEN stats.match_value ELSE 0 END) AS deflections,",
+      "    SUM(CASE WHEN stats.stat = 'rebounds' THEN stats.match_value ELSE 0 END) AS rebounds",
+      "  FROM player_match_stats AS stats",
+      "  INNER JOIN target_matches ON target_matches.match_id = stats.match_id AND target_matches.squad_id = stats.squad_id",
+      "  INNER JOIN players ON players.player_id = stats.player_id",
+      "  WHERE stats.stat IN", stat_filter_sql,
+      "  GROUP BY stats.player_id, players.canonical_name, stats.squad_id, stats.match_id, target_matches.season, target_matches.round_number",
+      "), team_context AS (",
+      "  SELECT squad_id, match_id,",
+      "    SUM(feeds + goal_assists + centre_pass_receives + goal_attempts) AS team_attacking_actions",
+      "  FROM player_base",
+      "  GROUP BY squad_id, match_id",
+      ")",
+      "SELECT player_base.player_id, player_base.player_name, player_base.squad_name,",
+      "  player_base.squad_id, player_base.season, player_base.round_number, player_base.match_id,",
+      "  CASE",
+      "    WHEN ?metric_key = 'playerScoringEfficiency' THEN ROUND(CAST((player_base.goal1 + 2 * player_base.goal2) / NULLIF(player_base.goal_attempts, 0) AS numeric), 4)",
+      "    WHEN ?metric_key = 'playerAttackInvolvementRate' THEN ROUND(CAST((player_base.feeds + player_base.goal_assists + player_base.centre_pass_receives + player_base.goal_attempts) / NULLIF(team_context.team_attacking_actions, 0) AS numeric), 4)",
+      "    WHEN ?metric_key = 'playerTurnoverCostRate' THEN ROUND(CAST((player_base.general_play_turnovers + player_base.unforced_turnovers + player_base.intercept_pass_thrown) / NULLIF(player_base.feeds + player_base.goal_assists + player_base.centre_pass_receives + player_base.goal_attempts, 0) AS numeric), 4)",
+      "    WHEN ?metric_key = 'playerDefensiveDisruption' THEN ROUND(CAST(player_base.gain + player_base.intercepts + player_base.deflections + player_base.rebounds AS numeric), 4)",
+      "    WHEN ?metric_key = 'playerPressureBalance' THEN ROUND(CAST((player_base.gain + player_base.intercepts + player_base.deflections + player_base.rebounds) - (player_base.general_play_turnovers + player_base.unforced_turnovers + player_base.intercept_pass_thrown) AS numeric), 4)",
+      "    ELSE NULL",
+      "  END AS metric_value",
+      "FROM player_base",
+      "INNER JOIN team_context ON team_context.squad_id = player_base.squad_id AND team_context.match_id = player_base.match_id",
+      "WHERE player_base.player_id = ?filter_player_id"
+    )
+    rows <- query_rows(
+      conn,
+      query,
+      c(list(metric_key = metric_key), target_matches_filters$params)
+    )
+    return(rows[!is.na(rows$metric_value), , drop = FALSE])
+  }
   query <- paste(
     "WITH player_base AS (",
     "  SELECT stats.player_id, players.canonical_name AS player_name, MAX(stats.squad_name) AS squad_name,",
@@ -203,7 +270,7 @@ player_analytics_match_rows <- function(conn, metric_key, seasons = NULL, team_i
     "    SUM(CASE WHEN stats.stat = 'rebounds' THEN stats.match_value ELSE 0 END) AS rebounds",
     "  FROM player_match_stats AS stats",
     "  INNER JOIN players ON players.player_id = stats.player_id",
-    "  WHERE stats.stat IN ('goal1','goal2','goalAttempts','feeds','goalAssists','centrePassReceives','generalPlayTurnovers','unforcedTurnovers','interceptPassThrown','gain','intercepts','deflections','rebounds')",
+    "  WHERE stats.stat IN", stat_filter_sql,
     "  GROUP BY stats.player_id, players.canonical_name, stats.squad_id, stats.match_id, stats.season, stats.round_number",
     "), team_context AS (",
     "  SELECT squad_id, match_id,",
@@ -226,12 +293,7 @@ player_analytics_match_rows <- function(conn, metric_key, seasons = NULL, team_i
     "WHERE 1 = 1"
   )
 
-  initial_params <- list(metric_key = metric_key)
-  if (!is.null(player_id)) {
-    query <- paste(query, "AND player_base.player_id = ?filter_player_id")
-    initial_params$filter_player_id <- as.integer(player_id)
-  }
-  filters <- apply_stat_filters(query, initial_params, seasons = seasons, team_id = team_id, round_number = round, table_alias = "player_base")
+  filters <- apply_stat_filters(query, list(metric_key = metric_key), seasons = seasons, team_id = team_id, round_number = round, table_alias = "player_base")
   filters <- apply_player_search_filter(filters$query, filters$params, search, "player_base.player_id")
   rows <- query_rows(conn, filters$query, filters$params)
   rows[!is.na(rows$metric_value), , drop = FALSE]
