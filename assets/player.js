@@ -348,6 +348,13 @@ function renderDossierNotes(notes) {
   });
 }
 
+function updateSeasonLedgerNotes() {
+  if (!elements.seasonLedgerNotes) return;
+  elements.seasonLedgerNotes.textContent = state.metric === "average"
+    ? "Per-game view keeps season shifts readable while the ledger preserves the full table."
+    : "Use the ledger to scan peaks, club changes, and long-run consistency.";
+}
+
 function setMetric(nextMetric) {
   state.metric = nextMetric;
   elements.metricButtons.forEach((button) => {
@@ -359,6 +366,7 @@ function setMetric(nextMetric) {
 
   if (state.profile) {
     renderSeasonTable(state.profile);
+    updateSeasonLedgerNotes();
   }
 }
 
@@ -397,9 +405,7 @@ function renderProfile(profile) {
   renderCareerStats(careerStats);
   renderDossierPillars(pillars);
   renderDossierNotes(notes);
-  elements.seasonLedgerNotes.textContent = state.metric === "average"
-    ? "Per-game view keeps season shifts readable while the ledger preserves the full table."
-    : "Use the ledger to scan peaks, club changes, and long-run consistency.";
+  updateSeasonLedgerNotes();
   renderSeasonTable(profile);
 }
 
