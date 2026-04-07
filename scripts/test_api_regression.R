@@ -426,7 +426,7 @@ check_step('nWAR endpoint validates min_games lower bound')
 normalize_sql <- if (exists('normalize_sql')) normalize_sql else function(q) gsub('\\s+', ' ', trimws(q))
 
 capture_nwar_query <- function(use_match_stats, seasons = NULL, team_id = NULL, min_games = 5L) {
-  helpers_env <- new.env(parent = emptyenv())
+  helpers_env <- new.env(parent = baseenv())
   source(file.path(dirname(base_url), '..', 'api', 'R', 'helpers.R'), local = helpers_env, echo = FALSE)
   captured <- NULL
   helpers_env$has_player_match_stats <- function(conn) use_match_stats
@@ -490,7 +490,15 @@ tryCatch({
     assert_true(nrow(single_result) == 1L, 'Expected fetch_nwar_rows to return one row for a single qualifying player.')
     assert_true(abs(as.numeric(single_result$nwar[[1]])) < 0.01, 'Expected single-player nWAR to be approximately 0 (player is their own replacement).')
 
-    check_step('fetch_nwar_rows unit tests pass (empty result, single player boundary)')
+    optimized_query <- capture_nwar_query(use_match_stats = TRUE, seasons = 2024L, min_games = 5L)
+    assert_true(!is.null(optimized_query), 'Expected capture_nwar_query to return the built nWAR query.')
+    optimized_sql <- normalize_sql(optimized_query$query)
+    assert_true(grepl("WITH alltime_pos AS \\(", optimized_sql), 'Expected nWAR query to precompute all-time positions via a CTE.')
+    assert_true(grepl("MAX\\(alltime_pos\\.dominant_position\\)", optimized_sql), 'Expected nWAR query to use the joined alltime_pos fallback.')
+    assert_true(grepl("LEFT JOIN alltime_pos ON alltime_pos\\.player_id = stats\\.player_id", optimized_sql), 'Expected nWAR query to join the alltime_pos CTE once per player.')
+    assert_true(!grepl("\\(SELECT MODE\\(\\) WITHIN GROUP \\(ORDER BY pmp2\\.starting_position_code\\)", optimized_sql), 'Expected nWAR query to avoid the old correlated position fallback subquery.')
+
+    check_step('fetch_nwar_rows unit tests pass (empty result, single player boundary, optimized query shape)')
   }
 }, error = function(e) {
   cat(sprintf('NOTE: fetch_nwar_rows unit tests skipped (helpers not loadable in this environment): %s\n', conditionMessage(e)))
