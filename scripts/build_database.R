@@ -557,6 +557,10 @@ write_database <- function(tables, build_mode) {
     ))
     # nWAR JOIN access path: player_id + match_id lookup
     DBI::dbExecute(conn, "CREATE INDEX idx_pmp_player_match ON player_match_positions(player_id, match_id)")
+    # fetch_nwar_positions() access path: per-season GROUP BY with all-time fallback.
+    # A season-leading index lets PostgreSQL restrict to the queried seasons before
+    # computing the dominant position MODE, rather than scanning all historical rows.
+    DBI::dbExecute(conn, "CREATE INDEX idx_pmp_season_player ON player_match_positions(season, player_id)")
 
     # Derive offensiveRebounds / defensiveRebounds via position heuristic.
     # Champion Data no longer provides these fields; we infer from startingPositionCode:
