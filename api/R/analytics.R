@@ -379,9 +379,9 @@ fetch_team_analytics_season_series_rows <- function(conn, metric_key, seasons = 
   rows <- team_analytics_match_rows(conn, metric_key, seasons = seasons, team_id = team_id, round = round)
   if (!nrow(rows)) {
     return(data.frame(
-      squad_id = integer(0), squad_name = character(0), season = integer(0),
-      stat = character(0), total_value = numeric(0), average_value = numeric(0),
-      matches_played = integer(0), stringsAsFactors = FALSE
+      squad_id = integer(0), squad_name = character(0), squad_colour = character(0),
+      season = integer(0), stat = character(0), total_value = numeric(0),
+      average_value = numeric(0), matches_played = integer(0), stringsAsFactors = FALSE
     ))
   }
 
@@ -401,6 +401,17 @@ fetch_team_analytics_season_series_rows <- function(conn, metric_key, seasons = 
 
   seasons_vec <- sort(unique(rows$season))
   squad_ids <- unique(rows$squad_id)
+
+  colour_base <- append_integer_in_filter(
+    "SELECT squad_id, squad_colour FROM teams WHERE 1 = 1",
+    list(), "squad_id", squad_ids, "colour_squad"
+  )
+  colour_rows <- tryCatch(
+    query_rows(conn, colour_base$query, colour_base$params),
+    error = function(e) data.frame(squad_id = integer(0), squad_colour = character(0))
+  )
+  colour_map <- setNames(as.character(colour_rows$squad_colour), as.character(colour_rows$squad_id))
+
   combined <- lapply(squad_ids, function(sid) {
     squad_rows <- rows[rows$squad_id == sid, , drop = FALSE]
     lapply(seasons_vec, function(s) {
@@ -411,6 +422,7 @@ fetch_team_analytics_season_series_rows <- function(conn, metric_key, seasons = 
       data.frame(
         squad_id = sid,
         squad_name = part$squad_name[[1]],
+        squad_colour = colour_map[[as.character(sid)]] %||% NA_character_,
         season = s,
         stat = metric_key,
         total_value = if (analytics_metric_supports_mode(metric_key, "total")) total_value else average_value,
