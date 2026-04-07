@@ -1,0 +1,19 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const scriptDir = path.dirname(fileURLToPath(import.meta.url));
+const distDir = path.resolve(scriptDir, "..", "dist");
+const indexHtml = readFileSync(path.join(distDir, "index.html"), "utf8");
+const playerHtml = readFileSync(path.join(distDir, "player", "index.html"), "utf8");
+const css = readFileSync(path.join(distDir, "assets", "styles.css"), "utf8");
+
+assert.match(indexHtml, /archive-control-desk/, "Expected homepage build to include archive-control-desk");
+assert.match(indexHtml, /archive-context-note/, "Expected homepage build to include archive-context-note");
+assert.match(playerHtml, /player-dossier/, "Expected player build to include player-dossier");
+assert.match(playerHtml, /player-dossier__ledger/, "Expected player build to include player-dossier__ledger");
+assert.match(css, /\.archive-control-desk\b/, "Expected built CSS to include .archive-control-desk");
+assert.match(css, /\.player-dossier__ledger\b/, "Expected built CSS to include .player-dossier__ledger");
+
+console.log("Editorial almanac smoke checks passed");
