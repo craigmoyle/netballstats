@@ -281,10 +281,12 @@ summarize_analytics_rows <- function(rows, metric_key, entity = c("player", "tea
     total_value <- round(sum(part$metric_value, na.rm = TRUE), 4)
     average_value <- round(mean(part$metric_value, na.rm = TRUE), 4)
     if (identical(entity, "player")) {
+      part$season <- suppressWarnings(as.integer(part$season))
+      latest_index <- order(-part$season, part$squad_name, na.last = TRUE)[[1]]
       data.frame(
         player_id = part$player_id[[1]],
         player_name = part$player_name[[1]],
-        squad_name = part$squad_name[[length(part$squad_name)]],
+        squad_name = part$squad_name[[latest_index]],
         stat = metric_key,
         total_value = if (analytics_metric_supports_mode(metric_key, "total")) total_value else average_value,
         average_value = average_value,
@@ -318,7 +320,11 @@ fetch_player_analytics_leader_rows <- function(conn, metric_key, seasons = NULL,
   }
   summarized <- summarize_analytics_rows(rows, metric_key, entity = "player")
   order_col <- if (identical(metric, "average")) summarized$average_value else summarized$total_value
-  direction <- if (identical(ranking, "lowest")) order(order_col, na.last = TRUE) else order(-order_col, na.last = TRUE)
+  direction <- if (identical(ranking, "lowest")) {
+    order(order_col, summarized$player_name, na.last = TRUE)
+  } else {
+    order(-order_col, summarized$player_name, na.last = TRUE)
+  }
   summarized <- summarized[direction, , drop = FALSE]
   head(summarized, as.integer(limit))
 }
@@ -334,7 +340,11 @@ fetch_team_analytics_leader_rows <- function(conn, metric_key, seasons = NULL, t
   }
   summarized <- summarize_analytics_rows(rows, metric_key, entity = "team")
   order_col <- if (identical(metric, "average")) summarized$average_value else summarized$total_value
-  direction <- if (identical(ranking, "lowest")) order(order_col, na.last = TRUE) else order(-order_col, na.last = TRUE)
+  direction <- if (identical(ranking, "lowest")) {
+    order(order_col, summarized$squad_name, na.last = TRUE)
+  } else {
+    order(-order_col, summarized$squad_name, na.last = TRUE)
+  }
   summarized <- summarized[direction, , drop = FALSE]
   head(summarized, as.integer(limit))
 }
@@ -378,7 +388,11 @@ fetch_team_analytics_season_series_rows <- function(conn, metric_key, seasons = 
   # Determine top squads across all seasons
   all_summarized <- summarize_analytics_rows(rows, metric_key, entity = "team")
   order_col <- if (identical(metric, "average")) all_summarized$average_value else all_summarized$total_value
-  direction <- if (identical(ranking, "lowest")) order(order_col, na.last = TRUE) else order(-order_col, na.last = TRUE)
+  direction <- if (identical(ranking, "lowest")) {
+    order(order_col, all_summarized$squad_name, na.last = TRUE)
+  } else {
+    order(-order_col, all_summarized$squad_name, na.last = TRUE)
+  }
   all_summarized <- all_summarized[direction, , drop = FALSE]
   if (is.null(team_id)) {
     top_ids <- head(all_summarized$squad_id, as.integer(limit))
@@ -407,7 +421,12 @@ fetch_team_analytics_season_series_rows <- function(conn, metric_key, seasons = 
     })
   })
   result <- do.call(rbind, Filter(Negate(is.null), unlist(combined, recursive = FALSE)))
-  result[order(result$season, result$squad_name), , drop = FALSE]
+  series_order_col <- if (identical(metric, "average")) result$average_value else result$total_value
+  if (identical(ranking, "lowest")) {
+    result[order(result$season, series_order_col, result$squad_name, na.last = TRUE), , drop = FALSE]
+  } else {
+    result[order(result$season, -series_order_col, result$squad_name, na.last = TRUE), , drop = FALSE]
+  }
 }
 
 fetch_player_analytics_season_series_rows <- function(conn, metric_key, seasons = NULL, team_id = NULL, round = NULL, search = "", metric = "average", ranking = "highest", limit = 10L) {
@@ -423,7 +442,11 @@ fetch_player_analytics_season_series_rows <- function(conn, metric_key, seasons 
   # Determine top players across all seasons for ranking/limiting
   all_summarized <- summarize_analytics_rows(rows, metric_key, entity = "player")
   order_col <- if (identical(metric, "average")) all_summarized$average_value else all_summarized$total_value
-  direction <- if (identical(ranking, "lowest")) order(order_col, na.last = TRUE) else order(-order_col, na.last = TRUE)
+  direction <- if (identical(ranking, "lowest")) {
+    order(order_col, all_summarized$player_name, na.last = TRUE)
+  } else {
+    order(-order_col, all_summarized$player_name, na.last = TRUE)
+  }
   all_summarized <- all_summarized[direction, , drop = FALSE]
   top_ids <- head(all_summarized$player_id, as.integer(limit))
   rows <- rows[rows$player_id %in% top_ids, , drop = FALSE]
@@ -440,7 +463,7 @@ fetch_player_analytics_season_series_rows <- function(conn, metric_key, seasons 
       data.frame(
         player_id = pid,
         player_name = part$player_name[[1]],
-        squad_name = part$squad_name[[length(part$squad_name)]],
+        squad_name = max(part$squad_name),
         season = s,
         stat = metric_key,
         total_value = if (analytics_metric_supports_mode(metric_key, "total")) total_value else average_value,
@@ -451,5 +474,11 @@ fetch_player_analytics_season_series_rows <- function(conn, metric_key, seasons 
     })
   })
   result <- do.call(rbind, Filter(Negate(is.null), unlist(combined, recursive = FALSE)))
-  result[order(result$season, result$player_name), , drop = FALSE]
+  result$season <- suppressWarnings(as.integer(result$season))
+  series_order_col <- if (identical(metric, "average")) result$average_value else result$total_value
+  if (identical(ranking, "lowest")) {
+    result[order(result$season, series_order_col, result$player_name, na.last = TRUE), , drop = FALSE]
+  } else {
+    result[order(result$season, -series_order_col, result$player_name, na.last = TRUE), , drop = FALSE]
+  }
 }
