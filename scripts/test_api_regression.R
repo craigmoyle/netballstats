@@ -116,6 +116,14 @@ assert_true(is.list(meta$team_stats) && length(meta$team_stats) >= 1, 'Expected 
 assert_true(is.list(meta$player_stats) && length(meta$player_stats) >= 1, 'Expected /meta to expose player stats.')
 check_step('metadata endpoint returns seasons, teams, and stat catalogs')
 
+assert_true(is.list(meta$player_analytics) && length(meta$player_analytics) == 5L, 'Expected /meta to expose player analytical metrics.')
+assert_true(is.list(meta$team_analytics) && length(meta$team_analytics) == 4L, 'Expected /meta to expose team analytical metrics.')
+player_analytic_keys <- vapply(meta$player_analytics, function(entry) as.character(scalar_value(entry$key %||% '')), character(1))
+team_analytic_keys <- vapply(meta$team_analytics, function(entry) as.character(scalar_value(entry$key %||% '')), character(1))
+assert_true('playerScoringEfficiency' %in% player_analytic_keys, 'Expected /meta player analytics to include playerScoringEfficiency.')
+assert_true('teamFinishingEfficiency' %in% team_analytic_keys, 'Expected /meta team analytics to include teamFinishingEfficiency.')
+check_step('metadata endpoint returns analytical stat catalogs')
+
 default_season <- as.integer(scalar_value(meta$default_season %||% meta$seasons[[1]]))
 summary_payload <- request_json(base_url, '/summary', query = list(season = default_season))
 assert_true(!is.null(summary_payload$total_matches), 'Expected /summary to return total_matches.')
@@ -146,6 +154,28 @@ lowest_value <- as.numeric(scalar_value(team_leaders_lowest_payload$data[[1]]$to
 assert_true(!is.na(highest_value) && !is.na(lowest_value), 'Expected ranked team rows to expose numeric totals.')
 assert_true(highest_value >= lowest_value, 'Expected highest-mode team leaders to rank at least as high as lowest-mode leaders.')
 check_step('team leaders endpoint supports highest and lowest ranking modes')
+
+analytic_player_payload <- request_json(
+  base_url,
+  '/player-leaders',
+  query = list(season = default_season, stat = 'playerScoringEfficiency', metric = 'average', limit = 5)
+)
+assert_true(is.list(analytic_player_payload$data), 'Expected /player-leaders analytical request to return a data list.')
+if (length(analytic_player_payload$data) >= 1L) {
+  analytic_row <- analytic_player_payload$data[[1]]
+  assert_true(!is.null(analytic_row$stat), 'Expected analytical player rows to include stat.')
+  assert_true(identical(as.character(scalar_value(analytic_row$stat %||% '')), 'playerScoringEfficiency'), 'Expected analytical player rows to echo the requested stat.')
+  assert_true(!is.null(analytic_row$value), 'Expected analytical player rows to expose value.')
+}
+check_step('player leaders endpoint supports analytical metrics')
+
+analytic_team_payload <- request_json(
+  base_url,
+  '/team-leaders',
+  query = list(season = default_season, stat = 'teamFinishingEfficiency', metric = 'average', limit = 5)
+)
+assert_true(is.list(analytic_team_payload$data), 'Expected /team-leaders analytical request to return a data list.')
+check_step('team leaders endpoint supports analytical metrics')
 
 team_game_highs_payload <- request_json(base_url, '/team-game-highs', query = list(season = default_season, stat = 'goals', ranking = 'highest', limit = 3))
 team_game_lows_payload <- request_json(base_url, '/team-game-highs', query = list(season = default_season, stat = 'goals', ranking = 'lowest', limit = 3))

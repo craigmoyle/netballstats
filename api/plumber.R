@@ -824,6 +824,8 @@ function(res) {
     teams = teams,
     team_stats = metadata_stat_catalog(metadata_map, "team_stats_json", DEFAULT_TEAM_STATS),
     player_stats = metadata_stat_catalog(metadata_map, "player_stats_json", DEFAULT_PLAYER_STATS),
+    team_analytics = analytics_catalog_records("team"),
+    player_analytics = analytics_catalog_records("player"),
     build_mode = meta_json_scalar(metadata_map[["build_mode"]], default = "production"),
     refreshed_at = meta_json_scalar(metadata_map[["refreshed_at"]]),
     telemetry = list(
@@ -1090,26 +1092,47 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 8L, maximum = 25L)
-    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
-    metric <- parse_metric(metric)
+    stat_request <- parse_archive_stat_request(conn, "team", stat, default_stat = "points")
+    requested_metric <- parse_metric(metric)
+    metric <- if (stat_request$analytical && !analytics_metric_supports_mode(stat_request$stat, requested_metric)) {
+      analytics_metric_default_mode(stat_request$stat)
+    } else {
+      requested_metric
+    }
     ranking <- parse_ranking_mode(ranking)
-    order_column <- if (identical(metric, "average")) "average_value" else "total_value"
-    order_direction <- ranking_order_sql(ranking)
 
-    query <- paste(
-      "SELECT squad_id, squad_name, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
-      "COUNT(DISTINCT match_id) AS matches_played,",
-      "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
-      "FROM team_period_stats WHERE stat = ?stat"
-    )
-    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round)
-    filters$query <- paste0(
-      filters$query,
-      " GROUP BY squad_id, squad_name ORDER BY ", order_column, " ", order_direction, ", squad_name ASC LIMIT ?limit"
-    )
-    filters$params$limit <- limit
+    rows <- if (stat_request$analytical) {
+      fetch_team_analytics_leader_rows(
+        conn,
+        metric_key = stat_request$stat,
+        seasons = seasons,
+        team_id = team_id,
+        round = round,
+        metric = metric,
+        ranking = ranking,
+        limit = limit
+      )
+    } else {
+      stat <- stat_request$stat
+      order_column <- if (identical(metric, "average")) "average_value" else "total_value"
+      order_direction <- ranking_order_sql(ranking)
 
-    rows <- query_rows(conn, filters$query, filters$params)
+      query <- paste(
+        "SELECT squad_id, squad_name, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
+        "COUNT(DISTINCT match_id) AS matches_played,",
+        "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
+        "FROM team_period_stats WHERE stat = ?stat"
+      )
+      filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round)
+      filters$query <- paste0(
+        filters$query,
+        " GROUP BY squad_id, squad_name ORDER BY ", order_column, " ", order_direction, ", squad_name ASC LIMIT ?limit"
+      )
+      filters$params$limit <- limit
+
+      query_rows(conn, filters$query, filters$params)
+    }
+
     list(data = apply_metric_value(rows, metric))
   }, error = function(error) {
     handle_request_error(error, res)
@@ -1129,20 +1152,40 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 12L, maximum = 50L)
-    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "points")
-    metric <- parse_metric(metric)
+    stat_request <- parse_archive_stat_request(conn, "player", stat, default_stat = "points")
+    requested_metric <- parse_metric(metric)
+    metric <- if (stat_request$analytical && !analytics_metric_supports_mode(stat_request$stat, requested_metric)) {
+      analytics_metric_default_mode(stat_request$stat)
+    } else {
+      requested_metric
+    }
     ranking <- parse_ranking_mode(ranking)
-    rows <- fetch_player_leader_rows(
-      conn,
-      seasons = seasons,
-      team_id = team_id,
-      round = round,
-      stat = stat,
-      search = search,
-      metric = metric,
-      ranking = ranking,
-      limit = limit
-    )
+
+    rows <- if (stat_request$analytical) {
+      fetch_player_analytics_leader_rows(
+        conn,
+        metric_key = stat_request$stat,
+        seasons = seasons,
+        team_id = team_id,
+        round = round,
+        search = search,
+        metric = metric,
+        ranking = ranking,
+        limit = limit
+      )
+    } else {
+      fetch_player_leader_rows(
+        conn,
+        seasons = seasons,
+        team_id = team_id,
+        round = round,
+        stat = stat_request$stat,
+        search = search,
+        metric = metric,
+        ranking = ranking,
+        limit = limit
+      )
+    }
 
     list(data = apply_metric_value(rows, metric))
   }, error = function(error) {
@@ -1161,22 +1204,38 @@ function(season = "", seasons = "", round = "", stat = "points", metric = "total
   tryCatch({
     seasons <- parse_season_filter(season, seasons)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
-    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
-    metric <- parse_metric(metric)
+    stat_request <- parse_archive_stat_request(conn, "team", stat, default_stat = "points")
+    requested_metric <- parse_metric(metric)
+    metric <- if (stat_request$analytical && !analytics_metric_supports_mode(stat_request$stat, requested_metric)) {
+      analytics_metric_default_mode(stat_request$stat)
+    } else {
+      requested_metric
+    }
 
-    query <- paste(
-      "SELECT season, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
-      "COUNT(DISTINCT match_id) AS matches_played,",
-      "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
-      "FROM team_period_stats WHERE stat = ?stat"
-    )
-    filters <- apply_stat_filters(query, list(stat = stat), seasons, NULL, round)
-    filters$query <- paste0(
-      filters$query,
-      " GROUP BY season ORDER BY season ASC"
-    )
+    rows <- if (stat_request$analytical) {
+      fetch_competition_analytics_series_rows(
+        conn,
+        metric_key = stat_request$stat,
+        seasons = seasons,
+        round = round,
+        metric = metric
+      )
+    } else {
+      stat <- stat_request$stat
+      query <- paste(
+        "SELECT season, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
+        "COUNT(DISTINCT match_id) AS matches_played,",
+        "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
+        "FROM team_period_stats WHERE stat = ?stat"
+      )
+      filters <- apply_stat_filters(query, list(stat = stat), seasons, NULL, round)
+      filters$query <- paste0(
+        filters$query,
+        " GROUP BY season ORDER BY season ASC"
+      )
+      query_rows(conn, filters$query, filters$params)
+    }
 
-    rows <- query_rows(conn, filters$query, filters$params)
     list(data = apply_metric_value(rows, metric))
   }, error = function(error) {
     handle_request_error(error, res)
@@ -1196,59 +1255,80 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 10L)
-    stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
-    metric <- parse_metric(metric)
+    stat_request <- parse_archive_stat_request(conn, "team", stat, default_stat = "points")
+    requested_metric <- parse_metric(metric)
+    metric <- if (stat_request$analytical && !analytics_metric_supports_mode(stat_request$stat, requested_metric)) {
+      analytics_metric_default_mode(stat_request$stat)
+    } else {
+      requested_metric
+    }
     ranking <- parse_ranking_mode(ranking)
-    ranked_order_column <- if (identical(metric, "average")) "average_value" else "grand_total"
-    series_order_column <- if (identical(metric, "average")) "average_value" else "total_value"
-    ranked_order_direction <- ranking_order_sql(ranking)
-    series_order_direction <- ranking_order_sql(ranking)
 
-    ranked_query <- paste(
-      "SELECT squad_id, ROUND(CAST(SUM(value_number) AS numeric), 2) AS grand_total,",
-      "COUNT(DISTINCT match_id) AS matches_played,",
-      "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
-      "FROM team_period_stats WHERE stat = ?stat"
-    )
-    ranked_filters <- apply_stat_filters(ranked_query, list(stat = stat), seasons, team_id, round)
-    ranked_filters$query <- paste0(
-      ranked_filters$query,
-      " GROUP BY squad_id ORDER BY ", ranked_order_column, " ", ranked_order_direction, ", squad_id ASC"
-    )
-    if (is.null(team_id)) {
-      ranked_filters$query <- paste0(ranked_filters$query, " LIMIT ?limit")
-      ranked_filters$params$limit <- limit
-    }
-    ranked_ids <- query_rows(conn, ranked_filters$query, ranked_filters$params)$squad_id
-
-    query <- paste(
-      "SELECT stats.squad_id, stats.squad_name, teams.squad_colour, stats.season, ?stat AS stat,",
-      "ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value,",
-      "COUNT(DISTINCT stats.match_id) AS matches_played,",
-      "ROUND(CAST(SUM(stats.value_number) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average_value",
-      "FROM team_period_stats AS stats",
-      "LEFT JOIN teams ON teams.squad_id = stats.squad_id",
-      "WHERE stats.stat = ?stat"
-    )
-    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round, table_alias = "stats")
-    if (is.null(team_id)) {
-      ranked_series_filters <- append_integer_in_filter(
-        filters$query,
-        filters$params,
-        "stats.squad_id",
-        ranked_ids,
-        "series_team"
+    rows <- if (stat_request$analytical) {
+      fetch_team_analytics_season_series_rows(
+        conn,
+        metric_key = stat_request$stat,
+        seasons = seasons,
+        team_id = team_id,
+        round = round,
+        metric = metric,
+        ranking = ranking,
+        limit = limit
       )
-      filters$query <- ranked_series_filters$query
-      filters$params <- ranked_series_filters$params
-    }
-    filters$query <- paste0(
-      filters$query,
-      " GROUP BY stats.squad_id, stats.squad_name, teams.squad_colour, stats.season",
-      " ORDER BY stats.season ASC, ", series_order_column, " ", series_order_direction, ", stats.squad_name ASC"
-    )
+    } else {
+      stat <- stat_request$stat
+      ranked_order_column <- if (identical(metric, "average")) "average_value" else "grand_total"
+      series_order_column <- if (identical(metric, "average")) "average_value" else "total_value"
+      ranked_order_direction <- ranking_order_sql(ranking)
+      series_order_direction <- ranking_order_sql(ranking)
 
-    rows <- query_rows(conn, filters$query, filters$params)
+      ranked_query <- paste(
+        "SELECT squad_id, ROUND(CAST(SUM(value_number) AS numeric), 2) AS grand_total,",
+        "COUNT(DISTINCT match_id) AS matches_played,",
+        "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
+        "FROM team_period_stats WHERE stat = ?stat"
+      )
+      ranked_filters <- apply_stat_filters(ranked_query, list(stat = stat), seasons, team_id, round)
+      ranked_filters$query <- paste0(
+        ranked_filters$query,
+        " GROUP BY squad_id ORDER BY ", ranked_order_column, " ", ranked_order_direction, ", squad_id ASC"
+      )
+      if (is.null(team_id)) {
+        ranked_filters$query <- paste0(ranked_filters$query, " LIMIT ?limit")
+        ranked_filters$params$limit <- limit
+      }
+      ranked_ids <- query_rows(conn, ranked_filters$query, ranked_filters$params)$squad_id
+
+      query <- paste(
+        "SELECT stats.squad_id, stats.squad_name, teams.squad_colour, stats.season, ?stat AS stat,",
+        "ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value,",
+        "COUNT(DISTINCT stats.match_id) AS matches_played,",
+        "ROUND(CAST(SUM(stats.value_number) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average_value",
+        "FROM team_period_stats AS stats",
+        "LEFT JOIN teams ON teams.squad_id = stats.squad_id",
+        "WHERE stats.stat = ?stat"
+      )
+      filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round, table_alias = "stats")
+      if (is.null(team_id)) {
+        ranked_series_filters <- append_integer_in_filter(
+          filters$query,
+          filters$params,
+          "stats.squad_id",
+          ranked_ids,
+          "series_team"
+        )
+        filters$query <- ranked_series_filters$query
+        filters$params <- ranked_series_filters$params
+      }
+      filters$query <- paste0(
+        filters$query,
+        " GROUP BY stats.squad_id, stats.squad_name, teams.squad_colour, stats.season",
+        " ORDER BY stats.season ASC, ", series_order_column, " ", series_order_direction, ", stats.squad_name ASC"
+      )
+
+      query_rows(conn, filters$query, filters$params)
+    }
+
     list(data = apply_metric_value(rows, metric))
   }, error = function(error) {
     handle_request_error(error, res)
@@ -1268,24 +1348,44 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
     team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 10L)
-    stat <- validate_stat(conn, "player_period_stats", stat, default_stat = "points")
-    metric <- parse_metric(metric)
-    ranking <- parse_ranking_mode(ranking)
-    rows <- fetch_player_season_metric_rows(
-      conn,
-      seasons = seasons,
-      team_id = team_id,
-      round = round,
-      stat = stat,
-      search = search
-    )
-    ranked_ids <- top_player_ids_from_series_rows(rows, metric, ranking = ranking, limit = limit)
-    if (length(ranked_ids)) {
-      rows <- rows[rows$player_id %in% ranked_ids, , drop = FALSE]
+    stat_request <- parse_archive_stat_request(conn, "player", stat, default_stat = "points")
+    requested_metric <- parse_metric(metric)
+    metric <- if (stat_request$analytical && !analytics_metric_supports_mode(stat_request$stat, requested_metric)) {
+      analytics_metric_default_mode(stat_request$stat)
     } else {
-      rows <- rows[0, , drop = FALSE]
+      requested_metric
     }
-    rows <- sort_player_series_rows(rows, metric, ranking = ranking)
+    ranking <- parse_ranking_mode(ranking)
+
+    rows <- if (stat_request$analytical) {
+      fetch_player_analytics_season_series_rows(
+        conn,
+        metric_key = stat_request$stat,
+        seasons = seasons,
+        team_id = team_id,
+        round = round,
+        search = search,
+        metric = metric,
+        ranking = ranking,
+        limit = limit
+      )
+    } else {
+      raw_rows <- fetch_player_season_metric_rows(
+        conn,
+        seasons = seasons,
+        team_id = team_id,
+        round = round,
+        stat = stat_request$stat,
+        search = search
+      )
+      ranked_ids <- top_player_ids_from_series_rows(raw_rows, metric, ranking = ranking, limit = limit)
+      if (length(ranked_ids)) {
+        raw_rows <- raw_rows[raw_rows$player_id %in% ranked_ids, , drop = FALSE]
+      } else {
+        raw_rows <- raw_rows[0, , drop = FALSE]
+      }
+      sort_player_series_rows(raw_rows, metric, ranking = ranking)
+    }
 
     list(data = apply_metric_value(rows, metric))
   }, error = function(error) {
@@ -1465,6 +1565,8 @@ function(pr) {
         seasons = seasons, teams = teams,
         team_stats   = metadata_stat_catalog(metadata_map, "team_stats_json", DEFAULT_TEAM_STATS),
         player_stats = metadata_stat_catalog(metadata_map, "player_stats_json", DEFAULT_PLAYER_STATS),
+        team_analytics = analytics_catalog_records("team"),
+        player_analytics = analytics_catalog_records("player"),
         build_mode   = meta_json_scalar(metadata_map[["build_mode"]], default = "production"),
         refreshed_at = meta_json_scalar(metadata_map[["refreshed_at"]]),
         telemetry = list(

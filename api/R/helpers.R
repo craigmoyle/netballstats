@@ -490,6 +490,26 @@ validate_stat <- function(conn, table_name, stat, default_stat = "points") {
   chosen
 }
 
+parse_archive_stat_request <- function(conn, subject = c("player", "team"), stat, default_stat = "points") {
+  subject <- match.arg(subject)
+  chosen <- stat %||% default_stat
+
+  if (is_analytical_metric(chosen, subject)) {
+    return(list(
+      stat = chosen,
+      analytical = TRUE,
+      default_mode = analytics_metric_default_mode(chosen)
+    ))
+  }
+
+  table_name <- if (identical(subject, "player")) "player_period_stats" else "team_period_stats"
+  list(
+    stat = validate_stat(conn, table_name, chosen, default_stat = default_stat),
+    analytical = FALSE,
+    default_mode = "total"
+  )
+}
+
 apply_metric_value <- function(rows, metric) {
   rows$metric <- metric
   if (!nrow(rows)) {
