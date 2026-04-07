@@ -425,26 +425,40 @@ check_step('nWAR endpoint validates min_games lower bound')
 # Unit tests for fetch_nwar_rows R logic (no live DB required)
 normalize_sql <- if (exists('normalize_sql')) normalize_sql else function(q) gsub('\\s+', ' ', trimws(q))
 
+# Returns the list(query, params) object from build_nwar_query directly so
+# callers can inspect the SQL text without needing a live connection.
 capture_nwar_query <- function(use_match_stats, seasons = NULL, team_id = NULL, min_games = 5L) {
   helpers_env <- new.env(parent = baseenv())
   source(file.path(dirname(base_url), '..', 'api', 'R', 'helpers.R'), local = helpers_env, echo = FALSE)
+  helpers_env$has_player_match_stats        <- function(conn) use_match_stats
+  helpers_env$has_player_match_participation <- function(conn) FALSE
+  helpers_env$build_nwar_query(conn = NULL, seasons = seasons, team_id = team_id, min_games = min_games)
+}
+
+capture_nwar_positions_query <- function(seasons_filter = NULL) {
+  helpers_env <- new.env(parent = baseenv())
+  source(file.path(dirname(base_url), '..', 'api', 'R', 'helpers.R'), local = helpers_env, echo = FALSE)
   captured <- NULL
-  helpers_env$has_player_match_stats <- function(conn) use_match_stats
   helpers_env$query_rows <- function(conn, query, params = list()) {
     captured <<- list(query = query, params = params)
-    data.frame()
+    data.frame(player_id = integer(0), position_code = character(0), stringsAsFactors = FALSE)
   }
-  helpers_env$apply_stat_filters <- get('apply_stat_filters', envir = helpers_env)
-  helpers_env$build_nwar_query(conn = NULL, seasons = seasons, team_id = team_id, min_games = min_games)
+  helpers_env$fetch_nwar_positions(conn = NULL, seasons_filter = seasons_filter)
   captured
 }
 
-tryCatch({
-  helpers_path <- Sys.getenv('NETBALL_STATS_HELPERS_PATH', file.path(getwd(), 'api', 'R', 'helpers.R'))
-  if (file.exists(helpers_path)) {
-    helpers_env <- new.env(parent = baseenv())
+helpers_path <- Sys.getenv('NETBALL_STATS_HELPERS_PATH', file.path(getwd(), 'api', 'R', 'helpers.R'))
+if (file.exists(helpers_path)) {
+  helpers_env <- new.env(parent = baseenv())
+  helpers_loaded <- tryCatch({
     suppressMessages(source(helpers_path, local = helpers_env, echo = FALSE))
+    TRUE
+  }, error = function(e) {
+    cat(sprintf('NOTE: fetch_nwar_rows unit tests skipped (helpers not loadable in this environment): %s\n', conditionMessage(e)))
+    FALSE
+  })
 
+  if (helpers_loaded) {
     # build_nwar_query should exist and be a function
     assert_true(is.function(helpers_env$build_nwar_query), 'Expected build_nwar_query to be exported from helpers.R.')
 
@@ -491,17 +505,41 @@ tryCatch({
     assert_true(abs(as.numeric(single_result$nwar[[1]])) < 0.01, 'Expected single-player nWAR to be approximately 0 (player is their own replacement).')
 
     optimized_query <- capture_nwar_query(use_match_stats = TRUE, seasons = 2024L, min_games = 5L)
-    assert_true(!is.null(optimized_query), 'Expected capture_nwar_query to return the built nWAR query.')
+    assert_true(!is.null(optimized_query), 'Expected build_nwar_query to return a query object.')
     optimized_sql <- normalize_sql(optimized_query$query)
-    assert_true(grepl("WITH alltime_pos AS \\(", optimized_sql), 'Expected nWAR query to precompute all-time positions via a CTE.')
-    assert_true(grepl("MAX\\(alltime_pos\\.dominant_position\\)", optimized_sql), 'Expected nWAR query to use the joined alltime_pos fallback.')
-    assert_true(grepl("LEFT JOIN alltime_pos ON alltime_pos\\.player_id = stats\\.player_id", optimized_sql), 'Expected nWAR query to join the alltime_pos CTE once per player.')
-    assert_true(!grepl("\\(SELECT MODE\\(\\) WITHIN GROUP \\(ORDER BY pmp2\\.starting_position_code\\)", optimized_sql), 'Expected nWAR query to avoid the old correlated position fallback subquery.')
+
+    # Main aggregate must restrict to the fantasy-scoring stat keys (stat IN filter).
+    assert_true(grepl('stats.stat IN', optimized_sql, fixed = TRUE),
+                'Expected nWAR main query to filter to NWAR_STAT_KEYS via stats.stat IN.')
+    # Position resolution must not appear in the main aggregate query.
+    assert_true(!grepl('player_match_positions', optimized_sql, fixed = TRUE),
+                'Expected nWAR main query to not reference player_match_positions (position resolved separately by fetch_nwar_positions).')
+    assert_true(!grepl('MODE() WITHIN GROUP', optimized_sql, fixed = TRUE),
+                'Expected nWAR main query to not compute MODE() (position resolved by fetch_nwar_positions).')
+    # Old correlated position subquery must be absent.
+    assert_true(!grepl('FROM player_match_positions pmp2', optimized_sql, fixed = TRUE),
+                'Expected nWAR query to not use the old correlated position subquery.')
+    # Season parameter must be threaded through.
+    assert_true(!is.null(optimized_query$params$season_1),
+                'Expected build_nwar_query to parameterise the season filter (season_1).')
+
+    position_query <- capture_nwar_positions_query(seasons_filter = 2024L)
+    assert_true(!is.null(position_query), 'Expected fetch_nwar_positions to return a query object.')
+    position_sql <- normalize_sql(position_query$query)
+
+    assert_true(grepl('COALESCE(', position_sql, fixed = TRUE),
+                'Expected position query to include an all-time fallback for missing season data.')
+    assert_true(grepl('MODE() WITHIN GROUP (ORDER BY CASE WHEN season IN (?pos_season_1)', position_sql, fixed = TRUE),
+                'Expected position query to parameterise the seasonal dominant-position branch.')
+    assert_true(grepl("starting_position_code NOT IN \\('I', 'S', '-'\\)", position_sql),
+                'Expected position query to exclude interchange and bench marker codes.')
+    assert_true(!grepl('(SELECT MODE()', position_sql, fixed = TRUE),
+                'Expected position query to avoid the old correlated position fallback subquery.')
+    assert_true(!is.null(position_query$params$pos_season_1),
+                'Expected fetch_nwar_positions to parameterise season filters.')
 
     check_step('fetch_nwar_rows unit tests pass (empty result, single player boundary, optimized query shape)')
   }
-}, error = function(e) {
-  cat(sprintf('NOTE: fetch_nwar_rows unit tests skipped (helpers not loadable in this environment): %s\n', conditionMessage(e)))
-})
+}
 
 cat('All API regression checks passed.\n')
