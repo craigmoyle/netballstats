@@ -147,10 +147,18 @@ assert_true(as.integer(scalar_value(profile_payload$player$player_id %||% NA_int
 assert_true(is.list(profile_payload$season_summaries), 'Expected /player-profile to include season summaries.')
 check_step('player profile endpoint returns career data for a discovered player')
 
-assert_true(is.list(profile_payload$analytical_profile), 'Expected /player-profile to include analytical_profile.')
-assert_true(is.list(profile_payload$analytical_profile$metrics), 'Expected analytical_profile to expose metrics.')
-assert_true(length(profile_payload$analytical_profile$metrics) >= 3L, 'Expected analytical_profile to expose at least three metric cards.')
-assert_true(is.list(profile_payload$analytical_profile$notes), 'Expected analytical_profile to expose interpretive notes.')
+# Analytical-profile assertions use a player sourced from /player-leaders to
+# ensure the subject has sufficient match-stat coverage regardless of which
+# player happens to sort first in /players.
+analytical_leaders_payload <- request_json(base_url, '/player-leaders', query = list(stat = 'goals', limit = 1))
+analytical_player_record <- first_record(analytical_leaders_payload$data)
+analytical_player_id <- as.integer(scalar_value(analytical_player_record$player_id %||% NA_integer_))
+assert_true(!is.na(analytical_player_id), 'Expected /player-leaders to return a player_id for analytical profile check.')
+analytical_profile_payload <- request_json(base_url, '/player-profile', query = list(player_id = analytical_player_id))
+assert_true(is.list(analytical_profile_payload$analytical_profile), 'Expected /player-profile to include analytical_profile.')
+assert_true(is.list(analytical_profile_payload$analytical_profile$metrics), 'Expected analytical_profile to expose metrics.')
+assert_true(length(analytical_profile_payload$analytical_profile$metrics) >= 3L, 'Expected analytical_profile to expose at least three metric cards.')
+assert_true(is.list(analytical_profile_payload$analytical_profile$notes), 'Expected analytical_profile to expose interpretive notes.')
 check_step('player profile endpoint returns analytical profile content')
 
 team_leaders_payload <- request_json(base_url, '/team-leaders', query = list(season = default_season, stat = 'goals', limit = 3))

@@ -176,7 +176,7 @@ build_player_analytics_notes <- function(profile_values) {
   unique(notes)
 }
 
-player_analytics_match_rows <- function(conn, metric_key, seasons = NULL, team_id = NULL, round = NULL, search = "") {
+player_analytics_match_rows <- function(conn, metric_key, seasons = NULL, team_id = NULL, round = NULL, search = "", player_id = NULL) {
   if (!has_player_match_stats(conn)) {
     return(data.frame(
       player_id = integer(0), player_name = character(0), squad_name = character(0),
@@ -226,7 +226,12 @@ player_analytics_match_rows <- function(conn, metric_key, seasons = NULL, team_i
     "WHERE 1 = 1"
   )
 
-  filters <- apply_stat_filters(query, list(metric_key = metric_key), seasons = seasons, team_id = team_id, round_number = round, table_alias = "player_base")
+  initial_params <- list(metric_key = metric_key)
+  if (!is.null(player_id)) {
+    query <- paste(query, "AND player_base.player_id = ?filter_player_id")
+    initial_params$filter_player_id <- as.integer(player_id)
+  }
+  filters <- apply_stat_filters(query, initial_params, seasons = seasons, team_id = team_id, round_number = round, table_alias = "player_base")
   filters <- apply_player_search_filter(filters$query, filters$params, search, "player_base.player_id")
   rows <- query_rows(conn, filters$query, filters$params)
   rows[!is.na(rows$metric_value), , drop = FALSE]
@@ -495,8 +500,7 @@ fetch_player_analytics_season_series_rows <- function(conn, metric_key, seasons 
 build_player_analytical_profile <- function(conn, player_id) {
   metric_keys <- analytics_metric_keys("player")
   metric_rows <- lapply(metric_keys, function(metric_key) {
-    rows <- player_analytics_match_rows(conn, metric_key = metric_key, seasons = NULL, team_id = NULL, round = NULL, search = "")
-    rows <- rows[rows$player_id == as.integer(player_id), , drop = FALSE]
+    rows <- player_analytics_match_rows(conn, metric_key = metric_key, seasons = NULL, team_id = NULL, round = NULL, search = "", player_id = player_id)
     if (!nrow(rows)) {
       return(NULL)
     }
