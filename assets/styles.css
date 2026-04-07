@@ -1099,6 +1099,7 @@ button[aria-busy="true"] {
 }
 
 .archive-control-desk,
+.player-dossier__pillars,
 .player-dossier__ledger {
   position: relative;
   overflow: hidden;
@@ -1772,6 +1773,45 @@ tr[data-rank="3"] td:first-child {
 .player-hero {
   display: grid;
   gap: 1rem;
+}
+
+.player-dossier__pillars {
+  padding-top: var(--space-sm);
+}
+
+.dossier-pillars {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-sm);
+}
+
+.dossier-pillar {
+  display: grid;
+  gap: 0.35rem;
+  padding: 1rem;
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 48%),
+    color-mix(in srgb, var(--panel-alt) 92%, transparent);
+}
+
+.player-dossier__context-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.7fr);
+  gap: var(--space-md);
+  align-items: start;
+}
+
+.player-dossier__marginalia {
+  padding: var(--space-sm);
+  border-radius: var(--radius-card);
+  background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.season-ledger__notes {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: var(--text-ui-size);
 }
 
 .player-title {

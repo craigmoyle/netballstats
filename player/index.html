@@ -78,23 +78,35 @@
         </div>
       </section>
 
+      <section class="panel player-dossier__pillars reveal" aria-label="Career pillars">
+        <div id="player-pillars" class="dossier-pillars"></div>
+      </section>
+
       <section class="panel reveal">
-        <div class="panel__heading">
-          <h2>Career totals</h2>
-        </div>
-        <div class="table-wrapper table-wrapper--spotlight">
-          <table class="stack-table" aria-describedby="career-stats-caption">
-            <caption id="career-stats-caption" class="table-caption">Career totals and per-game averages.</caption>
-            <thead>
-              <tr>
-                <th scope="col">Stat</th>
-                <th scope="col">Total</th>
-                <th scope="col">Avg/game</th>
-                <th scope="col">Games</th>
-              </tr>
-            </thead>
-            <tbody id="career-stats-body"></tbody>
-          </table>
+        <div class="player-dossier__context-grid">
+          <div>
+            <div class="panel__heading">
+              <h2>Career totals</h2>
+            </div>
+            <div class="table-wrapper table-wrapper--spotlight">
+              <table class="stack-table" aria-describedby="career-stats-caption">
+                <caption id="career-stats-caption" class="table-caption">Career totals and per-game averages.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Stat</th>
+                    <th scope="col">Total</th>
+                    <th scope="col">Avg/game</th>
+                    <th scope="col">Games</th>
+                  </tr>
+                </thead>
+                <tbody id="career-stats-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <aside class="player-dossier__marginalia" aria-label="Player dossier notes">
+            <p class="results-panel__eyebrow">Dossier notes</p>
+            <ol id="player-marginalia" class="dossier-notes"></ol>
+          </aside>
         </div>
       </section>
 
@@ -102,6 +114,7 @@
         <div class="player-toolbar">
           <div class="panel__heading">
             <h2>Season ledger</h2>
+            <p id="season-ledger-notes" class="season-ledger__notes">Loading season context…</p>
           </div>
           <div class="view-toggle" role="group" aria-label="Season stat mode">
             <button type="button" class="button button--small is-active" data-metric="total" aria-pressed="true">Total</button>
