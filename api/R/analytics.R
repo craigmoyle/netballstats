@@ -491,3 +491,36 @@ fetch_player_analytics_season_series_rows <- function(conn, metric_key, seasons 
     result[order(result$season, -series_order_col, result$player_name, na.last = TRUE), , drop = FALSE]
   }
 }
+
+build_player_analytical_profile <- function(conn, player_id) {
+  metric_keys <- analytics_metric_keys("player")
+  metric_rows <- lapply(metric_keys, function(metric_key) {
+    rows <- player_analytics_match_rows(conn, metric_key = metric_key, seasons = NULL, team_id = NULL, round = NULL, search = "")
+    rows <- rows[rows$player_id == as.integer(player_id), , drop = FALSE]
+    if (!nrow(rows)) {
+      return(NULL)
+    }
+
+    definition <- analytics_metric_definition(metric_key)
+    list(
+      key = metric_key,
+      label = definition$label,
+      short_label = definition$short_label,
+      family = definition$family,
+      description = definition$description,
+      value = round(mean(rows$metric_value, na.rm = TRUE), 3),
+      matches_played = length(unique(rows$match_id))
+    )
+  })
+
+  metric_rows <- Filter(Negate(is.null), metric_rows)
+  metric_rows <- metric_rows[order(vapply(metric_rows, function(entry) abs(as.numeric(entry$value)), numeric(1)), decreasing = TRUE)]
+  metric_rows <- head(metric_rows, 3L)
+
+  note_input <- setNames(lapply(metric_rows, function(entry) as.numeric(entry$value)), vapply(metric_rows, function(entry) entry$key, character(1)))
+
+  list(
+    metrics = metric_rows,
+    notes = build_player_analytics_notes(note_input)
+  )
+}

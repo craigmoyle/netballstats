@@ -963,7 +963,10 @@ function(player_id = "", res) {
       )
     }
 
-    build_player_profile_payload(player, stats_rows)
+    analytics_profile <- build_player_analytical_profile(conn, player_id)
+    payload <- build_player_profile_payload(player, stats_rows)
+    payload$analytical_profile <- analytics_profile
+    payload
   }, error = function(error) {
     handle_request_error(error, res)
   })

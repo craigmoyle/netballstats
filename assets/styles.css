@@ -1820,6 +1820,15 @@ tr[data-rank="3"] td:first-child {
   background: color-mix(in srgb, var(--text) 3%, transparent);
 }
 
+.player-analytics {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.player-analytics .dossier-notes {
+  margin: 0;
+}
+
 .season-ledger__notes {
   margin: 0.25rem 0 0;
   color: var(--muted);

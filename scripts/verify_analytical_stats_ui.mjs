@@ -17,3 +17,13 @@ assert.match(css, /\.field-hint--stat-note\b/, "Expected built CSS to include .f
 assert.match(css, /\.filters--analytics-locked\b/, "Expected built CSS to include .filters--analytics-locked");
 
 console.log("Analytical archive UI smoke checks passed");
+
+const playerHtml = readFileSync(path.join(distDir, "player", "index.html"), "utf8");
+const playerJs = readFileSync(path.join(distDir, "assets", "player.js"), "utf8");
+
+assert.match(playerHtml, /player-analytics-cards/, "Expected player build to include player-analytics-cards");
+assert.match(playerHtml, /player-analytics-notes/, "Expected player build to include player-analytics-notes");
+assert.match(playerJs, /renderAnalyticalProfile/, "Expected player bundle to include renderAnalyticalProfile");
+assert.match(css, /\.player-analytics\b/, "Expected built CSS to include .player-analytics");
+
+console.log("Player analytical dossier UI smoke checks passed");

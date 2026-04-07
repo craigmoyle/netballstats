@@ -147,6 +147,12 @@ assert_true(as.integer(scalar_value(profile_payload$player$player_id %||% NA_int
 assert_true(is.list(profile_payload$season_summaries), 'Expected /player-profile to include season summaries.')
 check_step('player profile endpoint returns career data for a discovered player')
 
+assert_true(is.list(profile_payload$analytical_profile), 'Expected /player-profile to include analytical_profile.')
+assert_true(is.list(profile_payload$analytical_profile$metrics), 'Expected analytical_profile to expose metrics.')
+assert_true(length(profile_payload$analytical_profile$metrics) >= 3L, 'Expected analytical_profile to expose at least three metric cards.')
+assert_true(is.list(profile_payload$analytical_profile$notes), 'Expected analytical_profile to expose interpretive notes.')
+check_step('player profile endpoint returns analytical profile content')
+
 team_leaders_payload <- request_json(base_url, '/team-leaders', query = list(season = default_season, stat = 'goals', limit = 3))
 assert_true(is.list(team_leaders_payload$data) && length(team_leaders_payload$data) >= 1, 'Expected /team-leaders to return rows.')
 check_step('team leaders endpoint returns ranked team rows')

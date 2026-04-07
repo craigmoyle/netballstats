@@ -67,6 +67,9 @@ const elements = {
   seasonStatsBody: document.getElementById("season-stats-body"),
   playerPillars: document.getElementById("player-pillars"),
   playerMarginalia: document.getElementById("player-marginalia"),
+  playerAnalyticsSummary: document.getElementById("player-analytics-summary"),
+  playerAnalyticsCards: document.getElementById("player-analytics-cards"),
+  playerAnalyticsNotes: document.getElementById("player-analytics-notes"),
   seasonLedgerNotes: document.getElementById("season-ledger-notes"),
   metricButtons: Array.from(document.querySelectorAll("[data-metric]"))
 };
@@ -348,6 +351,50 @@ function renderDossierNotes(notes) {
   });
 }
 
+function renderAnalyticalProfile(profile) {
+  const analytical = profile.analytical_profile || {};
+  const metrics = analytical.metrics || [];
+  const notes = analytical.notes || [];
+
+  if (elements.playerAnalyticsSummary) {
+    elements.playerAnalyticsSummary.textContent = metrics.length
+      ? `${formatNumber(metrics.length)} headline analytical indicators from the player's match profile.`
+      : "Analytical profile unavailable for this player.";
+  }
+
+  if (elements.playerAnalyticsCards) {
+    elements.playerAnalyticsCards.replaceChildren();
+    metrics.forEach((metric) => {
+      const article = document.createElement("article");
+      article.className = "dossier-pillar";
+
+      const label = document.createElement("span");
+      label.className = "summary-card__label";
+      label.textContent = metric.label;
+
+      const value = document.createElement("strong");
+      value.className = "summary-card__value";
+      value.textContent = formatNumber(metric.value);
+
+      const note = document.createElement("p");
+      note.className = "muted";
+      note.textContent = metric.description;
+
+      article.append(label, value, note);
+      elements.playerAnalyticsCards.appendChild(article);
+    });
+  }
+
+  if (elements.playerAnalyticsNotes) {
+    elements.playerAnalyticsNotes.replaceChildren();
+    notes.forEach((noteText) => {
+      const item = document.createElement("li");
+      item.textContent = noteText;
+      elements.playerAnalyticsNotes.appendChild(item);
+    });
+  }
+}
+
 function updateSeasonLedgerNotes() {
   if (!elements.seasonLedgerNotes) return;
   elements.seasonLedgerNotes.textContent = state.metric === "average"
@@ -405,6 +452,7 @@ function renderProfile(profile) {
   renderCareerStats(careerStats);
   renderDossierPillars(pillars);
   renderDossierNotes(notes);
+  renderAnalyticalProfile(profile);
   updateSeasonLedgerNotes();
   renderSeasonTable(profile);
 }
