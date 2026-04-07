@@ -17,10 +17,15 @@ assert.match(indexHtml, /archive-results-intro/, "Expected homepage build to inc
 assert.match(indexHtml, /archive-control-desk__header/, "Expected homepage build to include archive-control-desk__header");
 assert.match(playerHtml, /player-dossier/, "Expected player build to include player-dossier");
 assert.match(playerHtml, /player-dossier__ledger/, "Expected player build to include player-dossier__ledger");
+assert.match(playerHtml, /player-dossier__pillars/, "Expected player build to include player-dossier__pillars");
+assert.match(playerHtml, /player-dossier__marginalia/, "Expected player build to include player-dossier__marginalia");
+assert.match(playerHtml, /season-ledger__notes/, "Expected player build to include season-ledger__notes");
 assert.match(css, /\.archive-control-desk\b/, "Expected built CSS to include .archive-control-desk");
 assert.match(css, /\.archive-results-intro\b/, "Expected built CSS to include .archive-results-intro");
 assert.match(css, /\.archive-control-desk__header\b/, "Expected built CSS to include .archive-control-desk__header");
 assert.match(css, /\.player-dossier__ledger\b/, "Expected built CSS to include .player-dossier__ledger");
+assert.match(css, /\.player-dossier__pillars\b/, "Expected built CSS to include .player-dossier__pillars");
+assert.match(css, /\.player-dossier__marginalia\b/, "Expected built CSS to include .player-dossier__marginalia");
 assert.match(appJs, /table-link--dossier/, "Expected built archive script to include table-link--dossier");
 assert.match(appJs, /table-link__meta/, "Expected built archive script to include table-link__meta");
 assert.match(appJs, /Open dossier/, "Expected built archive script to include dossier helper copy");

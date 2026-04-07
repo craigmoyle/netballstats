@@ -65,6 +65,9 @@ const elements = {
   seasonTableCaption: document.getElementById("season-table-caption"),
   seasonStatsHead: document.getElementById("season-stats-head"),
   seasonStatsBody: document.getElementById("season-stats-body"),
+  playerPillars: document.getElementById("player-pillars"),
+  playerMarginalia: document.getElementById("player-marginalia"),
+  seasonLedgerNotes: document.getElementById("season-ledger-notes"),
   metricButtons: Array.from(document.querySelectorAll("[data-metric]"))
 };
 
@@ -271,6 +274,80 @@ function renderSeasonTable(profile) {
   });
 }
 
+function buildDossierPillars(profile, topCareerStat) {
+  const overview = profile.overview || {};
+  const latestSeason = overview.last_season || null;
+  return [
+    {
+      label: "Career span",
+      value: overview.first_season && overview.last_season ? `${overview.first_season}–${overview.last_season}` : "Single season",
+      note: `${formatNumber(overview.seasons_played)} seasons`
+    },
+    {
+      label: "Games",
+      value: formatNumber(overview.games_played),
+      note: `${formatNumber(overview.teams_played)} clubs`
+    },
+    {
+      label: "Primary record",
+      value: topCareerStat ? formatNumber(topCareerStat.total_value) : "--",
+      note: topCareerStat ? statLabel(topCareerStat.stat) : "No primary stat"
+    },
+    {
+      label: "Latest season",
+      value: latestSeason ? `${latestSeason}` : "--",
+      note: "Archive dossier"
+    }
+  ];
+}
+
+function buildDossierNotes(profile, topCareerStat) {
+  const overview = profile.overview || {};
+  const summaries = [...(profile.season_summaries || [])].sort((left, right) => Number(right.season) - Number(left.season));
+  const peakSeason = summaries.reduce((best, summary) =>
+    !best || Number(summary.matches_played || 0) > Number(best.matches_played || 0) ? summary : best, null);
+
+  return [
+    peakSeason ? `Peak workload: ${formatNumber(peakSeason.matches_played)} games in ${peakSeason.season}.` : "Peak workload unavailable.",
+    topCareerStat ? `Signature total: ${formatNumber(topCareerStat.total_value)} ${statLabel(topCareerStat.stat).toLowerCase()}.` : "Signature total unavailable.",
+    (overview.squad_names || []).length ? `Club trail: ${(overview.squad_names || []).join(" / ")}.` : "Club trail unavailable."
+  ];
+}
+
+function renderDossierPillars(pillars) {
+  if (!elements.playerPillars) return;
+  elements.playerPillars.replaceChildren();
+  pillars.forEach((pillar) => {
+    const article = document.createElement("article");
+    article.className = "dossier-pillar";
+
+    const label = document.createElement("span");
+    label.className = "summary-card__label";
+    label.textContent = pillar.label;
+
+    const value = document.createElement("strong");
+    value.className = "summary-card__value";
+    value.textContent = pillar.value;
+
+    const note = document.createElement("p");
+    note.className = "muted";
+    note.textContent = pillar.note;
+
+    article.append(label, value, note);
+    elements.playerPillars.appendChild(article);
+  });
+}
+
+function renderDossierNotes(notes) {
+  if (!elements.playerMarginalia) return;
+  elements.playerMarginalia.replaceChildren();
+  notes.forEach((noteText) => {
+    const item = document.createElement("li");
+    item.textContent = noteText;
+    elements.playerMarginalia.appendChild(item);
+  });
+}
+
 function setMetric(nextMetric) {
   state.metric = nextMetric;
   elements.metricButtons.forEach((button) => {
@@ -294,6 +371,8 @@ function renderProfile(profile) {
   const topCareerStat = careerStats
     .slice()
     .sort((left, right) => Number(right.total_value || 0) - Number(left.total_value || 0))[0];
+  const pillars = buildDossierPillars(profile, topCareerStat);
+  const notes = buildDossierNotes(profile, topCareerStat);
 
   document.title = `${playerName} | Netball Stats Database`;
   elements.playerName.textContent = playerName;
@@ -316,6 +395,11 @@ function renderProfile(profile) {
 
   renderSquads(overview.squad_names || []);
   renderCareerStats(careerStats);
+  renderDossierPillars(pillars);
+  renderDossierNotes(notes);
+  elements.seasonLedgerNotes.textContent = state.metric === "average"
+    ? "Per-game view keeps season shifts readable while the ledger preserves the full table."
+    : "Use the ledger to scan peaks, club changes, and long-run consistency.";
   renderSeasonTable(profile);
 }
 
