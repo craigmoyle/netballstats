@@ -1104,10 +1104,34 @@ button[aria-busy="true"] {
   overflow: hidden;
 }
 
+.archive-control-desk {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 7%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 3%, transparent), transparent 72%),
+    var(--panel-solid);
+}
+
 .archive-control-desk__header {
   display: grid;
   gap: var(--space-xs);
   margin-bottom: var(--space-sm);
+}
+
+.archive-results-intro {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-2xs);
+  padding: var(--space-sm) var(--space-md);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 44%),
+    color-mix(in srgb, var(--panel-alt) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
+}
+
+.archive-results-intro h2 {
+  margin: 0;
+  max-width: 20ch;
 }
 
 .archive-context-note {

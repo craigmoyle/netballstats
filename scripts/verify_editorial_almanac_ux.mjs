@@ -11,9 +11,13 @@ const css = readFileSync(path.join(distDir, "assets", "styles.css"), "utf8");
 
 assert.match(indexHtml, /archive-control-desk/, "Expected homepage build to include archive-control-desk");
 assert.match(indexHtml, /archive-context-note/, "Expected homepage build to include archive-context-note");
+assert.match(indexHtml, /archive-results-intro/, "Expected homepage build to include archive-results-intro");
+assert.match(indexHtml, /archive-control-desk__header/, "Expected homepage build to include archive-control-desk__header");
 assert.match(playerHtml, /player-dossier/, "Expected player build to include player-dossier");
 assert.match(playerHtml, /player-dossier__ledger/, "Expected player build to include player-dossier__ledger");
 assert.match(css, /\.archive-control-desk\b/, "Expected built CSS to include .archive-control-desk");
+assert.match(css, /\.archive-results-intro\b/, "Expected built CSS to include .archive-results-intro");
+assert.match(css, /\.archive-control-desk__header\b/, "Expected built CSS to include .archive-control-desk__header");
 assert.match(css, /\.player-dossier__ledger\b/, "Expected built CSS to include .player-dossier__ledger");
 
 console.log("Editorial almanac smoke checks passed");
