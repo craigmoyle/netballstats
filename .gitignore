@@ -4,5 +4,6 @@
 .env
 .env.*
 dist/
+.worktrees/
 renv/library/
 renv/staging/
