@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Latest Updates | Netball Stats Database</title>
+    <meta name="description" content="A simple reference for the latest user-facing updates to the Netball Stats archive.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+  </head>
+  <body class="changelog-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Explore archive</a>
+        <a class="page-nav__link" href="/round/">Round recap</a>
+        <a class="page-nav__link" href="/players/">Player profiles</a>
+        <a class="page-nav__link" href="/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/compare/">Compare</a>
+        <a class="page-nav__link page-nav__link--accent" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel changelog-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Simple release ledger</p>
+          <h1>Latest updates</h1>
+          <p class="intro-copy">A short reference for what changed recently on the site and where you can see it.</p>
+        </div>
+
+        <aside class="hero-aside" aria-label="Latest update">
+          <div class="hero-aside__card hero-aside__card--archive">
+            <span class="hero-aside__label">Latest update</span>
+            <strong>8 Apr 2026</strong>
+            <p>The archive homepage, Ask the Stats, and Compare pages are now cleaner and easier to read.</p>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel changelog-summary reveal">
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <p class="panel__eyebrow">How to use this page</p>
+            <h2>Just the visible changes.</h2>
+          </div>
+          <p class="muted">This page tracks recent user-facing updates, not every internal commit or infrastructure change.</p>
+        </div>
+      </section>
+
+      <section class="changelog-stack" aria-label="Recent updates">
+        <article class="panel changelog-entry reveal">
+          <div class="changelog-entry__header">
+            <p class="results-panel__eyebrow">8 Apr 2026</p>
+            <h2>The main browsing pages are simpler.</h2>
+            <p class="panel__lead">The homepage is less crowded, Ask the Stats is easier to scan, and Compare now gives you a clearer verdict up front.</p>
+          </div>
+          <ul class="changelog-list">
+            <li>The homepage now leads with a short editorial note instead of jumping straight into a dense filter block.</li>
+            <li>Extra archive filters are tucked behind a secondary reveal so the main path stays cleaner.</li>
+            <li>Ask the Stats now uses shorter guidance and collapsible help instead of showing everything at once.</li>
+            <li>Compare now opens with a simple verdict before the chart and table.</li>
+          </ul>
+          <div class="changelog-link-list">
+            <a class="changelog-link" href="/">Open the archive</a>
+            <a class="changelog-link" href="/query/">Try Ask the Stats</a>
+            <a class="changelog-link" href="/compare/">Open Compare</a>
+          </div>
+        </article>
+
+        <article class="panel changelog-entry reveal">
+          <div class="changelog-entry__header">
+            <p class="results-panel__eyebrow">7 Apr 2026</p>
+            <h2>Analytical stats were added.</h2>
+            <p class="panel__lead">The archive and player dossiers now include a first analytical layer with explainers, formulas, and ranked outputs.</p>
+          </div>
+          <ul class="changelog-list">
+            <li>Player and team views can now surface analytical metrics alongside standard totals.</li>
+            <li>Analytical controls include plain-language notes so the numbers are easier to interpret.</li>
+            <li>Player profiles now carry analytical dossier context as part of the main reading flow.</li>
+          </ul>
+          <div class="changelog-link-list">
+            <a class="changelog-link" href="/">See the archive</a>
+            <a class="changelog-link" href="/players/">Browse player profiles</a>
+          </div>
+        </article>
+
+        <article class="panel changelog-entry reveal">
+          <div class="changelog-entry__header">
+            <p class="results-panel__eyebrow">7 Apr 2026</p>
+            <h2>Older seasons and player records were cleaned up.</h2>
+            <p class="panel__lead">Historical coverage is clearer, older participation counts are more trustworthy, and the site now explains the 2008 archive boundary more directly.</p>
+          </div>
+          <ul class="changelog-list">
+            <li>The public copy now states that 2008 is finals-only and full season coverage starts in 2009.</li>
+            <li>Games-played and participation logic were corrected for older seasons.</li>
+            <li>Season tables and older-era browsing were tightened so the historical record is easier to follow.</li>
+          </ul>
+          <div class="changelog-link-list">
+            <a class="changelog-link" href="/">Explore archive coverage</a>
+            <a class="changelog-link" href="/players/">See player histories</a>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

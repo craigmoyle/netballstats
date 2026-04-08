@@ -10,8 +10,8 @@ const outputDir = path.join(repoRoot, 'dist');
 const assetSourceDir = path.join(repoRoot, 'assets');
 const assetOutputDir = path.join(outputDir, 'assets');
 
-const staticEntries = ['index.html', 'compare', 'nwar', 'player', 'players', 'query', 'round', 'staticwebapp.config.json'];
-const htmlEntries = ['index.html', 'compare/index.html', 'nwar/index.html', 'player/index.html', 'players/index.html', 'query/index.html', 'round/index.html'];
+const staticEntries = ['changelog', 'index.html', 'compare', 'nwar', 'player', 'players', 'query', 'round', 'staticwebapp.config.json'];
+const htmlEntries = ['changelog/index.html', 'index.html', 'compare/index.html', 'nwar/index.html', 'player/index.html', 'players/index.html', 'query/index.html', 'round/index.html'];
 const fingerprintedAssets = [
   'app.js',
   'charts.js',
