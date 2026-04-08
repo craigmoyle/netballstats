@@ -5,6 +5,28 @@ repo_root <- function() {
   )
 }
 
+resolve_request_client_key <- function(raw_forwarded, remote_addr) {
+  if (is.null(raw_forwarded) || length(raw_forwarded) == 0L || all(is.na(raw_forwarded))) {
+    raw_forwarded <- ""
+  }
+
+  if (is.null(remote_addr) || length(remote_addr) == 0L || all(is.na(remote_addr))) {
+    remote_addr <- "unknown"
+  }
+
+  raw_forwarded <- as.character(raw_forwarded)[[1]]
+  remote_addr <- as.character(remote_addr)[[1]]
+
+  if (nzchar(raw_forwarded)) {
+    forwarded_token <- trimws(strsplit(raw_forwarded, ",", fixed = TRUE)[[1]][[1]])
+    if (nzchar(forwarded_token)) {
+      return(forwarded_token)
+    }
+  }
+
+  remote_addr
+}
+
 DEFAULT_TEAM_STATS <- c(
   "attempt_from_zone1", "attempt_from_zone2", "attempts1", "attempts2",
   "badHands", "badPasses", "blocked", "blocks", "breaks",
