@@ -58,11 +58,28 @@ function formatDecimal(value) {
   return Number(value).toFixed(2);
 }
 
+function renderMessageRow(message, kicker = "") {
+  const tbody = elements.nwarTbody;
+  if (!tbody) return;
+
+  const row = document.createElement("tr");
+  const cell = document.createElement("td");
+  cell.colSpan = 9;
+  cell.className = "empty-state";
+  if (kicker) {
+    cell.dataset.kicker = kicker;
+  }
+  cell.textContent = message;
+  row.appendChild(cell);
+  tbody.replaceChildren(row);
+  window.NetballStatsUI?.syncResponsiveTable?.(document.getElementById("nwar-table"));
+}
+
 function renderTable(rows) {
   const tbody = elements.nwarTbody;
   if (!tbody) return;
   if (!rows || !rows.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state" data-kicker="No data">No qualifying players found for these filters. Try a lower minimum-games threshold.</td></tr>';
+    renderMessageRow("No qualifying players found for these filters. Try a lower minimum-games threshold.", "No data");
     return;
   }
 
@@ -173,7 +190,7 @@ async function loadNwar() {
   } catch (error) {
     showStatus(error.message || "Unable to load nWAR rankings.", "error", { kicker: "Rankings unavailable" });
     if (elements.nwarMeta) elements.nwarMeta.textContent = "nWAR rankings unavailable.";
-    if (elements.nwarTbody) elements.nwarTbody.innerHTML = '<tr><td colspan="8" class="empty-state" data-kicker="Archive note">The nWAR rankings are unavailable. Try again shortly.</td></tr>';
+    renderMessageRow("The nWAR rankings are unavailable. Try again shortly.", "Archive note");
     if (elements.nwarHeroLabel) elements.nwarHeroLabel.textContent = "Unavailable";
     if (elements.nwarHeroSummary) elements.nwarHeroSummary.textContent = "Unable to load the nWAR leaderboard.";
   }

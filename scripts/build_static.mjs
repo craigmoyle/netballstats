@@ -13,7 +13,6 @@ const assetOutputDir = path.join(outputDir, 'assets');
 const staticEntries = ['index.html', 'compare', 'nwar', 'player', 'players', 'query', 'round', 'staticwebapp.config.json'];
 const htmlEntries = ['index.html', 'compare/index.html', 'nwar/index.html', 'player/index.html', 'players/index.html', 'query/index.html', 'round/index.html'];
 const fingerprintedAssets = [
-  'ai.3.gbl.min.js',
   'app.js',
   'charts.js',
   'compare.js',
@@ -52,26 +51,8 @@ for (const assetName of fingerprintedAssets) {
 }
 
 const assetManifest = new Map();
-const sdkOutputName = fingerprintName('ai.3.gbl.min.js', assetContents.get('ai.3.gbl.min.js'));
-assetManifest.set('/assets/ai.3.gbl.min.js', `/assets/${sdkOutputName}`);
-assetManifest.set('assets/ai.3.gbl.min.js', `assets/${sdkOutputName}`);
-await writeFile(path.join(assetOutputDir, sdkOutputName), assetContents.get('ai.3.gbl.min.js'));
-
 for (const assetName of fingerprintedAssets) {
-  if (assetName === 'ai.3.gbl.min.js') continue;
-
-  let content = assetContents.get(assetName);
-  if (assetName === 'telemetry.js') {
-    const sdkUrl = assetManifest.get('/assets/ai.3.gbl.min.js');
-    content = Buffer.from(
-      content.toString('utf8').replace(
-        'const SDK_URL = "/assets/ai.3.gbl.min.js";',
-        `const SDK_URL = "${sdkUrl}";`
-      ),
-      'utf8'
-    );
-  }
-
+  const content = assetContents.get(assetName);
   const outputName = fingerprintName(assetName, content);
   assetManifest.set(`/assets/${assetName}`, `/assets/${outputName}`);
   assetManifest.set(`assets/${assetName}`, `assets/${outputName}`);

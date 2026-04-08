@@ -114,6 +114,7 @@ assert_true(is.list(meta$seasons) && length(meta$seasons) >= 1, 'Expected /meta 
 assert_true(is.list(meta$teams) && length(meta$teams) >= 1, 'Expected /meta to expose at least one team.')
 assert_true(is.list(meta$team_stats) && length(meta$team_stats) >= 1, 'Expected /meta to expose team stats.')
 assert_true(is.list(meta$player_stats) && length(meta$player_stats) >= 1, 'Expected /meta to expose player stats.')
+assert_true(is.null(meta$telemetry$connection_string), 'Expected /meta to avoid exposing a browser telemetry connection string.')
 check_step('metadata endpoint returns seasons, teams, and stat catalogs')
 
 default_season <- as.integer(scalar_value(meta$default_season %||% meta$seasons[[1]]))

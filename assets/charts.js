@@ -1,9 +1,11 @@
 (function attachNetballCharts(global) {
   const { formatNumber } = global.NetballStatsUI || {};
+  let chartDescriptionIndex = 0;
 
   function clearChart(container, message) {
     container.replaceChildren();
     container.dataset.state = "empty";
+    container.removeAttribute("aria-describedby");
     const empty = document.createElement("p");
     empty.className = "chart-empty";
     empty.textContent = message;
@@ -28,6 +30,78 @@
       return value || "-";
     }
     return `${value.slice(0, maxLength - 1)}…`;
+  }
+
+  function chartDescriptionId(container) {
+    if (container.id) {
+      return `${container.id}-description`;
+    }
+    chartDescriptionIndex += 1;
+    return `chart-description-${chartDescriptionIndex}`;
+  }
+
+  function applyChartAccessibility(container, ariaLabel, summaryText, ...nodes) {
+    container.replaceChildren(...nodes.filter(Boolean));
+    container.removeAttribute("data-state");
+    container.setAttribute("aria-label", ariaLabel);
+
+    if (!summaryText) {
+      container.removeAttribute("aria-describedby");
+      return;
+    }
+
+    const description = document.createElement("p");
+    description.id = chartDescriptionId(container);
+    description.className = "sr-only";
+    description.textContent = summaryText;
+    container.appendChild(description);
+    container.setAttribute("aria-describedby", description.id);
+  }
+
+  function summariseHorizontalBarChart(rows) {
+    const highest = rows[0];
+    const lowest = rows[rows.length - 1];
+    const parts = [
+      `${rows.length} ranked entries shown.`,
+      `Highest is ${highest.label} with ${formatNumber(highest.value)}.`
+    ];
+
+    if (rows.length > 1) {
+      parts.push(`Lowest shown is ${lowest.label} with ${formatNumber(lowest.value)}.`);
+    }
+
+    return parts.join(" ");
+  }
+
+  function summariseTrendChart(series, seasons) {
+    const latestValues = series
+      .map((entry) => {
+        const latestSeason = [...entry.points.keys()].sort((left, right) => right - left)[0];
+        if (!latestSeason) {
+          return null;
+        }
+        return `${entry.label} ${formatNumber(entry.points.get(latestSeason))} in ${latestSeason}`;
+      })
+      .filter(Boolean);
+    const summary = latestValues.slice(0, 4).join("; ");
+
+    return `${series.length} series shown from ${seasons[0]} to ${seasons[seasons.length - 1]}.${summary ? ` Latest values: ${summary}.` : ""}`;
+  }
+
+  function summariseSeasonColumnChart(rows) {
+    const sorted = [...rows].sort((left, right) => right.value - left.value);
+    const highest = sorted[0];
+    const lowest = sorted[sorted.length - 1];
+    const parts = [
+      `${rows.length} seasons shown.`,
+      `Highest season is ${highest.label} with ${formatNumber(highest.value)}.`
+    ];
+
+    if (rows.length > 1) {
+      parts.push(`Lowest shown is ${lowest.label} with ${formatNumber(lowest.value)}.`);
+    }
+
+    return parts.join(" ");
   }
 
   function renderHorizontalBarChart(container, rows, {
@@ -121,9 +195,7 @@
       }, formatNumber(row.value)));
     });
 
-    container.replaceChildren(svg);
-    container.removeAttribute("data-state");
-    container.setAttribute("aria-label", ariaLabel);
+    applyChartAccessibility(container, ariaLabel, summariseHorizontalBarChart(chartRows), svg);
   }
 
   function renderTrendChart(container, rows, {
@@ -295,9 +367,7 @@
       legend.appendChild(item);
     });
 
-    container.replaceChildren(svg, legend);
-    container.removeAttribute("data-state");
-    container.setAttribute("aria-label", ariaLabel);
+    applyChartAccessibility(container, ariaLabel, summariseTrendChart(series, seasons), svg, legend);
   }
 
   function renderSeasonColumnChart(container, rows, {
@@ -391,9 +461,7 @@
       }, row.label));
     });
 
-    container.replaceChildren(svg);
-    container.removeAttribute("data-state");
-    container.setAttribute("aria-label", ariaLabel);
+    applyChartAccessibility(container, ariaLabel, summariseSeasonColumnChart(chartRows), svg);
   }
 
   global.NetballCharts = {

@@ -822,8 +822,7 @@ function(res) {
     refreshed_at = meta_json_scalar(metadata_map[["refreshed_at"]]),
     telemetry = list(
       provider = meta_json_scalar(if (browser_telemetry_enabled()) "appinsights" else "none"),
-      browser_enabled = meta_json_scalar(browser_telemetry_enabled()),
-      connection_string = if (browser_telemetry_enabled()) meta_json_scalar(browser_telemetry_connection_string()) else NULL
+      browser_enabled = meta_json_scalar(browser_telemetry_enabled())
     )
   )
   .meta_cache[["meta"]] <- list(payload = payload, ts = Sys.time())
@@ -1463,8 +1462,7 @@ function(pr) {
         refreshed_at = meta_json_scalar(metadata_map[["refreshed_at"]]),
         telemetry = list(
           provider     = meta_json_scalar(if (browser_telemetry_enabled()) "appinsights" else "none"),
-          browser_enabled = meta_json_scalar(browser_telemetry_enabled()),
-          connection_string = if (browser_telemetry_enabled()) meta_json_scalar(browser_telemetry_connection_string()) else NULL
+          browser_enabled = meta_json_scalar(browser_telemetry_enabled())
         )
       )
       .meta_cache[["meta"]] <- list(payload = payload, ts = Sys.time())
