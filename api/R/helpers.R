@@ -2930,53 +2930,35 @@ NWAR_POINTS_PER_WIN      <- 300.0
 # NWAR_REPLACEMENT_PERCENTILE: bottom fraction of qualified players used to
 # define the replacement-level baseline (e.g. 0.15 = bottom 15%).
 NWAR_REPLACEMENT_PERCENTILE <- 0.15
+# NWAR_STAT_KEYS: the exact set of player_match_stats.stat values consumed by
+# fantasy scoring. Used as a literal IN filter in build_nwar_query() so that
+# the aggregate only scans the relevant rows — roughly 16 of the ~50+ stat
+# types stored in player_match_stats — reducing scan width by ~70%.
+NWAR_STAT_KEYS <- c(
+  "goal1", "goal2", "goals",
+  "offensiveRebounds", "defensiveRebounds",
+  "feeds", "centrePassReceives", "secondPhaseReceive",
+  "gain", "intercepts", "deflections", "pickups",
+  "goalMisses", "generalPlayTurnovers", "penalties",
+  "quartersPlayed"
+)
 
-# Builds the SQL query and parameter list for the nWAR aggregate.
-# Returns a list(query, params) ready to pass to query_rows().
+# Builds the SQL query and parameter list for the nWAR stat aggregate.
+# Returns a list(query, params) ready to pass to query_rows(), or NULL when
+# only period-level stats exist.
 #
-# Requires player_match_stats (not period stats) for conditional aggregation
-# across multiple stat types. Returns NULL if only period stats exist.
+# Position resolution is intentionally absent from this query. It is handled
+# by fetch_nwar_positions(), which runs a separate lightweight GROUP BY on
+# player_match_positions and is merged in R inside fetch_nwar_rows(). Keeping
+# the two concerns separate lets this aggregate stay cheap:
+#   • Only NWAR_STAT_KEYS rows are scanned (stat IN literal filter).
+#   • No JOIN to player_match_positions (removes the ordered-set MODE() aggregate
+#     from an already-wide conditional-SUM scan).
 build_nwar_query <- function(conn, seasons, team_id, min_games) {
   if (!has_player_match_stats(conn)) return(NULL)
 
   seasons_filter <- if (!is.null(seasons) && length(seasons)) as.integer(seasons) else NULL
 
-  # Include per-match position data when player_match_positions exists (populated by
-  # build_database.R primarily from currentPositionCode, falling back to
-  # startingPositionCode). Uses MODE() WITHIN GROUP which is PostgreSQL-specific;
-  # the table only exists after a full DB rebuild, so this path is automatically
-  # skipped on SQLite local-dev instances.
-  #
-  # player_match_positions has one row per player+match (not per period), so the
-  # direct LEFT JOIN below does not multiply rows from player_match_stats.
-  #
-  # Two-level position resolution:
-  #   1. Per-season MODE of the player's dominant match position across queried matches.
-  #   2. All-time dominant fallback: if the per-season MODE is NULL (player has no
-  #      position records in the queried season), look up their most common
-  #      position code across ALL seasons in player_match_positions.
-  has_positions <- has_player_match_positions(conn)
-  position_select <- if (has_positions) {
-    paste(
-      ", COALESCE(",
-      "  MODE() WITHIN GROUP (ORDER BY pmp.starting_position_code),",
-      "  (SELECT MODE() WITHIN GROUP (ORDER BY pmp2.starting_position_code)",
-      "   FROM player_match_positions pmp2",
-      "   WHERE pmp2.player_id = stats.player_id",
-      "     AND pmp2.starting_position_code NOT IN ('I', 'S', '-'))",
-      ") AS position_code"
-    )
-  } else {
-    ", NULL AS position_code"
-  }
-  # player_match_positions has one row per player+match (not per period), so a
-  # direct LEFT JOIN is safe — no row multiplication occurs.
-  position_join <- if (has_positions) {
-    paste0("LEFT JOIN player_match_positions pmp",
-           " ON pmp.player_id = stats.player_id AND pmp.match_id = stats.match_id")
-  } else {
-    ""
-  }
   # Use player_match_participation to count only games where the player actually
   # played >= 1 minute. The INNER JOIN also gates all stat SUM columns so bench
   # appearances (minutesPlayed = 0) cannot contribute to the nWAR calculation.
@@ -2985,6 +2967,15 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
     "INNER JOIN player_match_participation pmpart ON pmpart.player_id = stats.player_id AND pmpart.match_id = stats.match_id"
   } else ""
   games_played_expr <- if (has_participation) "pmpart.match_id" else "stats.match_id"
+
+  # Literal IN filter over the 16 stat keys used by fantasy scoring. Inlining
+  # as a string constant (not parameterised) lets the query planner see the
+  # exact key set and exploit the stat-leading indexes on player_match_stats.
+  stat_in_sql <- paste0(
+    "stats.stat IN (",
+    paste(sprintf("'%s'", NWAR_STAT_KEYS), collapse = ", "),
+    ")"
+  )
 
   query <- paste(
     # MAX(squad_name) is used because a player who transferred mid-season can
@@ -3009,12 +3000,10 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
     "SUM(CASE WHEN stats.stat = 'generalPlayTurnovers' THEN stats.match_value ELSE 0 END) AS total_gpto,",
     "SUM(CASE WHEN stats.stat = 'penalties' THEN stats.match_value ELSE 0 END) AS total_penalties,",
     "SUM(CASE WHEN stats.stat = 'quartersPlayed' THEN stats.match_value ELSE 0 END) AS total_quarters",
-    position_select,
     "FROM player_match_stats AS stats",
     "INNER JOIN players ON players.player_id = stats.player_id",
-    position_join,
     participation_join,
-    "WHERE 1=1"
+    paste("WHERE", stat_in_sql)
   )
 
   filters <- apply_stat_filters(
@@ -3034,6 +3023,59 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
   filters
 }
 
+# Fetches each player's dominant position code from player_match_positions.
+#
+# Runs as a separate lightweight query (one GROUP BY on the small pre-built
+# position table) and is merged in R by fetch_nwar_rows(). Keeping position
+# resolution here — instead of inside the stat aggregate — avoids a JOIN and
+# a MODE() WITHIN GROUP ordered-set aggregate on an already-wide scan.
+#
+# Two-level resolution in a single SQL pass:
+#   1. Per-season MODE: the CASE WHEN season IN (...) expression returns the
+#      player's starting_position_code only for matches in the queried seasons,
+#      so MODE picks the most frequent field position within those seasons.
+#   2. All-time fallback via COALESCE: when the per-season MODE is NULL (the
+#      player has no valid position records in the queried seasons), the outer
+#      MODE across all seasons provides the fallback.
+# When seasons_filter is NULL both MODE expressions are equivalent and COALESCE
+# is omitted — only the all-time MODE is computed.
+#
+# Returns a data.frame(player_id, position_code). Called by fetch_nwar_rows().
+fetch_nwar_positions <- function(conn, seasons_filter) {
+  params <- list()
+
+  if (!is.null(seasons_filter) && length(seasons_filter) > 0L) {
+    # Parameterise the IN list for the per-season CASE WHEN branch.
+    phs <- character(length(seasons_filter))
+    for (i in seq_along(seasons_filter)) {
+      key <- sprintf("pos_season_%d", i)
+      phs[[i]] <- paste0("?", key)
+      params[[key]] <- seasons_filter[[i]]
+    }
+    in_list <- paste(phs, collapse = ", ")
+    pos_col <- paste(
+      "COALESCE(",
+      sprintf("  MODE() WITHIN GROUP (ORDER BY CASE WHEN season IN (%s)", in_list),
+      "    THEN starting_position_code END),",
+      "  MODE() WITHIN GROUP (ORDER BY starting_position_code)",
+      ") AS position_code"
+    )
+  } else {
+    # No season restriction: compute the all-time dominant position directly.
+    pos_col <- "MODE() WITHIN GROUP (ORDER BY starting_position_code) AS position_code"
+  }
+
+  query <- paste(
+    "SELECT player_id,",
+    pos_col,
+    "FROM player_match_positions",
+    "WHERE starting_position_code IS NOT NULL",
+    "  AND starting_position_code NOT IN ('I', 'S', '-')",
+    "GROUP BY player_id"
+  )
+  query_rows(conn, query, params)
+}
+
 # Calculates Netball Wins Above Replacement (nWAR) for all qualified players.
 #
 # Scoring uses the 2025 Fantasy Netball Blog system (court time + attack +
@@ -3042,16 +3084,22 @@ build_nwar_query <- function(conn, seasons, team_id, min_games) {
 #
 # Steps:
 #   1. Aggregate each player's per-match stats via conditional SQL SUM.
+#      Only NWAR_STAT_KEYS rows are scanned (stat IN literal filter), cutting
+#      the player_match_stats scan to the ~16 relevant stat types.
 #   2. Restrict to players with at least min_games qualifying matches.
 #   3. Compute fantasy score in R from component stat totals.
 #      CPR multiplier is position-specific: GD/WD = 3 pts each, others = 0.5.
 #      Court time = games × 10 + quarters_played × 5.
-#   4. If position data is available, map players to position groups (Shooter /
-#      Midcourt / Defender) and compute a per-group replacement level = mean avg
-#      fantasy score of the bottom NWAR_REPLACEMENT_PERCENTILE of that group.
-#      Without position data, a single global replacement level is used.
-#   5. Compute FPAR/game = avg_fantasy_score - replacement_level.
-#   6. Compute nWAR = FPAR/game × games_played / NWAR_POINTS_PER_WIN.
+#   4. If player_match_positions exists, resolve each qualifying player's dominant
+#      position via fetch_nwar_positions() — a separate lightweight GROUP BY
+#      on the small pre-built position table, merged in R by player_id.
+#      Without position data a single global replacement level is used.
+#   5. Map players to position groups (Shooter / Midcourt / Defender) and
+#      compute a per-group replacement level = mean avg fantasy score of the
+#      bottom NWAR_REPLACEMENT_PERCENTILE of that group (global fallback for
+#      groups with fewer than 2 valid players).
+#   6. Compute FPAR/game = avg_fantasy_score - replacement_level.
+#   7. Compute nWAR = FPAR/game × games_played / NWAR_POINTS_PER_WIN.
 fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L, limit = 50L) {
   filters <- build_nwar_query(conn, seasons, team_id, min_games)
 
@@ -3081,7 +3129,19 @@ fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L
   if (nrow(all_rows) == 0L) return(empty_frame)
 
   games   <- as.integer(all_rows$games_played)
-  pos_code <- if (!is.null(all_rows$position_code)) as.character(all_rows$position_code) else rep(NA_character_, nrow(all_rows))
+
+  # Resolve dominant position code via the separate lightweight position query
+  # (fetch_nwar_positions). This runs a single GROUP BY on player_match_positions
+  # — a small pre-computed table — and is merged here by player_id. Players not
+  # found in the position result (no valid position records) get NA.
+  seasons_filter <- if (!is.null(seasons) && length(seasons)) as.integer(seasons) else NULL
+  has_positions  <- has_player_match_positions(conn)
+  pos_code <- if (has_positions) {
+    pos_df <- fetch_nwar_positions(conn, seasons_filter)
+    as.character(pos_df$position_code[match(all_rows$player_id, pos_df$player_id)])
+  } else {
+    rep(NA_character_, nrow(all_rows))
+  }
   pos_group <- position_group_from_code(pos_code)
 
   # CPR multiplier: GD/WD receive rare centre passes worth 3 pts each;
