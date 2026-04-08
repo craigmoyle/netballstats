@@ -384,13 +384,13 @@ function renderProfile(profile) {
 
   document.title = `${playerName} | Netball Stats Database`;
   elements.playerName.textContent = playerName;
-  elements.playerSubtitle.textContent = `Player ${profile.player?.player_id ?? ""}`.trim();
-  elements.playerIntro.textContent = `${formatNumber(overview.games_played)} games · ${formatNumber(overview.seasons_played)} seasons · ${formatNumber(overview.teams_played)} clubs in the archive.`;
+  elements.playerSubtitle.textContent = `Archive record ${profile.player?.player_id ?? ""}`.trim();
+  elements.playerIntro.textContent = `${overview.first_season && overview.last_season ? `${overview.first_season}\u2013${overview.last_season}` : "Single-season"} dossier · ${formatNumber(overview.games_played)} games across ${formatNumber(overview.seasons_played)} seasons and ${formatNumber(overview.teams_played)} clubs.`;
   elements.careerSpan.textContent = overview.first_season && overview.last_season
     ? `${overview.first_season} to ${overview.last_season}`
     : "Single season";
   elements.careerSpanSummary.textContent = (overview.squad_names || []).length
-    ? `Clubs: ${(overview.squad_names || []).join(", ")}`
+    ? `Filed under ${(overview.squad_names || []).join(", ")}`
     : "Club history unavailable.";
 
   elements.summaryGames.textContent = formatNumber(overview.games_played);
@@ -398,7 +398,7 @@ function renderProfile(profile) {
   elements.summaryTeams.textContent = formatNumber(overview.teams_played);
   elements.summaryStats.textContent = formatNumber(careerStats.length);
   elements.summaryPrimary.textContent = topCareerStat
-    ? `${statLabel(topCareerStat.stat)}: ${formatNumber(topCareerStat.total_value)}`
+    ? `${statLabel(topCareerStat.stat)} · ${formatNumber(topCareerStat.total_value)}`
     : "No totals yet";
 
   renderSquads(overview.squad_names || []);

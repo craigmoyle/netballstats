@@ -25,8 +25,8 @@ const QUERY_STATUS_LABELS = {
   list: "List"
 };
 const DEFAULT_QUERY_STATE = {
-  title: "Supported questions",
-  description: "Keep the wording literal so the parser can read it cleanly.",
+  title: "Supported question shapes",
+  description: "Keep the wording literal and stick to match totals the parser can trace.",
   items: [
     "Player or team + stat + threshold + optional opponent/season",
     "Player or team + highest/lowest + stat + optional opponent/season",
@@ -67,6 +67,8 @@ const elements = {
   answerHeadline: document.getElementById("answer-headline"),
   answerMeta: document.getElementById("answer-meta"),
   interpretationGrid: document.getElementById("interpretation-grid"),
+  queryHelp: document.getElementById("query-help"),
+  queryHelpSummary: document.getElementById("query-help-summary"),
   queryState: document.getElementById("query-state"),
   tableMeta: document.getElementById("table-meta"),
   queryTable: document.getElementById("query-table"),
@@ -214,6 +216,9 @@ function renderQueryState({ title, description, items = [], extraParagraphs = []
 
 function renderDefaultQueryState() {
   renderQueryState(DEFAULT_QUERY_STATE);
+  if (elements.queryHelpSummary) {
+    elements.queryHelpSummary.textContent = "Question patterns";
+  }
 }
 
 function updateQuestionComposerState(value = "") {
@@ -233,10 +238,13 @@ function setIdleState() {
   setTableSchema("player");
   setSummaryCards();
   elements.answerHeadline.textContent = "Ask a question to see the answer.";
-  elements.answerMeta.textContent = "Answers come from the parsed query and matching rows.";
+  elements.answerMeta.textContent = "The answer card and evidence table will update together.";
   elements.interpretationGrid.replaceChildren();
   renderDefaultQueryState();
-  elements.queryState.hidden = false;
+  if (elements.queryHelp) {
+    elements.queryHelp.hidden = false;
+    elements.queryHelp.open = false;
+  }
   elements.tableMeta.textContent = "";
   clearTable("Ask a question to see matching rows.");
   updateQuestionComposerState(elements.questionInput.value);
@@ -347,9 +355,13 @@ function renderUnsupported(result) {
   setTableSchema("player");
   setSummaryCards("--", "--", "--", result.status === "ambiguous" ? "Ambiguous" : "Unsupported");
   elements.answerHeadline.textContent = reason;
-  elements.answerMeta.textContent = "Try one of the examples above.";
+  elements.answerMeta.textContent = "Try one of the starter prompts or open the pattern guide below.";
   elements.interpretationGrid.replaceChildren();
-  elements.queryState.hidden = false;
+  if (elements.queryHelpSummary) {
+    elements.queryHelpSummary.textContent = result.status === "ambiguous"
+      ? "Need a more specific prompt?"
+      : "Supported question patterns";
+  }
   renderQueryState({
     title: result.status === "ambiguous" ? "Need a more specific question" : "Supported questions",
     description: reason,
@@ -358,6 +370,10 @@ function renderUnsupported(result) {
       : [],
     items: Array.isArray(result.examples) && result.examples.length ? result.examples : FALLBACK_EXAMPLES
   });
+  if (elements.queryHelp) {
+    elements.queryHelp.hidden = false;
+    elements.queryHelp.open = true;
+  }
 
   elements.tableMeta.textContent = "";
   clearTable("Ask a supported question to see matching rows.");
@@ -380,8 +396,10 @@ function renderResult(result) {
     "Supported"
   );
   elements.answerHeadline.textContent = result.answer || "No answer.";
-  elements.answerMeta.textContent = "Built from the parsed query and matching rows.";
-  elements.queryState.hidden = true;
+  elements.answerMeta.textContent = "Transparent answer with the matching evidence table below.";
+  if (elements.queryHelp) {
+    elements.queryHelp.open = false;
+  }
   setTableSchema(subjectType);
   renderInterpretation(parsed);
   renderRows(result.rows, subjectType);

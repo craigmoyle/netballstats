@@ -78,6 +78,10 @@ const elements = {
   seasonChoices: document.getElementById("compare-season-choices"),
   seasonActionButtons: Array.from(document.querySelectorAll("[data-compare-season-action]")),
   resetCompare: document.getElementById("reset-compare"),
+  compareVerdict: document.getElementById("compare-verdict"),
+  compareVerdictHeadline: document.getElementById("compare-verdict-headline"),
+  compareVerdictDek: document.getElementById("compare-verdict-dek"),
+  compareVerdictFacts: document.getElementById("compare-verdict-facts"),
   compareResultsMeta: document.getElementById("compare-results-meta"),
   compareChart: document.getElementById("compare-trend-chart"),
   compareTableCaption: document.getElementById("compare-table-caption"),
@@ -211,6 +215,12 @@ function clearComparison(message) {
   renderEmptyTable(message);
   elements.compareResultsMeta.textContent = message;
   elements.compareTableCaption.textContent = message;
+  if (elements.compareVerdict) {
+    elements.compareVerdict.hidden = true;
+  }
+  if (elements.compareVerdictFacts) {
+    elements.compareVerdictFacts.replaceChildren();
+  }
 }
 
 function setSelectedSeasons(values) {
@@ -665,6 +675,155 @@ function aggregateEntityValue(rows, entityId) {
   return totalValue;
 }
 
+function comparisonWinnerSort(leftValue, rightValue) {
+  const lowIsBetter = statPrefersLowerValue(currentStatKey());
+  if (!Number.isFinite(leftValue) && !Number.isFinite(rightValue)) return 0;
+  if (!Number.isFinite(leftValue)) return 1;
+  if (!Number.isFinite(rightValue)) return -1;
+  return lowIsBetter ? leftValue - rightValue : rightValue - leftValue;
+}
+
+function sortPreferredEntries(entries) {
+  return entries.slice().sort((left, right) => {
+    const byValue = comparisonWinnerSort(left.value, right.value);
+    if (byValue !== 0) {
+      return byValue;
+    }
+    return `${left.entity.name}`.localeCompare(`${right.entity.name}`);
+  });
+}
+
+function preferredRow(rows) {
+  return rows.reduce((best, row) => {
+    if (!best) {
+      return row;
+    }
+    return comparisonWinnerSort(Number(metricDisplayValue(row)), Number(metricDisplayValue(best))) < 0
+      ? row
+      : best;
+  }, null);
+}
+
+function seasonLeaders(rows, entities) {
+  const rowMap = new Map(rows.map((row) => [`${row.entity_id}:${row.season}`, row]));
+  const seasons = [...new Set(rows.map((row) => Number(row.season)).filter((value) => Number.isFinite(value)))]
+    .sort((left, right) => left - right);
+
+  return seasons.map((season) => {
+    const candidates = entities
+      .map((entity) => {
+        const row = rowMap.get(`${entity.id}:${season}`);
+        if (!row) {
+          return null;
+        }
+        return {
+          entity,
+          row,
+          value: Number(metricDisplayValue(row))
+        };
+      })
+      .filter((entry) => entry && Number.isFinite(entry.value));
+
+    if (!candidates.length) {
+      return null;
+    }
+
+    const winner = sortPreferredEntries(candidates)[0];
+    return {
+      season,
+      entity: winner.entity,
+      value: winner.value
+    };
+  }).filter(Boolean);
+}
+
+function createVerdictFact(label, value, detail) {
+  const article = document.createElement("article");
+  article.className = "compare-verdict__fact";
+
+  const labelElement = document.createElement("span");
+  labelElement.className = "compare-verdict__fact-label";
+  labelElement.textContent = label;
+
+  const valueElement = document.createElement("strong");
+  valueElement.className = "compare-verdict__fact-value";
+  valueElement.textContent = value;
+
+  const detailElement = document.createElement("p");
+  detailElement.className = "compare-verdict__fact-detail";
+  detailElement.textContent = detail;
+
+  article.append(labelElement, valueElement, detailElement);
+  return article;
+}
+
+function renderComparisonVerdict(entities, rows) {
+  if (!elements.compareVerdict || !elements.compareVerdictHeadline || !elements.compareVerdictDek || !elements.compareVerdictFacts) {
+    return;
+  }
+
+  const aggregates = entities
+    .map((entity) => ({
+      entity,
+      value: aggregateEntityValue(rows, entity.id)
+    }))
+    .filter((entry) => Number.isFinite(entry.value));
+
+  if (aggregates.length < 2) {
+    elements.compareVerdict.hidden = true;
+    elements.compareVerdictFacts.replaceChildren();
+    return;
+  }
+
+  const ranked = sortPreferredEntries(aggregates);
+  const leader = ranked[0];
+  const runnerUp = ranked[1];
+  const gap = Math.abs(Number(leader.value) - Number(runnerUp.value));
+  const gapDirection = statPrefersLowerValue(currentStatKey()) ? "lower" : "higher";
+  const seasonLabel = describeSeasons(getSelectedSeasons());
+  const bestSeason = preferredRow(rows);
+  const winners = seasonLeaders(rows, entities);
+  const leadChanges = winners.reduce((count, winner, index) => {
+    if (index === 0) {
+      return count;
+    }
+    return count + (winner.entity.id !== winners[index - 1].entity.id ? 1 : 0);
+  }, 0);
+  const latestWinner = winners[winners.length - 1];
+
+  elements.compareVerdict.hidden = false;
+  elements.compareVerdictHeadline.textContent = gap === 0
+    ? `${leader.entity.name} and ${runnerUp.entity.name} are level on ${currentStatLabel()}.`
+    : `${leader.entity.name} hold the edge in ${currentStatLabel()}.`;
+  elements.compareVerdictDek.textContent = gap === 0
+    ? `Across ${seasonLabel}, the selected ${currentMetricLabel()} finish dead level at the top of this matchup.`
+    : `${leader.entity.name} finish ${formatNumber(gap)} ${gapDirection} than ${runnerUp.entity.name} across ${seasonLabel} on the selected ${currentMetricLabel()}.`;
+
+  elements.compareVerdictFacts.replaceChildren(
+    createVerdictFact(
+      "Selected edge",
+      gap === 0 ? "Level" : `${formatNumber(gap)} ${gapDirection}`,
+      gap === 0
+        ? `No daylight between ${leader.entity.name} and ${runnerUp.entity.name} on the selected frame.`
+        : `${leader.entity.name} sits ahead of ${runnerUp.entity.name} on the aggregate comparison.`
+    ),
+    createVerdictFact(
+      "Peak season",
+      bestSeason ? `${formatNumber(metricDisplayValue(bestSeason))} in ${bestSeason.season}` : "--",
+      bestSeason
+        ? `${bestSeason.entity_name} posted the sharpest single-season mark in this comparison.`
+        : "No single-season peak was available."
+    ),
+    createVerdictFact(
+      "Lead changes",
+      winners.length <= 1 ? "Single season" : `${leadChanges} swing${leadChanges === 1 ? "" : "s"}`,
+      latestWinner
+        ? `${latestWinner.entity.name} lead the latest selected season (${latestWinner.season}).`
+        : "Pick more than one season to see the baton move."
+    )
+  );
+}
+
 async function hydratePlayersFromIds(ids) {
   const descriptors = await Promise.all(ids.map(async (playerId, index) => {
     try {
@@ -875,6 +1034,7 @@ function renderComparisonSummary(entities, rows) {
   const seasonLabel = describeSeasons(getSelectedSeasons());
   elements.compareResultsMeta.textContent = `${entityLabel} • ${currentStatLabel()} • ${currentMetricLabel()} • ${seasonLabel}`;
   elements.compareTableCaption.textContent = `${currentStatLabel()} comparison by season for the selected ${state.mode}.`;
+  renderComparisonVerdict(entities, rows);
 }
 
 async function runComparison() {

@@ -32,12 +32,12 @@
         <div class="hero-copy">
           <p class="eyebrow">Head to head across seasons</p>
           <h1>Compare players or teams</h1>
-          <p class="intro-copy">Pick names, a stat, and seasons to compare them side by side.</p>
+          <p class="intro-copy">Line up the names, choose the stat, and let the archive call the edge before you read the chart and table.</p>
         </div>
 
         <aside class="hero-aside" aria-label="Comparison summary">
           <div class="hero-aside__card">
-            <span class="hero-aside__label">Comparison mode</span>
+            <span class="hero-aside__label">Head-to-head mode</span>
             <strong id="compare-hero-mode">Players</strong>
             <p id="compare-hero-summary">Add names to start the head-to-head.</p>
           </div>
@@ -121,6 +121,15 @@
             <button type="button" id="reset-compare" class="button button--ghost">Reset</button>
           </div>
         </form>
+      </section>
+
+      <section id="compare-verdict" class="panel compare-verdict reveal" aria-label="Comparison verdict" hidden>
+        <div class="compare-verdict__lead">
+          <p class="panel__eyebrow">Verdict</p>
+          <h2 id="compare-verdict-headline">Choose names to load a verdict.</h2>
+          <p id="compare-verdict-dek" class="panel__lead">The archive will call the overall edge once at least two players or teams are selected.</p>
+        </div>
+        <div id="compare-verdict-facts" class="compare-verdict__facts"></div>
       </section>
 
       <section class="panel results-panel results-panel--wide reveal">

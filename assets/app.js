@@ -73,6 +73,7 @@ const elements = {
   archiveMode: document.getElementById("archive-mode"),
   archiveModeHint: document.getElementById("archive-mode-hint"),
   archiveModeButtons: document.querySelectorAll("[data-archive-mode]"),
+  archiveAdvanced: document.getElementById("archive-advanced"),
   statMode: document.getElementById("stat-mode"),
   rankingMode: document.getElementById("ranking-mode"),
   rankingButtons: document.querySelectorAll("[data-ranking-mode]"),
@@ -85,6 +86,15 @@ const elements = {
   summaryPlayers: document.getElementById("summary-players"),
   summaryGoals: document.getElementById("summary-goals"),
   summaryRefreshed: document.getElementById("summary-refreshed"),
+  editorialLeadHeadline: document.getElementById("editorial-lead-headline"),
+  editorialLeadCopy: document.getElementById("editorial-lead-copy"),
+  editorialLeadNote: document.getElementById("editorial-lead-note"),
+  editorialLeadFactLabel: document.getElementById("editorial-lead-fact-label"),
+  editorialLeadFactValue: document.getElementById("editorial-lead-fact-value"),
+  editorialLeadFactCopy: document.getElementById("editorial-lead-fact-copy"),
+  editorialLeadSecondaryLabel: document.getElementById("editorial-lead-secondary-label"),
+  editorialLeadSecondaryValue: document.getElementById("editorial-lead-secondary-value"),
+  editorialLeadSecondaryCopy: document.getElementById("editorial-lead-secondary-copy"),
   archiveContextNote: document.getElementById("archive-context-note"),
   matchesTableBody: document.querySelector("#matches-table tbody"),
   competitionSeasonBody: document.querySelector("#competition-season-table tbody"),
@@ -216,6 +226,47 @@ function renderArchiveContextNote() {
   elements.archiveContextNote.textContent = isRecordMode()
     ? `Use the archive to surface the sharpest one-game performances in ${scope}, then open the dossier for full career context.`
     : `Use the archive to scan the strongest totals in ${scope}, then open the dossier for season-by-season context.`;
+}
+
+function renderEditorialLead(payload) {
+  if (!elements.editorialLeadHeadline || !elements.editorialLeadCopy || !elements.editorialLeadNote) {
+    return;
+  }
+
+  if (!payload || payload.error) {
+    elements.editorialLeadHeadline.textContent = "The archive is ready for a fresh read.";
+    elements.editorialLeadCopy.textContent = "Start with the latest completed round, then use the filters below to chase the player, team, or stat thread you care about.";
+    elements.editorialLeadNote.textContent = "Open the round recap for the newest scorelines, or stay here and cut a custom slice of the archive.";
+    elements.editorialLeadFactLabel.textContent = "Archive route";
+    elements.editorialLeadFactValue.textContent = "Round recap";
+    elements.editorialLeadFactCopy.textContent = "The latest completed round is the quickest way into the live archive.";
+    elements.editorialLeadSecondaryLabel.textContent = "Next move";
+    elements.editorialLeadSecondaryValue.textContent = "Choose the slice";
+    elements.editorialLeadSecondaryCopy.textContent = "Use seasons and stat selectors first, then tighten the frame only if you need it.";
+    return;
+  }
+
+  const summary = payload.summary || {};
+  const leadFact = Array.isArray(payload.notable_facts) && payload.notable_facts.length ? payload.notable_facts[0] : null;
+  const secondFact = Array.isArray(payload.notable_facts) && payload.notable_facts.length > 1 ? payload.notable_facts[1] : null;
+  const roundName = payload.round_label || "Latest completed round";
+  const roundLabel = payload.season ? `${roundName}, ${payload.season}` : roundName;
+
+  elements.editorialLeadHeadline.textContent = `${roundLabel} is now on the shelf.`;
+  elements.editorialLeadCopy.textContent = leadFact?.detail
+    || `${formatNumber(summary.total_matches)} matches and ${formatNumber(summary.total_goals)} points are now logged in the latest completed round.`;
+  elements.editorialLeadNote.textContent = secondFact?.detail
+    || "Use the recap for the full slate, then come back here to compare names, trace patterns, or narrow the archive.";
+  elements.editorialLeadFactLabel.textContent = leadFact?.title || "Lead note";
+  elements.editorialLeadFactValue.textContent = leadFact?.value || `${formatNumber(summary.total_goals)} points`;
+  elements.editorialLeadFactCopy.textContent = leadFact?.detail || "The archive has logged the latest round totals.";
+  elements.editorialLeadSecondaryLabel.textContent = "Round frame";
+  elements.editorialLeadSecondaryValue.textContent = Number.isFinite(Number(summary.total_matches))
+    ? `${formatNumber(summary.total_matches)} matches`
+    : "--";
+  elements.editorialLeadSecondaryCopy.textContent = summary.biggest_margin === null || summary.biggest_margin === undefined
+    ? "Biggest margin unavailable."
+    : `Biggest margin ${formatNumber(summary.biggest_margin)}.`;
 }
 
 function createPlayerLinkCell(playerId, text) {
@@ -578,6 +629,15 @@ function renderFilterSummary() {
   }
 
   elements.activeFilterSummary.textContent = segments.join(" • ");
+  if (elements.archiveAdvanced) {
+    const hasTighterSlice = Boolean(
+      state.filters.teamId
+      || state.filters.round
+      || state.filters.playerSearch
+      || state.filters.rankingMode !== "highest"
+    );
+    elements.archiveAdvanced.open = hasTighterSlice;
+  }
   if (elements.teamLeadersChartTitle) {
     elements.teamLeadersChartTitle.textContent = isRecordMode()
       ? `${rankingModeLabel()} team records by the selected stat`
@@ -1034,6 +1094,7 @@ async function runQueries() {
 async function initialise() {
   clearAllTables("Loading…");
   clearAllCharts("Loading…");
+  renderEditorialLead(null);
 
   try {
     let meta;
@@ -1047,6 +1108,8 @@ async function initialise() {
       }
     applyMeta(meta);
     applyMetaConfig(meta);
+    const editorialLeadPayload = await fetchOptionalJson("/round-summary");
+    renderEditorialLead(editorialLeadPayload);
     await runQueries();
   } catch (error) {
     const hint = isLocalApiConfigured()
