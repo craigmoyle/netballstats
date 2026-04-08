@@ -212,6 +212,16 @@ code {
   border-radius: var(--radius-card);
 }
 
+.changelog-page .hero-panel {
+  padding: 1.25rem 1.35rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 50%),
+    var(--bg-mid);
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-card);
+}
+
 .hero-panel > *,
 .panel > *,
 .player-toolbar > *,
@@ -591,6 +601,61 @@ code {
   border-color: color-mix(in srgb, var(--accent) 24%, var(--border-strong));
   background: color-mix(in srgb, var(--accent) 7%, transparent);
   transform: translateY(-1px);
+}
+
+.changelog-summary {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 4%, transparent), transparent 52%),
+    var(--panel-solid);
+}
+
+.changelog-stack {
+  display: grid;
+  gap: var(--space-md);
+}
+
+.changelog-entry {
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.changelog-entry__header {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.changelog-entry__header h2 {
+  margin: 0;
+  max-width: 20ch;
+}
+
+.changelog-list {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding-left: 1.15rem;
+  color: var(--text);
+}
+
+.changelog-list li {
+  line-height: 1.65;
+}
+
+.changelog-link-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.changelog-link {
+  color: var(--accent-cool);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.changelog-link:hover,
+.changelog-link:focus-visible {
+  color: var(--text);
 }
 
 .query-panel {
@@ -2096,6 +2161,12 @@ tr[data-rank="3"] td:first-child {
   border-style: dashed;
 }
 
+.changelog-page .hero-aside__card {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 48%),
+    var(--panel-alt);
+}
+
 .compare-page .hero-aside__card {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 48%),
@@ -3325,6 +3396,10 @@ caption.table-caption {
     grid-template-columns: 1fr;
   }
 
+  .changelog-link-list {
+    flex-direction: column;
+  }
+
   .player-subtitle {
     font-size: var(--type-sm);
   }
@@ -3406,7 +3481,9 @@ caption.table-caption {
 [data-theme="light"] .editorial-lead,
 [data-theme="light"] .compare-verdict,
 [data-theme="light"] .player-dossier__summary-panel,
-[data-theme="light"] .compare-page .hero-panel {
+[data-theme="light"] .compare-page .hero-panel,
+[data-theme="light"] .changelog-page .hero-panel,
+[data-theme="light"] .changelog-summary {
   background:
     linear-gradient(180deg, rgba(184, 112, 32, 0.06), transparent 44%),
     linear-gradient(180deg, rgba(26, 138, 122, 0.04), transparent 76%),
