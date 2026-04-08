@@ -12,10 +12,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const setButtonContent = (currentTheme, nextTheme) => {
       const kicker = document.createElement('span');
       kicker.className = 'theme-toggle__kicker';
-      kicker.textContent = 'Theme';
+      kicker.textContent = 'Reading mode';
       const value = document.createElement('span');
       value.className = 'theme-toggle__value';
-      value.textContent = currentTheme.charAt(0).toUpperCase() + currentTheme.slice(1);
+      value.textContent = currentTheme === 'light' ? 'Day desk' : 'Night desk';
       btn.replaceChildren(kicker, value);
       btn.setAttribute('aria-label', 'Current theme ' + currentTheme + '. Switch to ' + nextTheme + ' theme');
       btn.setAttribute('title', 'Switch to ' + nextTheme + ' theme');
