@@ -748,7 +748,11 @@ build_query_stat_alias_rows <- function() {
 QUERY_STAT_ALIASES <- build_query_stat_alias_rows()
 
 resolve_query_stat <- function(text) {
-  matched <- grepl(QUERY_STAT_ALIASES$pattern, text, perl = TRUE)
+  matched <- vapply(
+    QUERY_STAT_ALIASES$pattern,
+    function(pattern) grepl(pattern, text, perl = TRUE),
+    logical(1)
+  )
   candidates <- QUERY_STAT_ALIASES[matched, , drop = FALSE]
   if (!nrow(candidates)) {
     return(NULL)
