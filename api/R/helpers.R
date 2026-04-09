@@ -256,6 +256,51 @@ parse_season_filter <- function(season = "", seasons = "") {
   c(parsed_season)
 }
 
+parse_nwar_era <- function(value = "", name = "era") {
+  if (is.null(value) || !nzchar(trimws(value))) {
+    return(NULL)
+  }
+
+  parsed <- tolower(trimws(value))
+  if (!parsed %in% c("anzc", "ssn")) {
+    stop(name, " must be one of anzc or ssn.", call. = FALSE)
+  }
+
+  parsed
+}
+
+parse_nwar_position_group <- function(value = "", name = "position_group") {
+  if (is.null(value) || !nzchar(trimws(value))) {
+    return(NULL)
+  }
+
+  parsed <- tolower(trimws(value))
+  choices <- c(
+    shooter = "Shooter",
+    midcourt = "Midcourt",
+    defender = "Defender"
+  )
+  if (!parsed %in% names(choices)) {
+    stop(name, " must be one of shooter, midcourt, or defender.", call. = FALSE)
+  }
+
+  unname(choices[[parsed]])
+}
+
+seasons_from_nwar_era <- function(era) {
+  if (is.null(era)) {
+    return(NULL)
+  }
+  if (identical(era, "anzc")) {
+    return(2008L:2016L)
+  }
+  if (identical(era, "ssn")) {
+    return(2017L:2100L)
+  }
+
+  stop("Unsupported nWAR era.", call. = FALSE)
+}
+
 parse_limit <- function(value, default = 20L, maximum = 100L) {
   if (is.null(value) || !nzchar(value)) {
     return(default)
@@ -3308,7 +3353,7 @@ fetch_nwar_positions <- function(conn, seasons_filter, team_id = NULL) {
 #   8. When no season filter is applied, also compute nWAR/season and rank the
 #      all-seasons leaderboard by that normalized value so longer careers do
 #      not dominate purely on accumulated volume.
-fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L, limit = 50L) {
+fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L, limit = 50L, position_group = NULL) {
   filters <- build_nwar_query(conn, seasons, team_id, min_games)
 
   empty_frame <- data.frame(
@@ -3437,7 +3482,6 @@ fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L
   npar <- round(avg_fs - repl_by_player, 2)
   nwar <- round(npar * as.numeric(games) / NWAR_POINTS_PER_WIN, 2)
   nwar_per_season <- round(nwar / pmax(as.numeric(seasons_played), 1), 2)
-  ranking_metric <- if (is.null(seasons) || !length(seasons)) nwar_per_season else nwar
 
   all_rows$seasons_played       <- seasons_played
   all_rows$games_played         <- games
@@ -3456,6 +3500,15 @@ fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L
                  "position_code", "position_group", "replacement_level",
                  "npar", "nwar_per_season", "nwar")
   all_rows <- all_rows[, intersect(keep_cols, names(all_rows)), drop = FALSE]
+
+  if (!is.null(position_group)) {
+    all_rows <- all_rows[all_rows$position_group == position_group, , drop = FALSE]
+    if (nrow(all_rows) == 0L) {
+      return(empty_frame)
+    }
+  }
+
+  ranking_metric <- if (is.null(seasons) || !length(seasons)) all_rows$nwar_per_season else all_rows$nwar
   all_rows <- all_rows[order(-ranking_metric, -all_rows$nwar, all_rows$player_name, na.last = TRUE), , drop = FALSE]
   rownames(all_rows) <- NULL
   head(all_rows, as.integer(limit))
