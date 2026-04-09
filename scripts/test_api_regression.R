@@ -199,6 +199,16 @@ check_step('natural-language query endpoint supports representative team queries
 
 helpers_env <- new.env(parent = globalenv())
 sys.source('api/R/helpers.R', envir = helpers_env)
+assert_true(
+  identical(
+    helpers_env$resolve_query_stat(
+      helpers_env$normalize_query_phrase('Which players scored 40+ goals in 2025?')
+    ),
+    'goals'
+  ),
+  'Expected resolve_query_stat to match stat aliases beyond the first configured pattern.'
+)
+check_step('query parser resolves stat aliases for representative scored/goals phrasing')
 possessive_subject <- helpers_env$extract_query_subject_phrase(
   "What is the Swifts' highest goals total against the Vixens?",
   'highest'
