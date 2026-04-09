@@ -485,6 +485,37 @@ invalid_nwar <- request_json(base_url, '/nwar', query = list(min_games = '0'), e
 assert_true(nzchar(as.character(invalid_nwar$error %||% '')), 'Expected /nwar to reject min_games below 1.')
 check_step('nWAR endpoint validates min_games lower bound')
 
+nwar_anzc_payload <- request_json(base_url, '/nwar', query = list(era = 'anzc', min_games = '1', limit = '10'))
+assert_true(is.list(nwar_anzc_payload$data), 'Expected /nwar?era=anzc to return a data list.')
+check_step('nWAR endpoint accepts the anzc era filter')
+
+nwar_ssn_payload <- request_json(base_url, '/nwar', query = list(era = 'ssn', min_games = '1', limit = '10'))
+assert_true(is.list(nwar_ssn_payload$data), 'Expected /nwar?era=ssn to return a data list.')
+check_step('nWAR endpoint accepts the ssn era filter')
+
+nwar_defender_payload <- request_json(base_url, '/nwar', query = list(position_group = 'defender', min_games = '1', limit = '25'))
+assert_true(is.list(nwar_defender_payload$data), 'Expected /nwar?position_group=defender to return a data list.')
+if (length(nwar_defender_payload$data) >= 1L) {
+  defender_groups <- vapply(nwar_defender_payload$data, function(r) scalar_value(r$position_group) %||% NA_character_, character(1L))
+  assert_true(all(defender_groups == 'Defender'), 'Expected defender-filtered /nwar rows to all resolve to Defender.')
+}
+check_step('nWAR endpoint filters rows by position group')
+
+nwar_season_only_payload <- request_json(base_url, '/nwar', query = list(season = '2012', min_games = '1', limit = '10'))
+nwar_season_override_payload <- request_json(base_url, '/nwar', query = list(season = '2012', era = 'ssn', min_games = '1', limit = '10'))
+season_only_ids <- vapply(nwar_season_only_payload$data, function(r) as.character(scalar_value(r$player_id) %||% ''), character(1L))
+season_override_ids <- vapply(nwar_season_override_payload$data, function(r) as.character(scalar_value(r$player_id) %||% ''), character(1L))
+assert_true(identical(season_only_ids, season_override_ids), 'Expected explicit season to override era when both are supplied.')
+check_step('nWAR endpoint lets season override era')
+
+invalid_nwar_era <- request_json(base_url, '/nwar', query = list(era = 'futureball'), expected_status = 400L)
+assert_true(nzchar(as.character(invalid_nwar_era$error %||% '')), 'Expected /nwar to reject unsupported era values.')
+check_step('nWAR endpoint validates era values')
+
+invalid_nwar_position_group <- request_json(base_url, '/nwar', query = list(position_group = 'bench'), expected_status = 400L)
+assert_true(nzchar(as.character(invalid_nwar_position_group$error %||% '')), 'Expected /nwar to reject unsupported position_group values.')
+check_step('nWAR endpoint validates position_group values')
+
 # Unit tests for fetch_nwar_rows R logic (no live DB required)
 normalize_sql <- if (exists('normalize_sql')) normalize_sql else function(q) gsub('\\s+', ' ', trimws(q))
 helpers_path <- Sys.getenv('NETBALL_STATS_HELPERS_PATH', file.path(getwd(), 'api', 'R', 'helpers.R'))
@@ -621,6 +652,55 @@ if (file.exists(helpers_path)) {
                 'Expected combined position query to include season scope.')
     assert_true(grepl('squad_id = ?pos_team_id', combined_pos_sql, fixed = TRUE),
                 'Expected combined position query to include team scope.')
+
+    assert_true(is.function(helpers_env$parse_nwar_era), 'Expected parse_nwar_era to be exported from helpers.R.')
+    assert_true(is.function(helpers_env$parse_nwar_position_group), 'Expected parse_nwar_position_group to be exported from helpers.R.')
+    assert_true(is.function(helpers_env$seasons_from_nwar_era), 'Expected seasons_from_nwar_era to be exported from helpers.R.')
+    assert_true(identical(helpers_env$parse_nwar_era('ANZC'), 'anzc'), 'Expected parse_nwar_era to normalize ANZC.')
+    assert_true(identical(helpers_env$parse_nwar_position_group('defender'), 'Defender'), 'Expected parse_nwar_position_group to map defender to Defender.')
+    assert_true(identical(helpers_env$seasons_from_nwar_era('anzc'), 2008L:2016L), 'Expected ANZC era to map to seasons 2008-2016.')
+    assert_true(identical(helpers_env$seasons_from_nwar_era('ssn'), 2017L:2100L), 'Expected SSN era to map to seasons 2017+.')
+
+    helpers_env$has_player_match_stats <- function(conn) TRUE
+    helpers_env$has_player_match_positions <- function(conn) TRUE
+    helpers_env$query_rows <- function(conn, query, params = list()) {
+      data.frame(
+        player_id = c(1L, 2L, 3L),
+        player_name = c('Shooter Sample', 'Midcourt Sample', 'Defender Sample'),
+        squad_name = c('Firebirds', 'Lightning', 'Swifts'),
+        seasons_played = c(1L, 1L, 1L),
+        games_played = c(10L, 10L, 10L),
+        total_goal1 = c(300, 0, 0),
+        total_goal2 = c(20, 0, 0),
+        total_goals_legacy = c(0, 0, 0),
+        has_goal1_data = c(1L, 1L, 1L),
+        total_off_reb = c(5, 1, 0),
+        total_def_reb = c(0, 0, 9),
+        total_feeds = c(40, 220, 15),
+        total_cpr = c(110, 260, 50),
+        total_spr = c(12, 70, 4),
+        total_gain = c(2, 18, 44),
+        total_intercepts = c(1, 5, 20),
+        total_deflections = c(2, 14, 38),
+        total_pickups = c(1, 10, 22),
+        total_missed_goals = c(8, 0, 0),
+        total_gpto = c(12, 18, 10),
+        total_penalties = c(8, 20, 34),
+        total_quarters = c(40, 40, 40),
+        stringsAsFactors = FALSE
+      )
+    }
+    helpers_env$fetch_nwar_positions <- function(conn, seasons_filter, team_id = NULL) {
+      data.frame(
+        player_id = c(1L, 2L, 3L),
+        position_code = c('GS', 'WD', 'GK'),
+        stringsAsFactors = FALSE
+      )
+    }
+
+    defender_only <- helpers_env$fetch_nwar_rows(conn = NULL, seasons = 2024L, min_games = 1L, limit = 10L, position_group = 'Defender')
+    assert_true(nrow(defender_only) == 1L, 'Expected fetch_nwar_rows to keep only one defender row in the mocked sample.')
+    assert_true(all(defender_only$position_group == 'Defender'), 'Expected fetch_nwar_rows to retain only Defender rows when position_group is supplied.')
 
     check_step('fetch_nwar_rows unit tests pass (empty result, single player boundary, optimized query shape, team-scoped position)')
   }
