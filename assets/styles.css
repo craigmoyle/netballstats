@@ -56,6 +56,17 @@
   --danger: #ff9e9e;
   --success: #a5efc1;
   --text-on-accent: #20160d;
+  --table-shell: rgba(9, 17, 23, 0.35);
+  --chart-card-shell: rgba(9, 17, 23, 0.42);
+  --chart-shell: rgba(10, 18, 25, 0.72);
+  --chart-palette-1: #f0c67e;
+  --chart-palette-2: #79d8d0;
+  --chart-palette-3: #ff9e9e;
+  --chart-palette-4: #f4a0d8;
+  --chart-palette-5: #d1c36b;
+  --chart-palette-6: #8ac6ff;
+  --chart-palette-7: #f7b267;
+  --chart-palette-8: #9ad1d4;
   --shadow: 0 30px 60px rgba(0, 0, 0, 0.28);
   --display-font: "Teko", sans-serif;
   --body-font: "Fraunces", Georgia, serif;
@@ -99,6 +110,17 @@
   --danger: #b02020;
   --success: #1a7040;
   --text-on-accent: #fff8ed;
+  --table-shell: rgba(255, 251, 245, 0.92);
+  --chart-card-shell: rgba(250, 246, 239, 0.9);
+  --chart-shell: rgba(255, 252, 246, 0.94);
+  --chart-palette-1: #9f6020;
+  --chart-palette-2: #1d7f73;
+  --chart-palette-3: #a34949;
+  --chart-palette-4: #94557d;
+  --chart-palette-5: #81702c;
+  --chart-palette-6: #3f72ad;
+  --chart-palette-7: #ab7141;
+  --chart-palette-8: #5b7e86;
   --shadow: 0 4px 24px rgba(0, 0, 0, 0.08), 0 1px 4px rgba(0, 0, 0, 0.05);
 }
 
@@ -1131,6 +1153,12 @@ button[aria-busy="true"] {
   gap: 0;
 }
 
+.round-page .summary-band {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
 .home-overview .summary-band {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1153,7 +1181,26 @@ button[aria-busy="true"] {
   border-radius: var(--radius-card);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--text) 4%, transparent), transparent 48%),
-    color-mix(in srgb, var(--panel-alt) 88%, transparent);
+     color-mix(in srgb, var(--panel-alt) 88%, transparent);
+}
+
+.round-page .summary-card {
+  display: grid;
+  gap: 0.35rem;
+  align-content: start;
+  min-height: 100%;
+  padding: 0.95rem 1rem;
+  border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+  border-radius: var(--radius-card);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text) 4%, transparent), transparent 48%),
+    color-mix(in srgb, var(--panel-alt) 90%, transparent);
+}
+
+.round-page .summary-card--accent {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 48%),
+    color-mix(in srgb, var(--panel-alt) 92%, transparent);
 }
 
 .summary-card:not(:last-child)::after {
@@ -1167,11 +1214,19 @@ button[aria-busy="true"] {
   display: none;
 }
 
+.round-page .summary-card:not(:last-child)::after {
+  display: none;
+}
+
 .summary-card span {
   display: inline;
 }
 
 .home-overview .summary-card span {
+  display: block;
+}
+
+.round-page .summary-card span {
   display: block;
 }
 
@@ -1197,6 +1252,11 @@ button[aria-busy="true"] {
   order: 0;
   font-size: clamp(1.8rem, 3.5vw, 2.4rem);
   letter-spacing: 0.03em;
+}
+
+.round-page .summary-card__value {
+  order: 0;
+  font-size: clamp(1.65rem, 3vw, 2.2rem);
 }
 
 .summary-card__value--small {
@@ -1437,7 +1497,7 @@ button[aria-busy="true"] {
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--text) 4%, transparent), transparent),
-    rgba(9, 17, 23, 0.42);
+    var(--chart-card-shell);
 }
 
 .chart-card::after {
@@ -1477,7 +1537,7 @@ button[aria-busy="true"] {
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--text) 2%, transparent), transparent),
-    rgba(10, 18, 25, 0.72);
+    var(--chart-shell);
 }
 
 .chart-shell[data-state="empty"] {
@@ -1582,7 +1642,7 @@ button[aria-busy="true"] {
   overscroll-behavior-x: contain;
   border-radius: var(--radius-card);
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
-  background: rgba(9, 17, 23, 0.35);
+  background: var(--table-shell);
 }
 
 .table-wrapper--spotlight {
@@ -3384,6 +3444,10 @@ caption.table-caption {
     grid-template-columns: 1fr 1fr;
   }
 
+  .round-page .summary-band {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
   .summary-card__value {
     font-size: clamp(1.25rem, 6vw, 1.55rem);
   }
@@ -3425,7 +3489,7 @@ caption.table-caption {
   }
 
   .compare-table {
-    min-width: 640px;
+    min-width: 0;
   }
 
   .panel h2 {
@@ -3629,9 +3693,6 @@ caption.table-caption {
 }
 
 [data-theme="light"] .chart-shell {
-  background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.5), rgba(255, 252, 247, 0.3)),
-    rgba(248, 244, 238, 0.7);
   border-color: rgba(130, 90, 30, 0.12);
 }
 
@@ -3684,6 +3745,11 @@ caption.table-caption {
 [data-theme="light"] .field--season-block {
   background: linear-gradient(180deg, rgba(80, 170, 162, 0.06), rgba(80, 170, 162, 0.02));
   border-color: rgba(80, 140, 130, 0.3);
+}
+
+[data-theme="light"] .round-page .summary-card,
+[data-theme="light"] .table-wrapper {
+  border-color: rgba(130, 90, 30, 0.16);
 }
 
 /* ----- Light theme: focus ring (amber darkened for visibility on cream) ----- */
