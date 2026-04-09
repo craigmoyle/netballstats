@@ -3,7 +3,7 @@ const API_BASE_URL = (config.apiBaseUrl || "/api").replace(/\/$/, "");
 const MATCHES_LIMIT = 12;
 const LEADERS_LIMIT = 10;
 const CHART_RANK_LIMIT = 10;
-const CHART_PALETTE = [
+const DEFAULT_CHART_PALETTE = [
   "#f0c67e",
   "#79d8d0",
   "#ff9e9e",
@@ -23,6 +23,7 @@ const {
   cycleStatusBanner = () => {},
   fetchJson,
   formatStatLabel = (stat) => stat,
+  getThemePalette = () => [...DEFAULT_CHART_PALETTE],
   syncResponsiveTable = () => {}
 } = window.NetballStatsUI || {};
 const {
@@ -48,6 +49,16 @@ const state = {
     "competition-season": "table",
     "team-leaders": "table",
     "player-leaders": "table"
+  },
+  results: {
+    teamLeaderRows: [],
+    playerLeaderRows: []
+  },
+  deferredPanels: {
+    queryKey: "",
+    competition: { status: "idle", data: [], error: "" },
+    team: { status: "idle", data: [], error: "" },
+    player: { status: "idle", data: [], error: "" }
   }
 };
 
@@ -839,6 +850,37 @@ function clearAllCharts(message) {
   clearChart(elements.playerTrendChart, message);
 }
 
+function createDeferredPanelState() {
+  return {
+    status: "idle",
+    data: [],
+    error: ""
+  };
+}
+
+function resetDeferredPanels(queryKey = "") {
+  state.deferredPanels = {
+    queryKey,
+    competition: createDeferredPanelState(),
+    team: createDeferredPanelState(),
+    player: createDeferredPanelState()
+  };
+}
+
+function buildArchiveQueryKey() {
+  return JSON.stringify({
+    seasons: [...state.filters.seasons],
+    teamId: state.filters.teamId,
+    round: state.filters.round,
+    teamStat: state.filters.teamStat,
+    playerStat: state.filters.playerStat,
+    statMode: state.filters.statMode,
+    rankingMode: state.filters.rankingMode,
+    archiveMode: state.filters.archiveMode,
+    playerSearch: state.filters.playerSearch
+  });
+}
+
 function normaliseColour(value) {
   if (!value || typeof value !== "string") {
     return null;
@@ -857,7 +899,8 @@ function normaliseColour(value) {
 }
 
 function fallbackColour(index) {
-  return CHART_PALETTE[index % CHART_PALETTE.length];
+  const palette = getThemePalette(DEFAULT_CHART_PALETTE);
+  return palette[index % palette.length];
 }
 
 function teamMetaByName(name) {
@@ -895,6 +938,63 @@ function setPanelView(panel, mode) {
     button.classList.toggle("is-active", active);
     button.setAttribute("aria-pressed", active ? "true" : "false");
   });
+
+  if (panel === "competition-season" && mode === "chart") {
+    if (isRecordMode()) {
+      clearChart(
+        elements.competitionSeasonChart,
+        "Record mode focuses on single-match performances. Switch back to totals to see season context."
+      );
+      return;
+    }
+
+    if (!state.deferredPanels.queryKey) {
+      clearChart(elements.competitionSeasonChart, "Loading season context…");
+      return;
+    }
+
+    void fetchDeferredPanel("competition", runQuerySeq);
+    return;
+  }
+
+  if (panel === "team-leaders" && mode === "chart") {
+    renderTeamLeaderChart(state.results.teamLeaderRows);
+
+    if (isRecordMode()) {
+      clearChart(
+        elements.teamTrendChart,
+        "Record mode focuses on single-match performances. Switch back to totals to see season trends."
+      );
+      return;
+    }
+
+    if (!state.deferredPanels.queryKey) {
+      clearChart(elements.teamTrendChart, "Loading team trend…");
+      return;
+    }
+
+    void fetchDeferredPanel("team", runQuerySeq);
+    return;
+  }
+
+  if (panel === "player-leaders" && mode === "chart") {
+    renderPlayerLeaderChart(state.results.playerLeaderRows);
+
+    if (isRecordMode()) {
+      clearChart(
+        elements.playerTrendChart,
+        "Record mode focuses on single-match performances. Switch back to totals to see season trends."
+      );
+      return;
+    }
+
+    if (!state.deferredPanels.queryKey) {
+      clearChart(elements.playerTrendChart, "Loading player trend…");
+      return;
+    }
+
+    void fetchDeferredPanel("player", runQuerySeq);
+  }
 }
 
 function renderCompetitionSeasonChart(rows, errorMessage) {
@@ -912,7 +1012,7 @@ function renderCompetitionSeasonChart(rows, errorMessage) {
   });
 }
 
-function renderTeamCharts(leaderRows, trendRows) {
+function renderTeamLeaderChart(leaderRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
 
   renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
@@ -924,9 +1024,16 @@ function renderTeamCharts(leaderRows, trendRows) {
     valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
     colourAccessor: (row, index) => resolveTeamColour(row.squad_name, row.squad_colour, index)
   });
+}
 
+function renderTeamTrendChart(trendRows, errorMessage = "") {
   if (isRecordMode()) {
     clearChart(elements.teamTrendChart, "Record mode focuses on single-match performances. Switch back to totals to see season trends.");
+    return;
+  }
+
+  if (errorMessage) {
+    clearChart(elements.teamTrendChart, errorMessage);
     return;
   }
 
@@ -941,7 +1048,7 @@ function renderTeamCharts(leaderRows, trendRows) {
   });
 }
 
-function renderPlayerCharts(leaderRows, trendRows) {
+function renderPlayerLeaderChart(leaderRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
 
   renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
@@ -953,9 +1060,16 @@ function renderPlayerCharts(leaderRows, trendRows) {
     valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
     colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
   });
+}
 
+function renderPlayerTrendChart(trendRows, errorMessage = "") {
   if (isRecordMode()) {
     clearChart(elements.playerTrendChart, "Record mode focuses on single-match performances. Switch back to totals to see season trends.");
+    return;
+  }
+
+  if (errorMessage) {
+    clearChart(elements.playerTrendChart, errorMessage);
     return;
   }
 
@@ -968,6 +1082,165 @@ function renderPlayerCharts(leaderRows, trendRows) {
     valueAccessor: (row) => statValue(row),
     colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
   });
+}
+
+function renderCompetitionLoadingState() {
+  if (isRecordMode()) {
+    const message = "Record mode focuses on single-match performances. Switch back to totals to see season context.";
+    renderCompetitionSeasonTable([], message);
+    clearChart(elements.competitionSeasonChart, message);
+    return;
+  }
+
+  renderCompetitionSeasonTable([], "Loading season context…");
+  clearChart(
+    elements.competitionSeasonChart,
+    state.views["competition-season"] === "chart" ? "Loading season context…" : "Switch to chart to see season context."
+  );
+}
+
+function renderTrendLoadingStates() {
+  if (isRecordMode()) {
+    clearChart(elements.teamTrendChart, "Record mode focuses on single-match performances. Switch back to totals to see season trends.");
+    clearChart(elements.playerTrendChart, "Record mode focuses on single-match performances. Switch back to totals to see season trends.");
+    return;
+  }
+
+  clearChart(
+    elements.teamTrendChart,
+    state.views["team-leaders"] === "chart" ? "Loading team trend…" : "Switch to chart to load season trends."
+  );
+  clearChart(
+    elements.playerTrendChart,
+    state.views["player-leaders"] === "chart" ? "Loading player trend…" : "Switch to chart to load season trends."
+  );
+}
+
+function competitionSeriesParams() {
+  return {
+    seasons: state.filters.seasons,
+    round: state.filters.round,
+    stat: state.filters.teamStat,
+    metric: state.filters.statMode
+  };
+}
+
+function teamSeriesParams(baseParams) {
+  return {
+    ...baseParams,
+    stat: state.filters.teamStat,
+    metric: state.filters.statMode,
+    ranking: state.filters.rankingMode,
+    limit: CHART_RANK_LIMIT
+  };
+}
+
+function playerSeriesParams(baseParams) {
+  return {
+    ...baseParams,
+    stat: state.filters.playerStat,
+    search: state.filters.playerSearch,
+    metric: state.filters.statMode,
+    ranking: state.filters.rankingMode,
+    limit: CHART_RANK_LIMIT
+  };
+}
+
+function renderDeferredPanel(panel) {
+  const payload = state.deferredPanels[panel];
+  if (!payload) {
+    return;
+  }
+
+  if (panel === "competition") {
+    if (payload.status === "loading") {
+      renderCompetitionLoadingState();
+      return;
+    }
+
+    renderCompetitionSeasonTable(
+      payload.data,
+      payload.error ? "Season totals temporarily unavailable." : ""
+    );
+    renderCompetitionSeasonChart(
+      payload.data,
+      payload.error ? "Season chart temporarily unavailable." : ""
+    );
+    return;
+  }
+
+  if (panel === "team") {
+    if (payload.status === "loading") {
+      clearChart(elements.teamTrendChart, "Loading team trend…");
+      return;
+    }
+
+    renderTeamTrendChart(
+      payload.data,
+      payload.error ? "Team trend temporarily unavailable." : ""
+    );
+    return;
+  }
+
+  if (panel === "player") {
+    if (payload.status === "loading") {
+      clearChart(elements.playerTrendChart, "Loading player trend…");
+      return;
+    }
+
+    renderPlayerTrendChart(
+      payload.data,
+      payload.error ? "Player trend temporarily unavailable." : ""
+    );
+  }
+}
+
+async function fetchDeferredPanel(panel, seq) {
+  if (isRecordMode() || !state.deferredPanels.queryKey) {
+    return;
+  }
+
+  const current = state.deferredPanels[panel];
+  if (!current || current.status === "loading" || current.status === "ready" || current.status === "error") {
+    if (current) {
+      renderDeferredPanel(panel);
+    }
+    return;
+  }
+
+  state.deferredPanels[panel] = {
+    status: "loading",
+    data: [],
+    error: ""
+  };
+  renderDeferredPanel(panel);
+
+  const queryKey = state.deferredPanels.queryKey;
+  const baseParams = {
+    seasons: state.filters.seasons,
+    team_id: state.filters.teamId,
+    round: state.filters.round
+  };
+
+  let payload = { data: [], error: "" };
+  if (panel === "competition") {
+    payload = await fetchOptionalJson("/competition-season-series", competitionSeriesParams());
+  } else if (panel === "team") {
+    payload = await fetchOptionalJson("/team-season-series", teamSeriesParams(baseParams));
+  } else if (panel === "player") {
+    payload = await fetchOptionalJson("/player-season-series", playerSeriesParams(baseParams));
+  }
+
+  if (seq !== runQuerySeq || state.deferredPanels.queryKey !== queryKey) {
+    return;
+  }
+
+  state.deferredPanels[panel] = {
+    status: payload.error ? "error" : "ready",
+    data: payload.data || [],
+    error: payload.error || ""
+  };
+  renderDeferredPanel(panel);
 }
 
 let runQuerySeq = 0;
@@ -983,6 +1256,9 @@ async function runQueries() {
   syncFiltersFromForm();
   renderFilterSummary();
   showLoadingStatus(ARCHIVE_LOADING_MESSAGES, "Loading archive");
+  state.results.teamLeaderRows = [];
+  state.results.playerLeaderRows = [];
+  resetDeferredPanels();
   const leaderboardFetchLimit = Math.max(LEADERS_LIMIT, CHART_RANK_LIMIT);
 
   const baseParams = {
@@ -996,10 +1272,7 @@ async function runQueries() {
       summary,
       matchesPayload,
       teamLeadersPayload,
-      playerLeadersPayload,
-      competitionSeriesPayload,
-      teamSeriesPayload,
-      playerSeriesPayload
+      playerLeadersPayload
     ] = await Promise.all([
       fetchJson("/summary", baseParams),
       fetchJson("/matches", { ...baseParams, limit: MATCHES_LIMIT }),
@@ -1023,61 +1296,33 @@ async function runQueries() {
           ranking: state.filters.rankingMode,
           limit: leaderboardFetchLimit
         }
-      ),
-      isRecordMode() ? Promise.resolve({ data: [], error: "" }) : fetchOptionalJson("/competition-season-series", {
-        seasons: state.filters.seasons,
-        round: state.filters.round,
-        stat: state.filters.teamStat,
-        metric: state.filters.statMode
-      }),
-      isRecordMode() ? Promise.resolve({ data: [], error: "" }) : fetchOptionalJson("/team-season-series", {
-        ...baseParams,
-        stat: state.filters.teamStat,
-        metric: state.filters.statMode,
-        ranking: state.filters.rankingMode,
-        limit: CHART_RANK_LIMIT
-      }),
-      isRecordMode() ? Promise.resolve({ data: [], error: "" }) : fetchOptionalJson("/player-season-series", {
-        ...baseParams,
-        stat: state.filters.playerStat,
-        search: state.filters.playerSearch,
-        metric: state.filters.statMode,
-        ranking: state.filters.rankingMode,
-        limit: CHART_RANK_LIMIT
-      })
+      )
     ]);
-
-    const chartWarnings = [
-      competitionSeriesPayload.error,
-      teamSeriesPayload.error,
-      playerSeriesPayload.error
-    ].filter(Boolean);
     const teamLeaderRows = teamLeadersPayload.data || [];
     const playerLeaderRows = playerLeadersPayload.data || [];
 
     if (seq !== runQuerySeq) return;
 
+    state.results.teamLeaderRows = teamLeaderRows;
+    state.results.playerLeaderRows = playerLeaderRows;
+    resetDeferredPanels(buildArchiveQueryKey());
+
     renderSummary(summary);
     renderMatches(matchesPayload.data || []);
-    renderCompetitionSeasonTable(
-      competitionSeriesPayload.data || [],
-      competitionSeriesPayload.error ? "Season totals temporarily unavailable." : ""
-    );
     renderTeamLeaders(teamLeaderRows.slice(0, LEADERS_LIMIT));
     renderPlayerLeaders(playerLeaderRows.slice(0, LEADERS_LIMIT));
-    renderCompetitionSeasonChart(
-      competitionSeriesPayload.data || [],
-      competitionSeriesPayload.error ? "Season chart temporarily unavailable." : ""
-    );
-    renderTeamCharts(teamLeaderRows, teamSeriesPayload.data || []);
-    renderPlayerCharts(playerLeaderRows, playerSeriesPayload.data || []);
-    showStatus(
-      chartWarnings.length
-        ? "Archive ready. Some charts are still loading."
-        : "Archive ready.",
-      chartWarnings.length ? "neutral" : "success",
-      chartWarnings.length ? { kicker: "Charts pending" } : { kicker: "Ready", autoHideMs: 2200 }
-    );
+    renderCompetitionLoadingState();
+    renderTeamLeaderChart(teamLeaderRows);
+    renderPlayerLeaderChart(playerLeaderRows);
+    renderTrendLoadingStates();
+    setPanelView("competition-season", state.views["competition-season"]);
+    setPanelView("team-leaders", state.views["team-leaders"]);
+    setPanelView("player-leaders", state.views["player-leaders"]);
+    showStatus("Archive ready.", "success", { kicker: "Ready", autoHideMs: 2200 });
+
+    if (!isRecordMode()) {
+      void fetchDeferredPanel("competition", seq);
+    }
   } catch (error) {
     if (seq !== runQuerySeq) return;
     showStatus(error.message || "Couldn't load the archive.", "error", { kicker: "Archive unavailable" });
@@ -1102,15 +1347,16 @@ async function initialise() {
       meta = await fetchJson("/meta");
     } catch (firstError) {
       // Retry once to handle cold-start delays (R/Plumber can take 20-30s to start).
-        showLoadingStatus(ARCHIVE_STARTUP_MESSAGES, "Starting up");
-        await new Promise((resolve) => window.setTimeout(resolve, 5000));
-        meta = await fetchJson("/meta");
-      }
+      showLoadingStatus(ARCHIVE_STARTUP_MESSAGES, "Starting up");
+      await new Promise((resolve) => window.setTimeout(resolve, 5000));
+      meta = await fetchJson("/meta");
+    }
     applyMeta(meta);
     applyMetaConfig(meta);
-    const editorialLeadPayload = await fetchOptionalJson("/round-summary");
-    renderEditorialLead(editorialLeadPayload);
+    const editorialLeadPromise = fetchOptionalJson("/round-summary")
+      .then((payload) => renderEditorialLead(payload));
     await runQueries();
+    await editorialLeadPromise;
   } catch (error) {
     const hint = isLocalApiConfigured()
       ? "Run the API before using the site locally."
@@ -1184,6 +1430,7 @@ elements.panelViewButtons.forEach((button) => {
   });
 });
 
+setPanelView("competition-season", "table");
 setPanelView("team-leaders", "table");
 setPanelView("player-leaders", "table");
 

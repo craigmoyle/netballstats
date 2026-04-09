@@ -344,6 +344,27 @@
     return (Number.isInteger(numeric) ? fmtInt : fmtDecimal).format(numeric);
   }
 
+  function getThemePalette(fallback = []) {
+    if (!window.getComputedStyle || !document?.documentElement) {
+      return Array.isArray(fallback) ? [...fallback] : [];
+    }
+
+    const style = window.getComputedStyle(document.documentElement);
+    const palette = [];
+    for (let index = 1; index <= 8; index += 1) {
+      const value = style.getPropertyValue(`--chart-palette-${index}`).trim();
+      if (value) {
+        palette.push(value);
+      }
+    }
+
+    if (palette.length) {
+      return palette;
+    }
+
+    return Array.isArray(fallback) ? [...fallback] : [];
+  }
+
   document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".stack-table").forEach((table) => {
       syncResponsiveTable(table);
@@ -361,6 +382,7 @@
       formatNumber,
       formatStatAbbrev,
       formatStatLabel,
+      getThemePalette,
       showStatusBanner,
       statPrefersLowerValue,
       syncResponsiveTable

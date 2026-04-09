@@ -1,7 +1,7 @@
 const MAX_PLAYERS = 6;
 const MAX_TEAMS = 8;
 const SUPER_SHOT_START_SEASON = 2020;
-const FALLBACK_COLOURS = [
+const DEFAULT_CHART_PALETTE = [
   "#f0c67e",
   "#79d8d0",
   "#ff9e9e",
@@ -26,6 +26,7 @@ const {
   cycleStatusBanner = () => {},
   fetchJson,
   formatStatLabel = (stat) => stat,
+  getThemePalette = () => [...DEFAULT_CHART_PALETTE],
   statPrefersLowerValue = () => false,
   syncResponsiveTable = () => {}
 } = window.NetballStatsUI || {};
@@ -129,7 +130,8 @@ function normaliseColour(value) {
 }
 
 function fallbackColour(index) {
-  return FALLBACK_COLOURS[index % FALLBACK_COLOURS.length];
+  const palette = getThemePalette(DEFAULT_CHART_PALETTE);
+  return palette[index % palette.length];
 }
 
 function teamMetaById(teamId) {
@@ -444,6 +446,7 @@ function renderPlayerSearchResults(results) {
 
     button.append(primary, secondary);
     button.addEventListener("click", () => addSelectedPlayer(result));
+    button.addEventListener("focus", () => setHighlightedSearchIndex(index));
     fragment.appendChild(button);
 
     if (index === 0) {
@@ -1194,6 +1197,14 @@ function initialiseEventListeners() {
     searchPlayersDebounced(elements.playerSearchInput.value);
   });
 
+  elements.playerSearchInput.addEventListener("focus", () => {
+    if (state.searchResults.length) {
+      elements.playerSearchResults.hidden = false;
+      elements.playerSearchInput.setAttribute("aria-expanded", "true");
+      setHighlightedSearchIndex(Math.max(state.highlightedSearchIndex, 0));
+    }
+  });
+
   elements.playerSearchInput.addEventListener("keydown", (event) => {
     if (!state.searchResults.length) {
       return;
@@ -1226,6 +1237,15 @@ function initialiseEventListeners() {
       return;
     }
     removeSelectedPlayer(button.dataset.removePlayer);
+  });
+
+  elements.playerPickerField.addEventListener("focusout", (event) => {
+    window.setTimeout(() => {
+      const nextFocus = event.relatedTarget || document.activeElement;
+      if (!nextFocus || !elements.playerPickerField.contains(nextFocus)) {
+        closePlayerSearchResults();
+      }
+    }, 0);
   });
 
   elements.resetCompare.addEventListener("click", () => {
