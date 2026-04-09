@@ -15,6 +15,17 @@ const LOADING_MESSAGES = [
   "Ranking contributions…"
 ];
 
+const ERA_LABELS = {
+  anzc: "ANZC era",
+  ssn: "SSN era"
+};
+
+const POSITION_GROUP_LABELS = {
+  shooter: "Shooters",
+  midcourt: "Midcourt",
+  defender: "Defenders"
+};
+
 const state = {
   seasons: [],
   rows: []
@@ -28,6 +39,8 @@ const elements = {
   nwarFilters: document.getElementById("nwar-filters"),
   nwarSeason: document.getElementById("nwar-season"),
   nwarMinGames: document.getElementById("nwar-min-games"),
+  nwarEra: document.getElementById("nwar-era"),
+  nwarPositionGroup: document.getElementById("nwar-position-group"),
   nwarValueHeading: document.getElementById("nwar-value-heading"),
   nwarTbody: document.getElementById("nwar-tbody")
 };
@@ -70,6 +83,45 @@ function displayedNwarValue(row, usePerSeason = false) {
 function updateNwarHeading(usePerSeason = false) {
   if (!elements.nwarValueHeading) return;
   elements.nwarValueHeading.textContent = usePerSeason ? "nWAR/Season" : "nWAR";
+}
+
+function syncUrlState() {
+  const params = new URLSearchParams();
+  if (elements.nwarSeason?.value) params.set("season", elements.nwarSeason.value);
+  if (elements.nwarMinGames?.value) params.set("min_games", elements.nwarMinGames.value);
+  if (elements.nwarEra?.value) params.set("era", elements.nwarEra.value);
+  if (elements.nwarPositionGroup?.value) params.set("position_group", elements.nwarPositionGroup.value);
+
+  const nextUrl = params.toString()
+    ? `${window.location.pathname}?${params.toString()}`
+    : window.location.pathname;
+  window.history.replaceState(null, "", nextUrl);
+}
+
+function hydrateFiltersFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  if (elements.nwarSeason && params.has("season")) elements.nwarSeason.value = params.get("season");
+  if (elements.nwarMinGames && params.has("min_games")) elements.nwarMinGames.value = params.get("min_games");
+  if (elements.nwarEra && params.has("era")) elements.nwarEra.value = params.get("era");
+  if (elements.nwarPositionGroup && params.has("position_group")) elements.nwarPositionGroup.value = params.get("position_group");
+}
+
+function buildContextLabel({ season, era, positionGroup, allSeasonsView }) {
+  const bits = [];
+  if (season) {
+    bits.push(`${season} season`);
+  } else if (era) {
+    bits.push(ERA_LABELS[era] || "selected era");
+  } else {
+    bits.push("all seasons");
+  }
+  if (positionGroup) {
+    bits.push(POSITION_GROUP_LABELS[positionGroup] || positionGroup);
+  }
+  if (allSeasonsView) {
+    bits.push("ordered by nWAR per season");
+  }
+  return bits.join(" — ");
 }
 
 function renderMessageRow(message, kicker = "") {
@@ -174,23 +226,32 @@ async function loadNwar() {
   if (!elements.nwarSeason || !elements.nwarMinGames || !elements.nwarTbody) return;
   const season = elements.nwarSeason.value;
   const minGames = elements.nwarMinGames.value;
+  const era = elements.nwarEra?.value || "";
+  const positionGroup = elements.nwarPositionGroup?.value || "";
   const allSeasonsView = isAllSeasonsView();
   showLoadingStatus(LOADING_MESSAGES, "Calculating nWAR");
 
   const params = { limit: "100" };
   if (season) params.season = season;
   if (minGames) params.min_games = minGames;
+  if (era) params.era = era;
+  if (positionGroup) params.position_group = positionGroup;
+  syncUrlState();
 
   try {
     const payload = await fetchJson("/nwar", params);
     state.rows = payload.data || [];
     renderTable(state.rows, allSeasonsView);
 
-    const seasonLabel = season ? `${season} season` : "all seasons";
+    const contextLabel = buildContextLabel({
+      season,
+      era: season ? "" : era,
+      positionGroup,
+      allSeasonsView
+    });
+
     if (elements.nwarMeta) {
-      elements.nwarMeta.textContent = allSeasonsView
-        ? `${formatNumber(state.rows.length)} players ranked — ${seasonLabel}, ordered by nWAR per season.`
-        : `${formatNumber(state.rows.length)} players ranked — ${seasonLabel}.`;
+      elements.nwarMeta.textContent = `${formatNumber(state.rows.length)} players ranked — ${contextLabel}.`;
     }
 
     const topPlayer = state.rows[0];
@@ -204,7 +265,7 @@ async function loadNwar() {
       if (elements.nwarHeroSummary) {
         elements.nwarHeroSummary.textContent = allSeasonsView
           ? `${formatNumber(topPlayer.seasons_played)} seasons, ${formatNumber(topPlayer.games_played)} games, ${formatNwar(topPlayer.nwar)} career nWAR.`
-          : `${topPlayer.games_played} games, ${formatDecimal(topPlayer.avg_fantasy_score)} avg fantasy pts.`;
+          : `${formatNumber(topPlayer.games_played)} games, ${formatDecimal(topPlayer.avg_fantasy_score)} avg fantasy pts.`;
       }
     } else {
       if (elements.nwarHeroLabel) elements.nwarHeroLabel.textContent = "No qualifying players";
@@ -236,6 +297,7 @@ if (elements.nwarFilters) {
 async function initialise() {
   trackPageView("nwar");
   await loadMetadata();
+  hydrateFiltersFromUrl();
   await loadNwar();
 }
 
