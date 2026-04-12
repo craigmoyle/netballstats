@@ -3166,7 +3166,34 @@ fetch_query_result_rows <- function(conn, intent) {
   )
 }
 
-build_home_venue_impact_base_query <- function(seasons = NULL, team_id = NULL, venue_name = NULL) {
+build_home_venue_impact_base_query <- function(seasons = NULL, team_id = NULL, venue_name = NULL, include_penalties = TRUE) {
+  if (isTRUE(include_penalties)) {
+    home_penalties_for_sql <- "COALESCE(home_pen.match_value, 0) AS penalties_for,"
+    home_penalties_against_sql <- "COALESCE(away_pen.match_value, 0) AS penalties_against,"
+    home_penalty_advantage_sql <- "COALESCE(away_pen.match_value, 0) - COALESCE(home_pen.match_value, 0) AS penalty_advantage"
+    away_penalties_for_sql <- "COALESCE(away_pen.match_value, 0) AS penalties_for,"
+    away_penalties_against_sql <- "COALESCE(home_pen.match_value, 0) AS penalties_against,"
+    away_penalty_advantage_sql <- "COALESCE(home_pen.match_value, 0) - COALESCE(away_pen.match_value, 0) AS penalty_advantage"
+    penalty_join_sql <- c(
+      "LEFT JOIN team_match_stats home_pen",
+      "  ON home_pen.match_id = matches.match_id",
+      "  AND home_pen.squad_id = matches.home_squad_id",
+      "  AND home_pen.stat = 'penalties'",
+      "LEFT JOIN team_match_stats away_pen",
+      "  ON away_pen.match_id = matches.match_id",
+      "  AND away_pen.squad_id = matches.away_squad_id",
+      "  AND away_pen.stat = 'penalties'"
+    )
+  } else {
+    home_penalties_for_sql <- "NULL AS penalties_for,"
+    home_penalties_against_sql <- "NULL AS penalties_against,"
+    home_penalty_advantage_sql <- "NULL AS penalty_advantage"
+    away_penalties_for_sql <- "NULL AS penalties_for,"
+    away_penalties_against_sql <- "NULL AS penalties_against,"
+    away_penalty_advantage_sql <- "NULL AS penalty_advantage"
+    penalty_join_sql <- character()
+  }
+
   query <- paste(
     "SELECT * FROM (",
     "SELECT matches.match_id, matches.season, COALESCE(matches.competition_phase, '') AS competition_phase,",
@@ -3178,18 +3205,11 @@ build_home_venue_impact_base_query <- function(seasons = NULL, team_id = NULL, v
     "  matches.home_score - matches.away_score AS margin,",
     "  CASE WHEN matches.home_score > matches.away_score THEN 1 ELSE 0 END AS won,",
     "  CASE WHEN matches.home_score = matches.away_score THEN 1 ELSE 0 END AS draw,",
-    "  COALESCE(home_pen.match_value, 0) AS penalties_for,",
-    "  COALESCE(away_pen.match_value, 0) AS penalties_against,",
-    "  COALESCE(away_pen.match_value, 0) - COALESCE(home_pen.match_value, 0) AS penalty_advantage",
+    paste0("  ", home_penalties_for_sql),
+    paste0("  ", home_penalties_against_sql),
+    paste0("  ", home_penalty_advantage_sql),
     "FROM matches",
-    "LEFT JOIN team_match_stats home_pen",
-    "  ON home_pen.match_id = matches.match_id",
-    "  AND home_pen.squad_id = matches.home_squad_id",
-    "  AND home_pen.stat = 'penalties'",
-    "LEFT JOIN team_match_stats away_pen",
-    "  ON away_pen.match_id = matches.match_id",
-    "  AND away_pen.squad_id = matches.away_squad_id",
-    "  AND away_pen.stat = 'penalties'",
+    penalty_join_sql,
     "WHERE matches.home_score IS NOT NULL",
     "  AND matches.away_score IS NOT NULL",
     "UNION ALL",
@@ -3202,18 +3222,11 @@ build_home_venue_impact_base_query <- function(seasons = NULL, team_id = NULL, v
     "  matches.away_score - matches.home_score AS margin,",
     "  CASE WHEN matches.away_score > matches.home_score THEN 1 ELSE 0 END AS won,",
     "  CASE WHEN matches.home_score = matches.away_score THEN 1 ELSE 0 END AS draw,",
-    "  COALESCE(away_pen.match_value, 0) AS penalties_for,",
-    "  COALESCE(home_pen.match_value, 0) AS penalties_against,",
-    "  COALESCE(home_pen.match_value, 0) - COALESCE(away_pen.match_value, 0) AS penalty_advantage",
+    paste0("  ", away_penalties_for_sql),
+    paste0("  ", away_penalties_against_sql),
+    paste0("  ", away_penalty_advantage_sql),
     "FROM matches",
-    "LEFT JOIN team_match_stats home_pen",
-    "  ON home_pen.match_id = matches.match_id",
-    "  AND home_pen.squad_id = matches.home_squad_id",
-    "  AND home_pen.stat = 'penalties'",
-    "LEFT JOIN team_match_stats away_pen",
-    "  ON away_pen.match_id = matches.match_id",
-    "  AND away_pen.squad_id = matches.away_squad_id",
-    "  AND away_pen.stat = 'penalties'",
+    penalty_join_sql,
     "WHERE matches.home_score IS NOT NULL",
     "  AND matches.away_score IS NOT NULL",
     ") AS impact_rows",
@@ -3478,16 +3491,17 @@ summarise_home_venue_impact_rows <- function(rows, min_matches = 5L, limit = 50L
 }
 
 fetch_home_venue_impact_summary <- function(conn, seasons = NULL, team_id = NULL, venue_name = NULL, min_matches = 5L, limit = 50L) {
-  if (!has_team_match_stats(conn)) {
+  include_penalties <- has_team_match_stats(conn)
+  if (!include_penalties) {
     api_log("WARN", "home_venue_impact_no_team_match_stats",
-            error_message = "home-venue-impact requires team_match_stats; returning empty result.")
-    return(empty_home_venue_impact_summary())
+            error_message = "home-venue-impact is running without team_match_stats; penalty metrics will be null.")
   }
 
   base_query <- build_home_venue_impact_base_query(
     seasons = seasons,
     team_id = team_id,
-    venue_name = venue_name
+    venue_name = venue_name,
+    include_penalties = include_penalties
   )
   rows <- query_rows(conn, base_query$query, base_query$params)
   summarise_home_venue_impact_rows(rows, min_matches = min_matches, limit = limit)

@@ -537,6 +537,7 @@ check_step('nWAR endpoint validates position_group values')
 # Home venue impact endpoint regression tests
 home_venue_helpers_env <- new.env(parent = globalenv())
 sys.source(file.path(getwd(), 'api', 'R', 'helpers.R'), envir = home_venue_helpers_env)
+home_venue_helpers_env$api_log <- function(...) NULL
 assert_true(is.function(home_venue_helpers_env$build_home_venue_impact_base_query), 'Expected build_home_venue_impact_base_query to be exported from helpers.R.')
 assert_true(is.function(home_venue_helpers_env$summarise_home_venue_impact_rows), 'Expected summarise_home_venue_impact_rows to be exported from helpers.R.')
 
@@ -552,6 +553,14 @@ assert_contains(home_venue_sql, 'UNION ALL', 'Expected home venue impact base qu
 assert_contains(home_venue_sql, 'team_match_stats', 'Expected home venue impact base query to use team_match_stats for penalties.')
 assert_contains(home_venue_sql, "team_id = ?team_id", 'Expected home venue impact base query to support team filters on the team-perspective rows.')
 assert_contains(home_venue_sql, 'venue_name = ?venue_name', 'Expected home venue impact base query to support exact venue filters.')
+
+home_venue_query_no_penalties <- home_venue_helpers_env$build_home_venue_impact_base_query(
+  seasons = c(2024L),
+  include_penalties = FALSE
+)
+home_venue_sql_no_penalties <- normalize_sql(home_venue_query_no_penalties$query)
+assert_true(!grepl('team_match_stats', home_venue_sql_no_penalties, fixed = TRUE), 'Expected home venue impact base query to omit team_match_stats when penalties are unavailable.')
+assert_contains(home_venue_sql_no_penalties, 'NULL AS penalties_for', 'Expected home venue impact base query to null penalty fields when penalties are unavailable.')
 
 home_venue_fake_rows <- data.frame(
   match_id = c(1L, 1L, 2L, 2L, 3L, 3L, 4L, 4L, 5L, 5L),
@@ -615,6 +624,23 @@ assert_true(identical(home_venue_high_threshold$league_summary$matches, 5L), 'Ex
 assert_true(nrow(home_venue_high_threshold$team_summary) == 0L, 'Expected high min_matches to empty grouped team_summary results.')
 assert_true(nrow(home_venue_high_threshold$venue_summary) == 0L, 'Expected high min_matches to empty grouped venue_summary results.')
 assert_true(nrow(home_venue_high_threshold$team_venue_summary) == 0L, 'Expected high min_matches to empty grouped team_venue_summary results.')
+
+home_venue_helpers_env$has_team_match_stats <- function(conn) FALSE
+home_venue_helpers_env$query_rows <- function(conn, query, params = list()) {
+  rows <- home_venue_fake_rows
+  rows$penalties_for <- NA_real_
+  rows$penalties_against <- NA_real_
+  rows$penalty_advantage <- NA_real_
+  rows
+}
+home_venue_no_penalties_summary <- home_venue_helpers_env$fetch_home_venue_impact_summary(
+  conn = structure(list(), class = 'mock_connection'),
+  seasons = 2024L,
+  min_matches = 2L,
+  limit = 50L
+)
+assert_true(!is.null(home_venue_no_penalties_summary$league_summary), 'Expected home venue impact summary to remain available when team_match_stats is unavailable.')
+assert_true(is.na(home_venue_no_penalties_summary$league_summary$avg_home_penalties_for), 'Expected missing team_match_stats to yield null league penalty metrics rather than an empty result.')
 check_step('home venue impact helpers build the expected query shape and null comparison behavior')
 
 home_venue_payload <- request_json(base_url, '/home-venue-impact', query = list(season = default_season, min_matches = '1', limit = '10'))
