@@ -18,7 +18,8 @@ const LOADING_MESSAGES = [
 const state = {
   meta: null,
   payload: null,
-  selectedVenue: ""
+  selectedVenue: "",
+  requestToken: 0
 };
 
 const elements = {
@@ -336,6 +337,7 @@ function renderVenueTable() {
     button.addEventListener("click", () => {
       state.selectedVenue = venueName;
       syncUrlState();
+      updateApiLink();
       renderSpotlight();
       renderVenueTable();
     });
@@ -471,9 +473,13 @@ async function loadMetadata() {
 }
 
 async function loadHomeEdge() {
+  const requestToken = ++state.requestToken;
   showLoadingStatus();
   try {
     const payload = await fetchJson("/home-venue-impact", currentParams(false));
+    if (requestToken !== state.requestToken) {
+      return;
+    }
     state.payload = payload;
     renderAll();
     trackEvent("home_edge_loaded", {
@@ -486,6 +492,9 @@ async function loadHomeEdge() {
       autoHideMs: 2200
     });
   } catch (error) {
+    if (requestToken !== state.requestToken) {
+      return;
+    }
     if (elements.meta) elements.meta.textContent = "Home edge unavailable.";
     if (elements.contextNote) elements.contextNote.textContent = "Try narrowing to one season or one team.";
     if (elements.heroLabel) elements.heroLabel.textContent = "Unavailable";
@@ -509,12 +518,25 @@ if (elements.filters) {
 
 async function initialise() {
   trackPageView("home-edge");
-  await loadMetadata();
+  let metadataError = null;
+  try {
+    await loadMetadata();
+  } catch (error) {
+    metadataError = error;
+    if (elements.meta) {
+      elements.meta.textContent = "Archive metadata unavailable.";
+    }
+  }
   hydrateFiltersFromUrl();
   if (!elements.season?.value && state.meta?.default_season) {
     elements.season.value = String(state.meta.default_season);
   }
   await loadHomeEdge();
+  if (metadataError) {
+    showStatus("Metadata unavailable; showing the default comparison frame only.", "error", {
+      kicker: "Archive frame unavailable"
+    });
+  }
 }
 
 initialise();
