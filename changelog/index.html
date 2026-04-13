@@ -22,6 +22,7 @@
         <a class="page-nav__link" href="/players/">Player profiles</a>
         <a class="page-nav__link" href="/query/">Ask the stats</a>
         <a class="page-nav__link" href="/compare/">Compare</a>
+        <a class="page-nav__link" href="/home-edge/">Home edge</a>
         <a class="page-nav__link page-nav__link--accent" href="/changelog/">Changelog</a>
         <a class="page-nav__link" href="/nwar/">nWAR</a>
         <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
@@ -38,6 +39,24 @@
 
     <main id="main-content" class="page-shell page-main">
       <section class="changelog-stack" aria-label="Recent updates">
+        <article class="panel changelog-entry reveal">
+          <div class="changelog-entry__header">
+            <p class="results-panel__eyebrow">13 Apr 2026</p>
+            <h2>Venue context and nWAR filters are sharper.</h2>
+            <p class="panel__lead">The live API can now break down home-court effects by venue, and the public nWAR view is easier to filter across eras and position groups.</p>
+          </div>
+          <ul class="changelog-list">
+            <li>A new <code>/api/home-venue-impact</code> endpoint now measures home win rate, margin, and penalty swing by season, team, and venue.</li>
+            <li>Team venue splits now compare one home court against that same team&apos;s other home venues, so arena-specific edges are easier to spot.</li>
+            <li>The nWAR page now supports ANZC vs SSN filters plus broad shooter, midcourt, and defender groupings.</li>
+            <li>The underlying nWAR and venue queries were tightened so all-season views and season-level venue slices return more reliably.</li>
+          </ul>
+          <div class="changelog-link-list">
+            <a class="changelog-link" href="/home-edge/">Open Home Edge</a>
+            <a class="changelog-link" href="/nwar/">Open nWAR</a>
+          </div>
+        </article>
+
         <article class="panel changelog-entry reveal">
           <div class="changelog-entry__header">
             <p class="results-panel__eyebrow">8 Apr 2026</p>
