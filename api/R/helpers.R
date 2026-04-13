@@ -3194,7 +3194,7 @@ build_home_venue_impact_base_query <- function(seasons = NULL, team_id = NULL, v
     penalty_join_sql <- character()
   }
 
-  query <- paste(
+  query <- paste(c(
     "SELECT * FROM (",
     "SELECT matches.match_id, matches.season, COALESCE(matches.competition_phase, '') AS competition_phase,",
     "  matches.round_number, matches.venue_name,",
@@ -3231,7 +3231,7 @@ build_home_venue_impact_base_query <- function(seasons = NULL, team_id = NULL, v
     "  AND matches.away_score IS NOT NULL",
     ") AS impact_rows",
     "WHERE 1 = 1"
-  )
+  ), collapse = " ")
   params <- list()
 
   season_filter <- append_integer_in_filter(query, params, "season", seasons, "season")

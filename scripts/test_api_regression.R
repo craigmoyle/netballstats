@@ -547,6 +547,7 @@ home_venue_query <- home_venue_helpers_env$build_home_venue_impact_base_query(
   venue_name = 'John Cain Arena'
 )
 home_venue_sql <- normalize_sql(home_venue_query$query)
+assert_true(length(home_venue_query$query) == 1L, 'Expected home venue impact base query to compile to a single SQL statement.')
 assert_contains(home_venue_sql, 'home_score IS NOT NULL', 'Expected home venue impact base query to exclude incomplete matches.')
 assert_contains(home_venue_sql, 'away_score IS NOT NULL', 'Expected home venue impact base query to exclude incomplete matches.')
 assert_contains(home_venue_sql, 'UNION ALL', 'Expected home venue impact base query to expand matches into home and away rows.')
@@ -559,6 +560,7 @@ home_venue_query_no_penalties <- home_venue_helpers_env$build_home_venue_impact_
   include_penalties = FALSE
 )
 home_venue_sql_no_penalties <- normalize_sql(home_venue_query_no_penalties$query)
+assert_true(length(home_venue_query_no_penalties$query) == 1L, 'Expected home venue impact base query without penalties to compile to a single SQL statement.')
 assert_true(!grepl('team_match_stats', home_venue_sql_no_penalties, fixed = TRUE), 'Expected home venue impact base query to omit team_match_stats when penalties are unavailable.')
 assert_contains(home_venue_sql_no_penalties, 'NULL AS penalties_for', 'Expected home venue impact base query to null penalty fields when penalties are unavailable.')
 
