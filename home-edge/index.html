@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Home Edge | Netball Stats Database</title>
+    <meta name="description" content="Compare home win rate, margin, and penalty swing by arena, team, and season across the netball archive.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/home-edge.js"></script>
+  </head>
+  <body class="home-edge-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Explore archive</a>
+        <a class="page-nav__link" href="/round/">Round recap</a>
+        <a class="page-nav__link" href="/players/">Player profiles</a>
+        <a class="page-nav__link" href="/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/compare/">Compare</a>
+        <a class="page-nav__link page-nav__link--accent" href="/home-edge/">Home edge</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel home-edge-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Arena splits and home-court context</p>
+          <h1>Home Edge</h1>
+          <p class="intro-copy">See how much the whistle, the margin, and the win rate tilt at home — then narrow to one club to compare its arenas against each other.</p>
+        </div>
+
+        <aside class="hero-aside" aria-label="Home edge spotlight">
+          <div class="hero-aside__card hero-aside__card--archive">
+            <span class="hero-aside__label">Venue spotlight</span>
+            <strong id="home-edge-hero-label">Loading…</strong>
+            <p id="home-edge-hero-summary">Loading venue context from the archive.</p>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel reveal home-edge-desk">
+        <div id="home-edge-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <p class="panel__eyebrow">Comparison desk</p>
+            <h2>Choose the slice</h2>
+            <p class="panel__lead">Start with a season and minimum sample. Add a team when you want to see which arena gives that club the biggest home lift.</p>
+          </div>
+          <p class="muted" id="home-edge-meta">Loading the archive frame…</p>
+        </div>
+
+        <form id="home-edge-filters" class="filters filters--dashboard" aria-label="Home edge filters">
+          <div class="field field--compact">
+            <label for="home-edge-season">Season</label>
+            <select id="home-edge-season" name="season">
+              <option value="">All seasons</option>
+            </select>
+          </div>
+          <div class="field field--compact">
+            <label for="home-edge-team">Team</label>
+            <select id="home-edge-team" name="team_id">
+              <option value="">All teams</option>
+            </select>
+          </div>
+          <div class="field field--compact">
+            <label for="home-edge-min-matches">Min. home matches</label>
+            <select id="home-edge-min-matches" name="min_matches">
+              <option value="1">1+ matches</option>
+              <option value="3" selected>3+ matches</option>
+              <option value="5">5+ matches</option>
+              <option value="8">8+ matches</option>
+            </select>
+          </div>
+          <div class="filter-actions">
+            <button type="submit" class="button">Apply</button>
+          </div>
+        </form>
+
+        <div class="home-edge-desk__footer">
+          <p id="home-edge-context-note" class="home-edge-context-note">Loading the current comparison frame.</p>
+          <a id="home-edge-api-link" class="changelog-link" href="/api/home-venue-impact?season=2024&amp;min_matches=3&amp;limit=12">Open the current API response</a>
+        </div>
+      </section>
+
+      <section class="panel reveal home-edge-lead">
+        <div class="home-edge-lead__header">
+          <p class="panel__eyebrow">League frame</p>
+          <h2 id="home-edge-focus-title">Loading venue spotlight…</h2>
+          <p id="home-edge-focus-copy" class="panel__lead">Pulling the strongest home edge from the current filter set.</p>
+        </div>
+
+        <section class="summary-band" aria-label="League home edge summary">
+          <article class="summary-card summary-card--accent">
+            <span class="summary-card__label">Matches</span>
+            <span id="home-edge-matches" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Home win rate</span>
+            <span id="home-edge-home-win-rate" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Avg home margin</span>
+            <span id="home-edge-home-margin" class="summary-card__value">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Penalty edge</span>
+            <span id="home-edge-home-penalty" class="summary-card__value">-</span>
+          </article>
+        </section>
+
+        <div class="home-edge-focus__facts" aria-label="Selected home edge spotlight">
+          <article class="summary-card">
+            <span class="summary-card__label">Spotlight sample</span>
+            <span id="home-edge-spotlight-sample" class="summary-card__value summary-card__value--small">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Margin lift</span>
+            <span id="home-edge-spotlight-margin" class="summary-card__value summary-card__value--small">-</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Penalty lift</span>
+            <span id="home-edge-spotlight-penalty" class="summary-card__value summary-card__value--small">-</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="home-edge-grid reveal">
+        <article class="panel home-edge-panel">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <p class="panel__eyebrow">Venue ladder</p>
+              <h2>Which arenas swing hardest?</h2>
+            </div>
+            <p class="muted">Tap a venue name to move the spotlight.</p>
+          </div>
+          <div class="table-wrapper">
+            <table id="home-edge-venue-table" class="stack-table" aria-label="Venue home edge comparison">
+              <thead>
+                <tr>
+                  <th scope="col">Venue</th>
+                  <th scope="col">Matches</th>
+                  <th scope="col">Home W%</th>
+                  <th scope="col">Margin lift</th>
+                  <th scope="col">Penalty lift</th>
+                </tr>
+              </thead>
+              <tbody id="home-edge-venue-body">
+                <tr><td colspan="5" class="empty-state" data-kicker="Loading">Loading venue comparisons…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="panel home-edge-panel">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <p class="panel__eyebrow">Team swing</p>
+              <h2>How different is home from away?</h2>
+            </div>
+            <p class="muted">Sorted by margin change between home and away.</p>
+          </div>
+          <div class="table-wrapper">
+            <table id="home-edge-team-table" class="stack-table" aria-label="Team home versus away comparison">
+              <thead>
+                <tr>
+                  <th scope="col">Team</th>
+                  <th scope="col">Home W%</th>
+                  <th scope="col">Away W%</th>
+                  <th scope="col">Margin Δ</th>
+                  <th scope="col">Penalty Δ</th>
+                </tr>
+              </thead>
+              <tbody id="home-edge-team-body">
+                <tr><td colspan="5" class="empty-state" data-kicker="Loading">Loading team comparisons…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </section>
+
+      <section class="panel reveal home-edge-panel">
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <p class="panel__eyebrow">Arena-by-arena</p>
+            <h2 id="home-edge-team-venue-heading">Which home floor gives the biggest lift?</h2>
+            <p id="home-edge-team-venue-lead" class="panel__lead">Choose one club above to isolate its home venues, or stay on all teams to see the strongest combinations in the archive slice.</p>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table id="home-edge-team-venue-table" class="stack-table" aria-label="Home venue comparison by team">
+            <thead>
+              <tr>
+                <th scope="col">Team</th>
+                <th scope="col">Venue</th>
+                <th scope="col">Matches</th>
+                <th scope="col">Home W%</th>
+                <th scope="col">Other home W%</th>
+                <th scope="col">Margin lift</th>
+                <th scope="col">Penalty lift</th>
+              </tr>
+            </thead>
+            <tbody id="home-edge-team-venue-body">
+              <tr><td colspan="7" class="empty-state" data-kicker="Loading">Loading team venue splits…</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
