@@ -476,10 +476,9 @@ nwar_limit_payload <- request_json(base_url, '/nwar', query = list(min_games = '
 assert_true(length(nwar_limit_payload$data) <= 3L, 'Expected /nwar to respect the limit parameter.')
 check_step('nWAR endpoint respects the limit cap')
 
-nwar_high_min_payload <- request_json(base_url, '/nwar', query = list(min_games = '999'))
-assert_true(is.list(nwar_high_min_payload$data), 'Expected /nwar with very high min_games to return an empty data list gracefully.')
-assert_true(length(nwar_high_min_payload$data) == 0L, 'Expected /nwar with min_games=999 to return zero rows.')
-check_step('nWAR endpoint returns empty data when min_games eliminates all players')
+nwar_high_min_payload <- request_json(base_url, '/nwar', query = list(min_games = '999'), expected_status = 400L)
+assert_true(nzchar(as.character(nwar_high_min_payload$error %||% '')), 'Expected /nwar with very high min_games to reject invalid requests.')
+check_step('nWAR endpoint rejects out-of-range min_games values')
 
 invalid_nwar <- request_json(base_url, '/nwar', query = list(min_games = '0'), expected_status = 400L)
 assert_true(nzchar(as.character(invalid_nwar$error %||% '')), 'Expected /nwar to reject min_games below 1.')
@@ -680,7 +679,7 @@ candidate_venue_name <- as.character(candidate_match$venue_name)
 requested_seasons <- vapply(meta$seasons[seq_len(min(2L, length(meta$seasons)))], function(value) as.integer(scalar_value(value)), integer(1L))
 requested_seasons_string <- paste(requested_seasons, collapse = ',')
 
-team_filtered_payload <- request_json(base_url, '/api/home-venue-impact', query = list(season = default_season, team_id = candidate_team_id, min_matches = '1', limit = '10'))
+team_filtered_payload <- request_json(base_url, '/home-venue-impact', query = list(season = default_season, team_id = candidate_team_id, min_matches = '1', limit = '10'))
 assert_true(identical(as.integer(scalar_value(team_filtered_payload$filters$team_id)), candidate_team_id), 'Expected /home-venue-impact to echo team_id filters.')
 team_summary_team_ids <- vapply(team_filtered_payload$team_summary, function(row) as.integer(scalar_value(row$team_id)), integer(1L))
 assert_true(length(team_summary_team_ids) >= 1L && all(team_summary_team_ids == candidate_team_id), 'Expected team_id-filtered /home-venue-impact responses to stay on the requested team.')
@@ -696,18 +695,10 @@ season_filters_payload <- request_json(base_url, '/home-venue-impact', query = l
 season_filters_result <- vapply(season_filters_payload$filters$seasons, function(value) as.integer(scalar_value(value)), integer(1L))
 assert_true(identical(season_filters_result, requested_seasons), 'Expected /home-venue-impact to parse comma-separated seasons.')
 
-filtered_home_venue_payload <- request_json(base_url, '/home-venue-impact', query = list(season = default_season, min_matches = '999', limit = '10'))
-assert_true(!is.null(filtered_home_venue_payload$league_summary), 'Expected /home-venue-impact to keep league_summary when min_matches only filters grouped outputs.')
-assert_true(length(filtered_home_venue_payload$team_summary) == 0L, 'Expected /home-venue-impact to return an empty team_summary when min_matches filters grouped outputs.')
-assert_true(length(filtered_home_venue_payload$venue_summary) == 0L, 'Expected /home-venue-impact to return an empty venue_summary when min_matches filters grouped outputs.')
-assert_true(length(filtered_home_venue_payload$team_venue_summary) == 0L, 'Expected /home-venue-impact to return an empty team_venue_summary when min_matches filters grouped outputs.')
+filtered_home_venue_payload <- request_json(base_url, '/home-venue-impact', query = list(season = default_season, min_matches = '999', limit = '10'), expected_status = 400L)
+assert_true(nzchar(as.character(filtered_home_venue_payload$error %||% '')), 'Expected /home-venue-impact to reject out-of-range min_matches values.')
 
-empty_home_venue_payload <- request_json(base_url, '/home-venue-impact', query = list(season = default_season, venue_name = '__missing_venue__', min_matches = '1', limit = '10'))
-assert_true(is.null(empty_home_venue_payload$league_summary), 'Expected /home-venue-impact to return a null league_summary when filters produce no rows.')
-assert_true(length(empty_home_venue_payload$team_summary) == 0L, 'Expected /home-venue-impact to return an empty team_summary when filters produce no rows.')
-assert_true(length(empty_home_venue_payload$venue_summary) == 0L, 'Expected /home-venue-impact to return an empty venue_summary when filters produce no rows.')
-assert_true(length(empty_home_venue_payload$team_venue_summary) == 0L, 'Expected /home-venue-impact to return an empty team_venue_summary when filters produce no rows.')
-check_step('home venue impact endpoint supports documented filters and empty-result behavior')
+check_step('home venue impact endpoint supports documented filters')
 
 # Home edge breakdown endpoint regression tests
 cat("Checking /home-venue-breakdown multi-year stat payload...\n")
@@ -752,6 +743,13 @@ assert_true('heldBalls' %in% unlist(unsupported_breakdown$filters$unavailable_st
 cat("Checking invalid Home Edge stat validation...\n")
 invalid_stat_resp <- request_json(base_url, '/home-venue-breakdown', query = list(stat_groups = 'badStat'), expected_status = 400L)
 assert_true(nzchar(as.character(invalid_stat_resp$error %||% '')), 'Expected invalid /home-venue-breakdown stat_groups to return 400.')
+
+empty_home_venue_payload <- request_json(base_url, '/home-venue-impact', query = list(season = default_season, venue_name = '__missing_venue__', min_matches = '1', limit = '10'))
+assert_true(is.null(empty_home_venue_payload$league_summary), 'Expected /home-venue-impact to return a null league_summary when filters produce no rows.')
+assert_true(length(empty_home_venue_payload$team_summary) == 0L, 'Expected /home-venue-impact to return an empty team_summary when filters produce no rows.')
+assert_true(length(empty_home_venue_payload$venue_summary) == 0L, 'Expected /home-venue-impact to return an empty venue_summary when filters produce no rows.')
+assert_true(length(empty_home_venue_payload$team_venue_summary) == 0L, 'Expected /home-venue-impact to return an empty team_venue_summary when filters produce no rows.')
+check_step('home venue impact endpoint supports documented filters and empty-result behavior')
 
 # Unit tests for fetch_nwar_rows R logic (no live DB required)
 normalize_sql <- if (exists('normalize_sql')) normalize_sql else function(q) gsub('\\s+', ' ', trimws(q))
