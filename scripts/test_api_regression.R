@@ -701,6 +701,17 @@ assert_true(nzchar(as.character(filtered_home_venue_payload$error %||% '')), 'Ex
 check_step('home venue impact endpoint supports documented filters')
 
 # Home edge breakdown endpoint regression tests
+home_edge_breakdown_helpers_env <- new.env(parent = globalenv())
+sys.source(file.path(getwd(), 'api', 'R', 'helpers.R'), envir = home_edge_breakdown_helpers_env)
+home_edge_breakdown_helpers_env$api_log <- function(...) NULL
+assert_true(is.function(home_edge_breakdown_helpers_env$build_home_edge_stat_groups), 'Expected build_home_edge_stat_groups to be exported from helpers.R.')
+assert_true(is.function(home_edge_breakdown_helpers_env$normalize_home_edge_stat_groups), 'Expected normalize_home_edge_stat_groups to be exported from helpers.R.')
+assert_true(is.function(home_edge_breakdown_helpers_env$fetch_home_venue_breakdown), 'Expected fetch_home_venue_breakdown to be exported from helpers.R.')
+home_edge_groups <- home_edge_breakdown_helpers_env$normalize_home_edge_stat_groups(c('generalPlayTurnovers', 'heldBalls'))
+assert_true('heldBalls' %in% home_edge_groups$available_stat_groups, 'Expected heldBalls to resolve as an available Home Edge stat group.')
+assert_true('turnoverHeld' %in% home_edge_groups$requested_stat_keys, 'Expected heldBalls to map to turnoverHeld.')
+assert_true(!('heldBalls' %in% home_edge_groups$unavailable_stat_groups), 'Expected heldBalls to stay out of unavailable Home Edge stat groups.')
+
 cat("Checking /home-venue-breakdown multi-year stat payload...\n")
 breakdown <- request_json(base_url, '/home-venue-breakdown', query = list(
   seasons = '2023,2024',
@@ -729,16 +740,16 @@ assert_true(is.list(team_breakdown), 'Expected team-filtered /home-venue-breakdo
 assert_true(is.data.frame(team_breakdown$stat_summary), 'Expected team-filtered /home-venue-breakdown to return a stat_summary data.frame.')
 assert_true(is.data.frame(team_breakdown$team_venue_stat_summary), 'Expected team-filtered /home-venue-breakdown to return a team_venue_stat_summary data.frame.')
 
-cat("Checking unsupported Home Edge stat reporting...\n")
-unsupported_breakdown <- request_json(base_url, '/home-venue-breakdown', query = list(
+cat("Checking held balls Home Edge stat reporting...\n")
+held_balls_breakdown <- request_json(base_url, '/home-venue-breakdown', query = list(
   seasons = '2024',
   stat_groups = 'heldBalls',
   min_matches = '1',
   limit = '5'
 ))
-assert_true(is.list(unsupported_breakdown$filters), 'Expected unsupported /home-venue-breakdown responses to include filters.')
-assert_true('heldBalls' %in% unlist(unsupported_breakdown$filters$requested_stat_groups), 'Expected unsupported stat_groups to be echoed in requested_stat_groups.')
-assert_true('heldBalls' %in% unlist(unsupported_breakdown$filters$unavailable_stat_groups), 'Expected unsupported stat_groups to be echoed in unavailable_stat_groups.')
+assert_true(is.list(held_balls_breakdown$filters), 'Expected /home-venue-breakdown responses to include filters.')
+assert_true('heldBalls' %in% unlist(held_balls_breakdown$filters$requested_stat_groups), 'Expected heldBalls stat_groups to be echoed in requested_stat_groups.')
+assert_true(!('heldBalls' %in% unlist(held_balls_breakdown$filters$unavailable_stat_groups)), 'Expected heldBalls to be treated as an available Home Edge stat group.')
 
 cat("Checking invalid Home Edge stat validation...\n")
 invalid_stat_resp <- request_json(base_url, '/home-venue-breakdown', query = list(stat_groups = 'badStat'), expected_status = 400L)
