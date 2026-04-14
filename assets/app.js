@@ -112,6 +112,8 @@ const elements = {
   teamLeadersBody: document.querySelector("#team-leaders-table tbody"),
   playerLeadersBody: document.querySelector("#player-leaders-table tbody"),
   competitionSeasonChart: document.getElementById("competition-season-chart"),
+  competitionSeasonSummary: document.getElementById("competition-season-summary"),
+  competitionSeasonChartTitle: document.getElementById("competition-season-chart-title"),
   teamLeadersChart: document.getElementById("team-leaders-chart"),
   teamTrendChart: document.getElementById("team-trend-chart"),
   playerLeadersChart: document.getElementById("player-leaders-chart"),
@@ -422,6 +424,22 @@ function teamLabel(teamId) {
   return selectedTeam ? selectedTeam.squad_name : "All teams";
 }
 
+function selectedStatLabel(selectElement, statKey) {
+  const selectedOptionLabel = selectElement?.selectedOptions?.[0]?.textContent?.trim();
+  if (selectedOptionLabel) {
+    return selectedOptionLabel;
+  }
+  return formatStatLabel(statKey || "stat");
+}
+
+function currentTeamStatLabel() {
+  return selectedStatLabel(elements.teamStat, state.filters.teamStat);
+}
+
+function currentPlayerStatLabel() {
+  return selectedStatLabel(elements.playerStat, state.filters.playerStat);
+}
+
 function isAverageMetric() {
   return state.filters.statMode === "average";
 }
@@ -525,20 +543,32 @@ function updateArchiveModePresentation() {
     elements.teamPanelTitle.textContent = recordMode ? "Team records" : "Team leaderboard";
   }
   if (elements.playerPanelSummary) {
+    const playerStatLabel = currentPlayerStatLabel();
     elements.playerPanelSummary.textContent = recordMode
-      ? "Single-game player records for the selected stat."
-      : "Top player lines across the selected seasons.";
+      ? `Single-game player records for ${playerStatLabel}.`
+      : `Top player lines for ${playerStatLabel} across the selected seasons.`;
   }
   if (elements.teamPanelSummary) {
+    const teamStatLabel = currentTeamStatLabel();
     elements.teamPanelSummary.textContent = recordMode
-      ? "Single-game team records for the selected stat."
-      : "Team view of the selected stat across seasons.";
+      ? `Single-game team records for ${teamStatLabel}.`
+      : `Team view of ${teamStatLabel} across seasons.`;
   }
   if (elements.playerTrendTitle) {
-    elements.playerTrendTitle.textContent = recordMode ? "No season trend in record mode" : "Season trend for top players";
+    elements.playerTrendTitle.textContent = recordMode
+      ? "No season trend in record mode"
+      : `Season trend for top players in ${currentPlayerStatLabel()}`;
   }
   if (elements.teamTrendTitle) {
-    elements.teamTrendTitle.textContent = recordMode ? "No season trend in record mode" : "Season trend for top clubs";
+    elements.teamTrendTitle.textContent = recordMode
+      ? "No season trend in record mode"
+      : `Season trend for top clubs in ${currentTeamStatLabel()}`;
+  }
+  if (elements.competitionSeasonSummary) {
+    elements.competitionSeasonSummary.textContent = `Season context for ${currentTeamStatLabel()}.`;
+  }
+  if (elements.competitionSeasonChartTitle) {
+    elements.competitionSeasonChartTitle.textContent = `Competition trend by season for ${currentTeamStatLabel()}`;
   }
 
   replaceTableHead(
@@ -631,8 +661,8 @@ function renderFilterSummary() {
     archiveModeLabel(),
     isRecordMode() ? "single-game totals" : statModeDescriptor(),
     rankingModeDescriptor(),
-    `Team ${state.filters.teamStat || "-"}`,
-    `Player ${state.filters.playerStat || "-"}`
+    `Team ${currentTeamStatLabel()}`,
+    `Player ${currentPlayerStatLabel()}`
   ];
 
   if (state.filters.playerSearch) {
@@ -651,13 +681,13 @@ function renderFilterSummary() {
   }
   if (elements.teamLeadersChartTitle) {
     elements.teamLeadersChartTitle.textContent = isRecordMode()
-      ? `${rankingModeLabel()} team records by the selected stat`
-      : `${rankingModeLabel()} clubs by the selected stat`;
+      ? `${rankingModeLabel()} team records by ${currentTeamStatLabel()}`
+      : `${rankingModeLabel()} clubs by ${currentTeamStatLabel()}`;
   }
   if (elements.playerLeadersChartTitle) {
     elements.playerLeadersChartTitle.textContent = isRecordMode()
-      ? `${rankingModeLabel()} player records by the selected stat`
-      : `${rankingModeLabel()} players by the selected stat`;
+      ? `${rankingModeLabel()} player records by ${currentPlayerStatLabel()}`
+      : `${rankingModeLabel()} players by ${currentPlayerStatLabel()}`;
   }
   updateValueHeadings();
   renderArchiveContextNote();
@@ -1004,7 +1034,7 @@ function renderCompetitionSeasonChart(rows, errorMessage) {
   }
 
   renderSeasonColumnChart(elements.competitionSeasonChart, rows, {
-    ariaLabel: `Competition ${statModeDescriptor()} chart by season for ${state.filters.teamStat}`,
+    ariaLabel: `Competition ${statModeDescriptor()} chart by season for ${currentTeamStatLabel()}`,
     emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.season,
     valueAccessor: (row) => statValue(row),
@@ -1017,8 +1047,8 @@ function renderTeamLeaderChart(leaderRows) {
 
   renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
     ariaLabel: isRecordMode()
-      ? `${rankingModeLabel()} single-game team records chart for ${state.filters.teamStat}`
-      : `${rankingModeLabel()} team leaderboard ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
+      ? `${rankingModeLabel()} single-game team records chart for ${currentTeamStatLabel()}`
+      : `${rankingModeLabel()} team leaderboard ${statModeDescriptor()} chart for ${currentTeamStatLabel()}`,
     emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.squad_name,
     valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
@@ -1038,7 +1068,7 @@ function renderTeamTrendChart(trendRows, errorMessage = "") {
   }
 
   renderTrendChart(elements.teamTrendChart, trendRows, {
-    ariaLabel: `Team season ${statModeDescriptor()} chart for ${state.filters.teamStat}`,
+    ariaLabel: `Team season ${statModeDescriptor()} chart for ${currentTeamStatLabel()}`,
     emptyMessage: "No results for these filters.",
     singleSeasonMessage: "Choose two or more seasons for a trend.",
     idAccessor: (row) => row.squad_id,
@@ -1053,8 +1083,8 @@ function renderPlayerLeaderChart(leaderRows) {
 
   renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
     ariaLabel: isRecordMode()
-      ? `${rankingModeLabel()} single-game player records chart for ${state.filters.playerStat}`
-      : `${rankingModeLabel()} player leaderboard ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
+      ? `${rankingModeLabel()} single-game player records chart for ${currentPlayerStatLabel()}`
+      : `${rankingModeLabel()} player leaderboard ${statModeDescriptor()} chart for ${currentPlayerStatLabel()}`,
     emptyMessage: "No results for these filters.",
     labelAccessor: (row) => row.player_name,
     valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
@@ -1074,7 +1104,7 @@ function renderPlayerTrendChart(trendRows, errorMessage = "") {
   }
 
   renderTrendChart(elements.playerTrendChart, trendRows, {
-    ariaLabel: `Player season ${statModeDescriptor()} chart for ${state.filters.playerStat}`,
+    ariaLabel: `Player season ${statModeDescriptor()} chart for ${currentPlayerStatLabel()}`,
     emptyMessage: "No results for these filters.",
     singleSeasonMessage: "Choose two or more seasons for a trend.",
     idAccessor: (row) => row.player_id,
