@@ -4,14 +4,14 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="/assets/theme.js"></script>
-    <title>Home Edge | Netball Stats Database</title>
-    <meta name="description" content="Compare home win rate, margin, and penalty swing by arena, team, and season across the netball archive.">
+    <title>Home Court Advantage | Netball Stats Database</title>
+    <meta name="description" content="Compare home-court advantage through win rate, margin, and penalty swing by arena, team, and season across the netball archive.">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
     <script defer src="/assets/config.js"></script>
     <script defer src="/assets/telemetry.js"></script>
-    <script defer src="/assets/home-edge.js"></script>
+    <script defer src="/assets/home-court-advantage.js"></script>
   </head>
   <body class="home-edge-page">
     <a href="#main-content" class="skip-link">Skip to content</a>
@@ -23,7 +23,7 @@
         <a class="page-nav__link" href="/players/">Player profiles</a>
         <a class="page-nav__link" href="/query/">Ask the stats</a>
         <a class="page-nav__link" href="/compare/">Compare</a>
-        <a class="page-nav__link page-nav__link--accent" href="/home-edge/">Home edge</a>
+        <a class="page-nav__link page-nav__link--accent" href="/home-court-advantage/">Home court advantage</a>
         <a class="page-nav__link" href="/changelog/">Changelog</a>
         <a class="page-nav__link" href="/nwar/">nWAR</a>
         <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
@@ -32,11 +32,11 @@
       <section class="hero-panel home-edge-hero">
         <div class="hero-copy">
           <p class="eyebrow">Arena splits and home-court context</p>
-          <h1>Home Edge</h1>
+          <h1>Home Court Advantage</h1>
           <p class="intro-copy">See how much the whistle, the margin, and the win rate tilt at home — then narrow to one club to compare its arenas against each other.</p>
         </div>
 
-        <aside class="hero-aside" aria-label="Home edge spotlight">
+        <aside class="hero-aside" aria-label="Home court advantage spotlight">
           <div class="hero-aside__card hero-aside__card--archive">
             <span class="hero-aside__label">Venue spotlight</span>
             <strong id="home-edge-hero-label">Loading…</strong>
@@ -58,7 +58,7 @@
           <p class="muted" id="home-edge-meta">Loading the archive frame…</p>
         </div>
 
-        <form id="home-edge-filters" class="filters filters--dashboard" aria-label="Home edge filters">
+        <form id="home-edge-filters" class="filters filters--dashboard" aria-label="Home court advantage filters">
           <div class="field field--compact">
             <label for="home-edge-season">Season</label>
             <select id="home-edge-season" name="season">
@@ -95,10 +95,10 @@
         <div class="home-edge-lead__header">
           <p class="panel__eyebrow">League frame</p>
           <h2 id="home-edge-focus-title">Loading venue spotlight…</h2>
-          <p id="home-edge-focus-copy" class="panel__lead">Pulling the strongest home edge from the current filter set.</p>
+          <p id="home-edge-focus-copy" class="panel__lead">Pulling the strongest home-court advantage from the current filter set.</p>
         </div>
 
-        <section class="summary-band" aria-label="League home edge summary">
+        <section class="summary-band" aria-label="League home-court advantage summary">
           <article class="summary-card summary-card--accent">
             <span class="summary-card__label">Matches</span>
             <span id="home-edge-matches" class="summary-card__value">-</span>
@@ -117,7 +117,7 @@
           </article>
         </section>
 
-        <div class="home-edge-focus__facts" aria-label="Selected home edge spotlight">
+        <div class="home-edge-focus__facts" aria-label="Selected home-court advantage spotlight">
           <article class="summary-card">
             <span class="summary-card__label">Spotlight sample</span>
             <span id="home-edge-spotlight-sample" class="summary-card__value summary-card__value--small">-</span>
@@ -143,7 +143,7 @@
             <p class="muted">Tap a venue name to move the spotlight.</p>
           </div>
           <div class="table-wrapper">
-            <table id="home-edge-venue-table" class="stack-table" aria-label="Venue home edge comparison">
+            <table id="home-edge-venue-table" class="stack-table" aria-label="Venue home-court advantage comparison">
               <thead>
                 <tr>
                   <th scope="col">Venue</th>

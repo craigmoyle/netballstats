@@ -19,6 +19,16 @@
       "allowedRoles": ["anonymous"]
     },
     {
+      "route": "/home-edge",
+      "redirect": "/home-court-advantage/",
+      "statusCode": 301
+    },
+    {
+      "route": "/home-edge/",
+      "redirect": "/home-court-advantage/",
+      "statusCode": 301
+    },
+    {
       "route": "/player/*",
       "rewrite": "/player/index.html"
     },

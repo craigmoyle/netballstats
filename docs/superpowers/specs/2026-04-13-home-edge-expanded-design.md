@@ -1,8 +1,8 @@
-# Home Edge Expanded Design
+# Home Court Advantage Expanded Design
 
 ## Summary
 
-Expand **Home Edge** from a high-level venue impact page into a two-layer analysis surface:
+Expand **Home Court Advantage** from a high-level venue impact page into a two-layer analysis surface:
 
 1. keep the current **overview** story focused on home win rate, margin, and whistle/control edge
 2. add a second **detailed breakdown** layer for stat-specific venue effects and opposition-club impact
@@ -11,7 +11,7 @@ The approved direction is **option 2**:
 
 - keep `/api/home-venue-impact` as the lightweight overview endpoint
 - add a second endpoint for the deeper stat and opponent evidence
-- extend the existing `/home-edge/` page so it feels like a premium archive analysis desk rather than a stack of generic dashboard tables
+- extend the existing `/home-court-advantage/` page so it feels like a premium archive analysis desk rather than a stack of generic dashboard tables
 
 The new page must support:
 
@@ -26,7 +26,7 @@ The new page must support:
 
 ## Problem
 
-The first Home Edge release answers only the top-level question:
+The first Home Court Advantage release answers only the top-level question:
 
 - does home improve win rate, margin, or the overall whistle?
 
@@ -41,7 +41,7 @@ Without that second layer, the page can identify that a venue has an edge, but n
 
 ## Goals
 
-1. Add **multi-year season filtering** to Home Edge using the same mental model as the archive page.
+1. Add **multi-year season filtering** to Home Court Advantage using the same mental model as the archive page.
 2. Add a detailed **stat influence** layer for venue-specific swings in team stats.
 3. Add an **opposition impact** layer with both:
    - overall opponent effect
@@ -51,7 +51,7 @@ Without that second layer, the page can identify that a venue has an edge, but n
 
 ## Non-goals
 
-- No replacement of the existing Home Edge overview section
+- No replacement of the existing Home Court Advantage overview section
 - No creation of a separate second page for the deep-dive layer
 - No generic “build your own BI tool” control sprawl
 - No move away from the current amber/teal editorial visual system
@@ -61,7 +61,7 @@ Without that second layer, the page can identify that a venue has an edge, but n
 
 ### Layer 1: overview
 
-The current Home Edge layer remains the **editorial frame**:
+The current Home Court Advantage layer remains the **editorial frame**:
 
 - how strong is the home edge in the selected slice?
 - which arena or club-home pairing stands out first?
@@ -395,8 +395,8 @@ Copy should stay short and editorial, not parameter-dumpy.
 
 Expected code surfaces:
 
-- `home-edge/index.html`
-- `assets/home-edge.js`
+- `home-court-advantage/index.html`
+- `assets/home-court-advantage.js`
 - `assets/styles.css`
 - `api/plumber.R`
 - `api/R/helpers.R`
@@ -431,8 +431,8 @@ Frontend checks should confirm:
 
 Implement the approved split:
 
-- keep the current Home Edge overview endpoint and summary-first story
+- keep the current Home Court Advantage overview endpoint and summary-first story
 - add one new detailed breakdown endpoint for stats and opposition effects
-- extend the existing `/home-edge/` page rather than creating a second page
+- extend the existing `/home-court-advantage/` page rather than creating a second page
 
-This gives the archive the deeper venue-analysis layer the user wants without sacrificing clarity or turning Home Edge into an unbounded query tool.
+This gives the archive the deeper venue-analysis layer the user wants without sacrificing clarity or turning Home Court Advantage into an unbounded query tool.
