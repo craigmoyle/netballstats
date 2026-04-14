@@ -1493,7 +1493,7 @@ function(season = "", seasons = "", team_id = "", venue_name = "", min_matches =
 #* @param venue_name Optional exact venue name filter.
 #* @param stat_groups Optional comma-separated stat groups. Supported groups: generalPlayTurnovers, contactPenalties, obstructionPenalties, penalties, heldBalls.
 #* @param min_matches Minimum grouped matches required for inclusion (default 5, max 100).
-#* @param limit Maximum grouped rows to return per table section (default 50, max 100).
+#* @param limit Maximum grouped rows to return per table section (default 50, max 50).
 function(season = "", seasons = "", team_id = "", venue_name = "", stat_groups = "", min_matches = "5", limit = "50", res) {
   conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
@@ -1506,7 +1506,7 @@ function(season = "", seasons = "", team_id = "", venue_name = "", stat_groups =
     venue_name <- parse_optional_text(venue_name, "venue_name", max_length = 120L)
     stat_groups <- parse_optional_text(stat_groups, "stat_groups", max_length = 180L)
     min_matches <- parse_optional_int(min_matches, "min_matches", minimum = 1L, maximum = 100L) %||% 5L
-    limit <- parse_limit(limit, default = 50L, maximum = 100L)
+    limit <- parse_limit(limit, default = 50L, maximum = 50L)
 
     summary <- fetch_home_venue_breakdown(
       conn,
