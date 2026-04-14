@@ -486,24 +486,6 @@ append_integer_in_filter <- function(query, params, column_name, values, prefix)
   )
 }
 
-append_character_in_filter <- function(query, params, column_name, values, prefix) {
-  if (is.null(values) || !length(values)) {
-    return(list(query = query, params = params))
-  }
-
-  placeholders <- character(length(values))
-  for (index in seq_along(values)) {
-    key <- sprintf("%s_%s", prefix, index)
-    placeholders[[index]] <- paste0("?", key)
-    params[[key]] <- as.character(values[[index]])
-  }
-
-  list(
-    query = paste0(query, " AND ", column_name, " IN (", paste(placeholders, collapse = ", "), ")"),
-    params = params
-  )
-}
-
 apply_match_filters <- function(query, params, seasons = NULL, team_id = NULL, round_number = NULL) {
   season_filter <- append_integer_in_filter(query, params, "season", seasons, "season")
   query <- season_filter$query
@@ -3698,36 +3680,6 @@ home_edge_stat_metric <- function(rows, column_name) {
 
   values <- suppressWarnings(as.numeric(rows[[column_name]]))
   list(matches = as.integer(nrow(rows)), average = mean_or_na(values))
-}
-
-home_edge_subset_rows <- function(rows, team_id = NULL, venue_name = NULL) {
-  if (!nrow(rows)) {
-    return(rows)
-  }
-
-  selected <- rows
-  if (!is.null(team_id)) {
-    selected <- selected[selected$team_id == as.integer(team_id), , drop = FALSE]
-  }
-  if (!is.null(venue_name)) {
-    selected <- selected[selected$venue_name == as.character(venue_name), , drop = FALSE]
-  }
-  selected
-}
-
-home_edge_baseline_rows <- function(rows, team_id = NULL, venue_name = NULL) {
-  if (!nrow(rows)) {
-    return(rows)
-  }
-
-  baseline <- rows
-  if (!is.null(team_id)) {
-    baseline <- baseline[baseline$team_id == as.integer(team_id), , drop = FALSE]
-  }
-  if (!is.null(venue_name)) {
-    baseline <- baseline[baseline$venue_name != as.character(venue_name), , drop = FALSE]
-  }
-  baseline
 }
 
 build_home_edge_breakdown_base_query <- function(seasons = NULL, team_id = NULL, venue_name = NULL, stat_groups = NULL, use_match_stats = TRUE) {
