@@ -102,6 +102,12 @@ function showLoadingStatus() {
   cycleStatusBanner(elements.status, LOADING_MESSAGES, { tone: "loading", kicker: "Loading home-court advantage" });
 }
 
+function wait(ms) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, ms);
+  });
+}
+
 function renderMessageRow(tbody, colspan, message, kicker = "") {
   if (!tbody) return;
   const row = document.createElement("tr");
@@ -464,11 +470,28 @@ function renderAll() {
   syncUrlState();
 }
 
-async function loadMetadata() {
-  const meta = await fetchJson("/meta");
-  state.meta = meta;
-  renderSeasonChoices(meta.seasons || []);
-  renderTeamChoices(meta.teams || []);
+async function loadMetadata(retries = 1) {
+  let attempt = 0;
+  let lastError = null;
+
+  while (attempt <= retries) {
+    try {
+      const meta = await fetchJson("/meta");
+      state.meta = meta;
+      renderSeasonChoices(meta.seasons || []);
+      renderTeamChoices(meta.teams || []);
+      return meta;
+    } catch (error) {
+      lastError = error;
+      if (attempt >= retries) {
+        break;
+      }
+      await wait(1500 * (attempt + 1));
+      attempt += 1;
+    }
+  }
+
+  throw lastError;
 }
 
 async function loadHomeEdge() {
@@ -516,13 +539,11 @@ if (elements.filters) {
 }
 
 async function initialise() {
-  let metadataError = null;
   try {
-    await loadMetadata();
+    await loadMetadata(1);
   } catch (error) {
-    metadataError = error;
     if (elements.meta) {
-      elements.meta.textContent = "Archive metadata unavailable.";
+      elements.meta.textContent = "Archive metadata is taking longer than usual.";
     }
   }
   hydrateFiltersFromUrl();
@@ -530,11 +551,6 @@ async function initialise() {
     elements.season.value = String(state.meta.default_season);
   }
   await loadHomeEdge();
-  if (metadataError) {
-    showStatus("Metadata unavailable; showing the default comparison frame only.", "error", {
-      kicker: "Archive frame unavailable"
-    });
-  }
 }
 
 initialise();

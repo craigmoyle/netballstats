@@ -667,6 +667,14 @@ build_meta_payload <- function(conn) {
   )
 }
 
+meta_statement_timeout_ms <- function() {
+  parse_nonnegative_env_int("NETBALL_STATS_DB_META_STATEMENT_TIMEOUT_MS", 25000L)
+}
+
+home_venue_statement_timeout_ms <- function() {
+  parse_nonnegative_env_int("NETBALL_STATS_DB_HOME_VENUE_STATEMENT_TIMEOUT_MS", 25000L)
+}
+
 json_scalar <- function(value) {
   if (!is.list(value) && length(value) == 1L) {
     return(jsonlite::unbox(value))
@@ -829,7 +837,7 @@ function(res) {
   }
 
   tryCatch({
-    payload <- build_meta_payload(conn)
+    payload <- with_statement_timeout(conn, meta_statement_timeout_ms(), build_meta_payload(conn))
     .meta_cache[["meta"]] <- list(payload = payload, ts = Sys.time())
     payload
   }, error = function(error) {
@@ -1456,13 +1464,17 @@ function(season = "", seasons = "", team_id = "", venue_name = "", min_matches =
     min_matches <- parse_optional_int(min_matches, "min_matches", minimum = 1L, maximum = 100L) %||% 5L
     limit <- parse_limit(limit, default = 50L, maximum = 100L)
 
-    summary <- fetch_home_venue_impact_summary(
+    summary <- with_statement_timeout(
       conn,
-      seasons = effective_seasons,
-      team_id = team_id,
-      venue_name = venue_name,
-      min_matches = min_matches,
-      limit = limit
+      home_venue_statement_timeout_ms(),
+      fetch_home_venue_impact_summary(
+        conn,
+        seasons = effective_seasons,
+        team_id = team_id,
+        venue_name = venue_name,
+        min_matches = min_matches,
+        limit = limit
+      )
     )
 
     list(
@@ -1537,7 +1549,7 @@ function(pr) {
 
     # Pre-warm /meta cache (called on every page load)
     meta_ok <- tryCatch({
-      payload <- build_meta_payload(conn)
+      payload <- with_statement_timeout(conn, meta_statement_timeout_ms(), build_meta_payload(conn))
       .meta_cache[["meta"]] <- list(payload = payload, ts = Sys.time())
       TRUE
     }, error = function(e) FALSE)
