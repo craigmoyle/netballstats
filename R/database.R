@@ -114,3 +114,18 @@ open_database_connection <- function() {
   args <- postgres_connection_args()
   do.call(DBI::dbConnect, c(list(drv = RPostgres::Postgres()), args))
 }
+
+with_statement_timeout <- function(conn, timeout_ms, expr) {
+  parent <- parent.frame()
+  expr <- substitute(expr)
+  timeout_ms <- suppressWarnings(as.integer(timeout_ms %||% 0L))
+
+  if (is.na(timeout_ms) || timeout_ms < 1L) {
+    return(eval(expr, envir = parent))
+  }
+
+  DBI::dbWithTransaction(conn, {
+    DBI::dbExecute(conn, sprintf("SET LOCAL statement_timeout TO %d", timeout_ms))
+    eval(expr, envir = parent)
+  })
+}
