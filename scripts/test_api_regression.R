@@ -764,6 +764,10 @@ cat("Checking invalid Home Edge stat validation...\n")
 invalid_stat_resp <- request_json(base_url, '/home-venue-breakdown', query = list(stat_groups = 'badStat'), expected_status = 400L)
 assert_true(nzchar(as.character(invalid_stat_resp$error %||% '')), 'Expected invalid /home-venue-breakdown stat_groups to return 400.')
 
+cat("Checking Home Edge breakdown limit validation...\n")
+invalid_breakdown_limit <- request_json(base_url, '/home-venue-breakdown', query = list(limit = '100'), expected_status = 400L)
+assert_true(nzchar(as.character(invalid_breakdown_limit$error %||% '')), 'Expected /home-venue-breakdown to reject limit values above 50.')
+
 empty_home_venue_payload <- request_json(base_url, '/home-venue-impact', query = list(season = default_season, venue_name = '__missing_venue__', min_matches = '1', limit = '10'))
 assert_true(is.null(empty_home_venue_payload$league_summary), 'Expected /home-venue-impact to return a null league_summary when filters produce no rows.')
 assert_true(length(empty_home_venue_payload$team_summary) == 0L, 'Expected /home-venue-impact to return an empty team_summary when filters produce no rows.')
