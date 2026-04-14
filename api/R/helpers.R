@@ -1327,6 +1327,17 @@ has_team_match_stats <- function(conn) {
   result
 }
 
+has_home_venue_impact_rows <- function(conn) {
+  cached <- getOption("netballstats.hvir_available")
+  if (!is.null(cached)) return(isTRUE(cached))
+  result <- isTRUE(tryCatch(
+    DBI::dbExistsTable(conn, "home_venue_impact_rows"),
+    error = function(e) FALSE
+  ))
+  options(netballstats.hvir_available = result)
+  result
+}
+
 # Maps a Champion Data startingPositionCode to a broad positional group.
 # GS/GA are Shooters; WA/C/WD are Midcourt; GD/GK are Defenders.
 # Interchange and unrecognised codes fall through to "Other".
@@ -3251,6 +3262,34 @@ build_home_venue_impact_base_query <- function(seasons = NULL, team_id = NULL, v
   list(query = query, params = params)
 }
 
+build_home_venue_impact_rows_query <- function(seasons = NULL, team_id = NULL, venue_name = NULL) {
+  query <- paste(
+    "SELECT match_id, season, competition_phase, round_number, venue_name,",
+    "team_id, team_name, opponent_id, opponent_name, is_home,",
+    "team_score, opponent_score, margin, won, draw,",
+    "penalties_for, penalties_against, penalty_advantage",
+    "FROM home_venue_impact_rows",
+    "WHERE 1 = 1"
+  )
+  params <- list()
+
+  season_filter <- append_integer_in_filter(query, params, "season", seasons, "season")
+  query <- season_filter$query
+  params <- season_filter$params
+
+  if (!is.null(team_id)) {
+    query <- paste0(query, " AND team_id = ?team_id")
+    params$team_id <- as.integer(team_id)
+  }
+
+  if (!is.null(venue_name)) {
+    query <- paste0(query, " AND venue_name = ?venue_name")
+    params$venue_name <- as.character(venue_name)
+  }
+
+  list(query = query, params = params)
+}
+
 empty_home_venue_impact_summary <- function() {
   list(
     league_summary = NULL,
@@ -3492,18 +3531,26 @@ summarise_home_venue_impact_rows <- function(rows, min_matches = 5L, limit = 50L
 }
 
 fetch_home_venue_impact_summary <- function(conn, seasons = NULL, team_id = NULL, venue_name = NULL, min_matches = 5L, limit = 50L) {
-  include_penalties <- has_team_match_stats(conn)
-  if (!include_penalties) {
-    api_log("WARN", "home_venue_impact_no_team_match_stats",
-            error_message = "home-venue-impact is running without team_match_stats; penalty metrics will be null.")
-  }
+  if (has_home_venue_impact_rows(conn)) {
+    base_query <- build_home_venue_impact_rows_query(
+      seasons = seasons,
+      team_id = team_id,
+      venue_name = venue_name
+    )
+  } else {
+    include_penalties <- has_team_match_stats(conn)
+    if (!include_penalties) {
+      api_log("WARN", "home_venue_impact_no_team_match_stats",
+              error_message = "home-venue-impact is running without team_match_stats; penalty metrics will be null.")
+    }
 
-  base_query <- build_home_venue_impact_base_query(
-    seasons = seasons,
-    team_id = team_id,
-    venue_name = venue_name,
-    include_penalties = include_penalties
-  )
+    base_query <- build_home_venue_impact_base_query(
+      seasons = seasons,
+      team_id = team_id,
+      venue_name = venue_name,
+      include_penalties = include_penalties
+    )
+  }
   rows <- query_rows(conn, base_query$query, base_query$params)
   summarise_home_venue_impact_rows(rows, min_matches = min_matches, limit = limit)
 }
