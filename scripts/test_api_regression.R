@@ -723,10 +723,18 @@ breakdown <- request_json(base_url, '/home-venue-breakdown', query = list(
 assert_true(is.list(breakdown), 'Expected /home-venue-breakdown to return a payload.')
 assert_true(is.list(breakdown$filters), 'Expected /home-venue-breakdown to return filters.')
 assert_true(identical(unlist(breakdown$filters$seasons), c(2023L, 2024L)), 'Expected /home-venue-breakdown to echo both requested seasons.')
-assert_true(is.data.frame(breakdown$stat_summary), 'Expected /home-venue-breakdown to return a stat_summary data.frame.')
-assert_true(is.data.frame(breakdown$opposition_summary_overall), 'Expected /home-venue-breakdown to return an opposition_summary_overall data.frame.')
-assert_true(is.data.frame(breakdown$opposition_summary_by_stat), 'Expected /home-venue-breakdown to return an opposition_summary_by_stat data.frame.')
-assert_true(is.data.frame(breakdown$team_venue_stat_summary), 'Expected /home-venue-breakdown to return a team_venue_stat_summary data.frame.')
+assert_true(is.list(breakdown$stat_summary) && length(breakdown$stat_summary) >= 1L, 'Expected /home-venue-breakdown to return stat_summary rows.')
+assert_true(is.list(breakdown$opposition_summary_overall) && length(breakdown$opposition_summary_overall) >= 1L, 'Expected /home-venue-breakdown to return opposition_summary_overall rows.')
+assert_true(is.list(breakdown$opposition_summary_by_stat) && length(breakdown$opposition_summary_by_stat) >= 1L, 'Expected /home-venue-breakdown to return opposition_summary_by_stat rows.')
+assert_true(is.list(breakdown$team_venue_stat_summary) && length(breakdown$team_venue_stat_summary) >= 1L, 'Expected /home-venue-breakdown to return team_venue_stat_summary rows.')
+first_stat_summary <- first_record(breakdown$stat_summary)
+assert_true(all(c('stat_group', 'stat_key', 'stat_label', 'matches', 'venue_average', 'baseline_average', 'lift', 'preferred_direction') %in% names(first_stat_summary)), 'Expected /home-venue-breakdown stat_summary rows to expose the documented fields.')
+first_opposition_summary_overall <- first_record(breakdown$opposition_summary_overall)
+assert_true(all(c('opponent_id', 'opponent_name', 'matches', 'home_win_rate', 'baseline_home_win_rate', 'home_win_rate_lift', 'avg_margin', 'baseline_avg_margin', 'margin_lift', 'avg_penalties', 'baseline_avg_penalties', 'penalties_lift') %in% names(first_opposition_summary_overall)), 'Expected /home-venue-breakdown opposition_summary_overall rows to expose the documented fields.')
+first_opposition_summary_by_stat <- first_record(breakdown$opposition_summary_by_stat)
+assert_true(all(c('opponent_id', 'opponent_name', 'stat_group', 'stat_key', 'stat_label', 'matches', 'venue_average', 'baseline_average', 'lift', 'preferred_direction') %in% names(first_opposition_summary_by_stat)), 'Expected /home-venue-breakdown opposition_summary_by_stat rows to expose the documented fields.')
+first_team_venue_stat_summary <- first_record(breakdown$team_venue_stat_summary)
+assert_true(all(c('team_id', 'team_name', 'venue_name', 'stat_group', 'stat_key', 'stat_label', 'matches', 'venue_average', 'other_home_venues_average', 'lift', 'preferred_direction') %in% names(first_team_venue_stat_summary)), 'Expected /home-venue-breakdown team_venue_stat_summary rows to expose the documented fields.')
 
 cat("Checking /home-venue-breakdown team-and-venue slice...\n")
 team_breakdown <- request_json(base_url, '/home-venue-breakdown', query = list(
@@ -738,8 +746,8 @@ team_breakdown <- request_json(base_url, '/home-venue-breakdown', query = list(
   limit = '5'
 ))
 assert_true(is.list(team_breakdown), 'Expected team-filtered /home-venue-breakdown to return a payload.')
-assert_true(is.data.frame(team_breakdown$stat_summary), 'Expected team-filtered /home-venue-breakdown to return a stat_summary data.frame.')
-assert_true(is.data.frame(team_breakdown$team_venue_stat_summary), 'Expected team-filtered /home-venue-breakdown to return a team_venue_stat_summary data.frame.')
+assert_true(is.list(team_breakdown$stat_summary) && length(team_breakdown$stat_summary) >= 1L, 'Expected team-filtered /home-venue-breakdown to return stat_summary rows.')
+assert_true(is.list(team_breakdown$team_venue_stat_summary) && length(team_breakdown$team_venue_stat_summary) >= 1L, 'Expected team-filtered /home-venue-breakdown to return team_venue_stat_summary rows.')
 
 cat("Checking held balls Home Edge stat reporting...\n")
 held_balls_breakdown <- request_json(base_url, '/home-venue-breakdown', query = list(
