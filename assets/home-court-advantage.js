@@ -5,12 +5,11 @@ const {
   formatNumber
 } = window.NetballStatsUI || {};
 const {
-  trackEvent = () => {},
-  trackPageView = () => {}
+  trackEvent = () => {}
 } = window.NetballStatsTelemetry || {};
 
 const LOADING_MESSAGES = [
-  "Tracing home-court edges…",
+  "Tracing home-court advantage…",
   "Comparing arenas…",
   "Checking margin and whistle swings…"
 ];
@@ -100,7 +99,7 @@ function showStatus(message, tone = "neutral", options = {}) {
 }
 
 function showLoadingStatus() {
-  cycleStatusBanner(elements.status, LOADING_MESSAGES, { tone: "loading", kicker: "Loading home edge" });
+  cycleStatusBanner(elements.status, LOADING_MESSAGES, { tone: "loading", kicker: "Loading home-court advantage" });
 }
 
 function renderMessageRow(tbody, colspan, message, kicker = "") {
@@ -271,7 +270,7 @@ function spotlightNarrative(row) {
 function renderLeagueSummary() {
   const summary = state.payload?.league_summary;
   if (!summary) {
-    if (elements.meta) elements.meta.textContent = "Home edge unavailable.";
+    if (elements.meta) elements.meta.textContent = "Home-court advantage unavailable.";
     if (elements.contextNote) elements.contextNote.textContent = "No qualifying matches for this filter set.";
     if (elements.matches) elements.matches.textContent = "—";
     if (elements.homeWinRate) elements.homeWinRate.textContent = "—";
@@ -487,7 +486,7 @@ async function loadHomeEdge() {
       team_id: elements.team?.value || "all",
       venue_name: state.selectedVenue || "top"
     });
-    showStatus("Home edge comparison ready.", "success", {
+    showStatus("Home-court advantage comparison ready.", "success", {
       kicker: "Comparison updated",
       autoHideMs: 2200
     });
@@ -495,14 +494,14 @@ async function loadHomeEdge() {
     if (requestToken !== state.requestToken) {
       return;
     }
-    if (elements.meta) elements.meta.textContent = "Home edge unavailable.";
+    if (elements.meta) elements.meta.textContent = "Home-court advantage unavailable.";
     if (elements.contextNote) elements.contextNote.textContent = "Try narrowing to one season or one team.";
     if (elements.heroLabel) elements.heroLabel.textContent = "Unavailable";
-    if (elements.heroSummary) elements.heroSummary.textContent = error.message || "Unable to load home edge comparisons.";
+    if (elements.heroSummary) elements.heroSummary.textContent = error.message || "Unable to load home-court advantage comparisons.";
     renderMessageRow(elements.venueBody, 5, "The venue comparison is unavailable. Try again shortly.", "Archive note");
     renderMessageRow(elements.teamBody, 5, "The team comparison is unavailable. Try again shortly.", "Archive note");
     renderMessageRow(elements.teamVenueBody, 7, "The team venue comparison is unavailable. Try again shortly.", "Archive note");
-    showStatus(error.message || "Unable to load home edge comparisons.", "error", {
+    showStatus(error.message || "Unable to load home-court advantage comparisons.", "error", {
       kicker: "Comparison unavailable"
     });
   }
@@ -517,7 +516,6 @@ if (elements.filters) {
 }
 
 async function initialise() {
-  trackPageView("home-edge");
   let metadataError = null;
   try {
     await loadMetadata();
