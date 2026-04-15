@@ -389,7 +389,7 @@ configure_postgres_api_user <- function(conn) {
   DBI::dbExecute(conn, paste0("GRANT CONNECT ON DATABASE ", quoted_database, " TO ", quoted_username))
   DBI::dbExecute(conn, paste0("GRANT USAGE ON SCHEMA public TO ", quoted_username))
 
-  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions", "team_match_stats", "home_venue_impact_rows", "metadata")) {
+  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions", "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows", "metadata")) {
     quoted_table <- DBI::dbQuoteIdentifier(conn, DBI::Id(schema = "public", table = table_name))
     DBI::dbExecute(conn, paste0("GRANT SELECT ON TABLE ", quoted_table, " TO ", quoted_username))
   }
@@ -714,6 +714,48 @@ write_database <- function(tables, build_mode) {
     DBI::dbExecute(conn, "CREATE INDEX idx_hvir_team_season_venue ON home_venue_impact_rows(team_id, season, venue_name, is_home)")
     DBI::dbExecute(conn, "CREATE INDEX idx_hvir_venue_season ON home_venue_impact_rows(venue_name, season, is_home)")
 
+    DBI::dbExecute(conn, "DROP TABLE IF EXISTS home_venue_breakdown_rows")
+    DBI::dbExecute(conn, paste(
+      "CREATE TABLE home_venue_breakdown_rows AS",
+      "SELECT matches.match_id, matches.season, COALESCE(matches.competition_phase, '') AS competition_phase,",
+      "  matches.round_number, matches.venue_name,",
+      "  matches.home_squad_id AS team_id, matches.home_squad_name AS team_name,",
+      "  matches.away_squad_id AS opponent_id, matches.away_squad_name AS opponent_name,",
+      "  matches.home_score AS team_score, matches.away_score AS opponent_score,",
+      "  matches.home_score - matches.away_score AS margin,",
+      "  CASE WHEN matches.home_score > matches.away_score THEN 1 ELSE 0 END AS won,",
+      "  CASE WHEN matches.home_score = matches.away_score THEN 1 ELSE 0 END AS draw,",
+      "  COALESCE(gpt.match_value, 0) AS generalPlayTurnovers,",
+      "  COALESCE(held.match_value, 0) AS turnoverHeld,",
+      "  COALESCE(contact.match_value, 0) AS contactPenalties,",
+      "  COALESCE(obstruction.match_value, 0) AS obstructionPenalties,",
+      "  COALESCE(penalties.match_value, 0) AS penalties",
+      "FROM matches",
+      "LEFT JOIN team_match_stats gpt",
+      "  ON gpt.match_id = matches.match_id",
+      "  AND gpt.squad_id = matches.home_squad_id",
+      "  AND gpt.stat = 'generalPlayTurnovers'",
+      "LEFT JOIN team_match_stats held",
+      "  ON held.match_id = matches.match_id",
+      "  AND held.squad_id = matches.home_squad_id",
+      "  AND held.stat = 'turnoverHeld'",
+      "LEFT JOIN team_match_stats contact",
+      "  ON contact.match_id = matches.match_id",
+      "  AND contact.squad_id = matches.home_squad_id",
+      "  AND contact.stat = 'contactPenalties'",
+      "LEFT JOIN team_match_stats obstruction",
+      "  ON obstruction.match_id = matches.match_id",
+      "  AND obstruction.squad_id = matches.home_squad_id",
+      "  AND obstruction.stat = 'obstructionPenalties'",
+      "LEFT JOIN team_match_stats penalties",
+      "  ON penalties.match_id = matches.match_id",
+      "  AND penalties.squad_id = matches.home_squad_id",
+      "  AND penalties.stat = 'penalties'",
+      "WHERE matches.home_score IS NOT NULL AND matches.away_score IS NOT NULL"
+    ))
+    DBI::dbExecute(conn, "CREATE INDEX idx_hvbr_team_season_venue ON home_venue_breakdown_rows(team_id, season, venue_name)")
+    DBI::dbExecute(conn, "CREATE INDEX idx_hvbr_venue_season ON home_venue_breakdown_rows(venue_name, season)")
+
     # Build player_match_participation: one row per player per match where
     # the player actually played at least 1 minute. Two cases:
     #
@@ -761,7 +803,7 @@ write_database <- function(tables, build_mode) {
     # Analyse only our tables (system catalogs require superuser; skip them).
     for (tbl in c("competitions", "matches", "teams", "players", "player_aliases",
                   "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions",
-                  "team_match_stats", "home_venue_impact_rows", "player_match_participation", "metadata")) {
+                  "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows", "player_match_participation", "metadata")) {
       DBI::dbExecute(conn, paste0("ANALYZE ", DBI::dbQuoteIdentifier(conn, tbl)))
     }
   })
