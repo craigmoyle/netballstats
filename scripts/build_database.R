@@ -143,6 +143,7 @@ prepare_match_tables <- function(entries, competitions) {
   player_rows <- vector("list", length(entries))
   team_stat_rows <- vector("list", length(entries))
   player_stat_rows <- vector("list", length(entries))
+  score_flow_event_rows <- vector("list", length(entries))
 
   for (index in seq_along(entries)) {
     entry <- entries[[index]]
@@ -297,6 +298,48 @@ prepare_match_tables <- function(entries, competitions) {
     player_rows[[index]] <- player_info
     team_stat_rows[[index]] <- team_stats
     player_stat_rows[[index]] <- player_stats
+
+    # Score flow events -------------------------------------------------------
+    # Guard 1: scoreFlow top-level key must exist
+    if (!is.null(payload$scoreFlow)) {
+      # Guard 2: score list must be non-null and non-empty
+      if (!is.null(payload$scoreFlow$score) && length(payload$scoreFlow$score) > 0) {
+        score_flow_event_rows[[index]] <- tryCatch(
+          {
+            events_df <- dplyr::bind_rows(payload$scoreFlow$score)
+            dplyr::transmute(
+              events_df,
+              match_id      = match_info$matchId,
+              season        = entry$season,
+              competition_id = entry$competition_id,
+              competition_phase = entry$phase,
+              round_number  = match_info$roundNumber,
+              game_number   = match_info$matchNumber,
+              event_seq     = dplyr::row_number(),
+              period        = as.integer(period),
+              period_seconds = as.integer(periodSeconds),
+              squad_id      = as.integer(squadId),
+              player_id     = as.integer(playerId),
+              distance_code = as.integer(distanceCode),
+              position_code = as.integer(positionCode),
+              score_points  = as.integer(scorepoints),
+              score_name    = as.character(scoreName)
+            )
+          },
+          error = function(e) {
+            warning(sprintf(
+              "scoreFlow extraction failed for season=%s competition_id=%s round=%s game=%s: %s",
+              entry$season, entry$competition_id,
+              match_info$roundNumber, match_info$matchNumber,
+              conditionMessage(e)
+            ))
+            NULL
+          }
+        )
+      }
+      # Guard 2 miss: NULL or empty score list — silently skip (known absent case)
+    }
+    # Guard 1 miss: no scoreFlow key — silently skip (known absent case)
   }
 
   player_period_stats <- dplyr::bind_rows(player_stat_rows)
@@ -340,7 +383,8 @@ prepare_match_tables <- function(entries, competitions) {
     players = players,
     player_aliases = player_aliases,
     team_period_stats = dplyr::bind_rows(team_stat_rows),
-    player_period_stats = player_period_stats
+    player_period_stats = player_period_stats,
+    score_flow_events = dplyr::bind_rows(score_flow_event_rows)
   )
 }
 
@@ -389,7 +433,7 @@ configure_postgres_api_user <- function(conn) {
   DBI::dbExecute(conn, paste0("GRANT CONNECT ON DATABASE ", quoted_database, " TO ", quoted_username))
   DBI::dbExecute(conn, paste0("GRANT USAGE ON SCHEMA public TO ", quoted_username))
 
-  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions", "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows", "metadata")) {
+  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions", "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows", "score_flow_events", "match_lead_state", "metadata")) {
     quoted_table <- DBI::dbQuoteIdentifier(conn, DBI::Id(schema = "public", table = table_name))
     DBI::dbExecute(conn, paste0("GRANT SELECT ON TABLE ", quoted_table, " TO ", quoted_username))
   }
@@ -412,6 +456,7 @@ write_database <- function(tables, build_mode) {
     DBI::dbWriteTable(conn, "player_aliases", tables$player_aliases, overwrite = TRUE)
     DBI::dbWriteTable(conn, "team_period_stats", tables$team_period_stats, overwrite = TRUE)
     DBI::dbWriteTable(conn, "player_period_stats", tables$player_period_stats, overwrite = TRUE)
+    DBI::dbWriteTable(conn, "score_flow_events", tables$score_flow_events, overwrite = TRUE)
 
     metadata <- dplyr::bind_rows(
       dplyr::tibble(
@@ -756,6 +801,79 @@ write_database <- function(tables, build_mode) {
     DBI::dbExecute(conn, "CREATE INDEX idx_hvbr_team_season_venue ON home_venue_breakdown_rows(team_id, season, venue_name)")
     DBI::dbExecute(conn, "CREATE INDEX idx_hvbr_venue_season ON home_venue_breakdown_rows(venue_name, season)")
 
+    # Index score_flow_events for time-ordered event lookups per match.
+    DBI::dbExecute(conn, "CREATE INDEX idx_sfe_match_period ON score_flow_events(match_id, period, period_seconds)")
+
+    # Derive match_lead_state: per-match running-score lead summary.
+    # Uses period_seconds + period to compute approximate match time, assuming 900 s per period.
+    # Only matches with score_flow_events data are included.
+    # Lead changes are counted as transitions between home-leading and away-leading
+    # states (tied intervals are skipped when identifying the previous leading team).
+    DBI::dbExecute(conn, "DROP TABLE IF EXISTS match_lead_state")
+    DBI::dbExecute(conn, paste(
+      "CREATE TABLE match_lead_state AS",
+      "WITH period_events AS (",
+      "  SELECT sfe.match_id, m.home_squad_id, sfe.event_seq,",
+      "    (sfe.period - 1) * 900 + sfe.period_seconds AS match_seconds,",
+      "    MAX(sfe.period) OVER (PARTITION BY sfe.match_id) AS max_period,",
+      "    sfe.squad_id, sfe.score_points",
+      "  FROM score_flow_events sfe",
+      "  JOIN matches m ON m.match_id = sfe.match_id",
+      "),",
+      "running_score AS (",
+      "  SELECT match_id, event_seq, match_seconds, max_period,",
+      "    SUM(CASE WHEN squad_id = home_squad_id THEN score_points ELSE 0 END)",
+      "      OVER (PARTITION BY match_id ORDER BY event_seq",
+      "            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS home_score,",
+      "    SUM(CASE WHEN squad_id != home_squad_id THEN score_points ELSE 0 END)",
+      "      OVER (PARTITION BY match_id ORDER BY event_seq",
+      "            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) AS away_score",
+      "  FROM period_events",
+      "),",
+      "with_margin AS (",
+      "  SELECT match_id,",
+      "    match_seconds AS state_from,",
+      "    home_score - away_score AS margin,",
+      "    COALESCE(",
+      "      LEAD(match_seconds) OVER (PARTITION BY match_id ORDER BY event_seq),",
+      "      max_period * 900",
+      "    ) AS state_to",
+      "  FROM running_score",
+      "),",
+      "all_states AS (",
+      "  SELECT match_id, 0 AS margin, 0 AS state_from, MIN(state_from) AS state_to",
+      "  FROM with_margin",
+      "  GROUP BY match_id",
+      "  UNION ALL",
+      "  SELECT match_id, margin, state_from, state_to",
+      "  FROM with_margin",
+      "),",
+      "lead_changes_cte AS (",
+      "  SELECT match_id, COUNT(*) AS lead_changes",
+      "  FROM (",
+      "    SELECT match_id, SIGN(margin) AS lead_sign,",
+      "      LAG(SIGN(margin)) OVER (PARTITION BY match_id ORDER BY state_from) AS prev_lead_sign",
+      "    FROM all_states",
+      "    WHERE margin != 0",
+      "  ) t",
+      "  WHERE prev_lead_sign IS NOT NULL",
+      "    AND lead_sign != prev_lead_sign",
+      "  GROUP BY match_id",
+      ")",
+      "SELECT",
+      "  s.match_id,",
+      "  SUM(CASE WHEN s.margin > 0 THEN GREATEST(s.state_to - s.state_from, 0) ELSE 0 END)::integer AS home_seconds_leading,",
+      "  SUM(CASE WHEN s.margin < 0 THEN GREATEST(s.state_to - s.state_from, 0) ELSE 0 END)::integer AS away_seconds_leading,",
+      "  SUM(CASE WHEN s.margin = 0 THEN GREATEST(s.state_to - s.state_from, 0) ELSE 0 END)::integer AS tied_seconds,",
+      "  COALESCE(MAX(CASE WHEN s.margin < 0 THEN -s.margin END), 0)::integer AS home_deepest_deficit,",
+      "  COALESCE(MAX(CASE WHEN s.margin > 0 THEN s.margin END), 0)::integer AS away_deepest_deficit,",
+      "  COALESCE(MAX(lc.lead_changes), 0)::integer AS lead_changes",
+      "FROM all_states s",
+      "LEFT JOIN lead_changes_cte lc ON lc.match_id = s.match_id",
+      "GROUP BY s.match_id"
+    ))
+    DBI::dbExecute(conn, "CREATE INDEX idx_mls_match_id ON match_lead_state(match_id)")
+
     # Build player_match_participation: one row per player per match where
     # the player actually played at least 1 minute. Two cases:
     #
@@ -803,7 +921,9 @@ write_database <- function(tables, build_mode) {
     # Analyse only our tables (system catalogs require superuser; skip them).
     for (tbl in c("competitions", "matches", "teams", "players", "player_aliases",
                   "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions",
-                  "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows", "player_match_participation", "metadata")) {
+                  "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows",
+                  "score_flow_events", "match_lead_state",
+                  "player_match_participation", "metadata")) {
       DBI::dbExecute(conn, paste0("ANALYZE ", DBI::dbQuoteIdentifier(conn, tbl)))
     }
   })
