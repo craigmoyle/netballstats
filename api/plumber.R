@@ -675,6 +675,10 @@ home_venue_statement_timeout_ms <- function() {
   parse_nonnegative_env_int("NETBALL_STATS_DB_HOME_VENUE_STATEMENT_TIMEOUT_MS", 25000L)
 }
 
+home_venue_breakdown_statement_timeout_ms <- function() {
+  parse_nonnegative_env_int("NETBALL_STATS_DB_HOME_VENUE_BREAKDOWN_STATEMENT_TIMEOUT_MS", 45000L)
+}
+
 json_scalar <- function(value) {
   if (!is.list(value) && length(value) == 1L) {
     return(jsonlite::unbox(value))
@@ -1520,14 +1524,18 @@ function(season = "", seasons = "", team_id = "", venue_name = "", stat_groups =
     min_matches <- parse_optional_int(min_matches, "min_matches", minimum = 1L, maximum = 100L) %||% 5L
     limit <- parse_limit(limit, default = 50L, maximum = 50L)
 
-    summary <- fetch_home_venue_breakdown(
+    summary <- with_statement_timeout(
       conn,
-      seasons = effective_seasons,
-      team_id = team_id,
-      venue_name = venue_name,
-      stat_groups = stat_groups,
-      min_matches = min_matches,
-      limit = limit
+      home_venue_breakdown_statement_timeout_ms(),
+      fetch_home_venue_breakdown(
+        conn,
+        seasons = effective_seasons,
+        team_id = team_id,
+        venue_name = venue_name,
+        stat_groups = stat_groups,
+        min_matches = min_matches,
+        limit = limit
+      )
     )
 
     list(
