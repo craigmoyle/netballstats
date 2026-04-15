@@ -3734,6 +3734,7 @@ build_home_edge_breakdown_base_query <- function(seasons = NULL, team_id = NULL,
   stat_keys <- unique(c(normalized$requested_stat_keys, "penalties"))
   stat_sql <- safe_stat_in_sql(stat_keys)
   stat_aliases <- vapply(stat_keys, function(stat_key) sprintf("MAX(CASE WHEN stats.stat = '%s' THEN stats.stat_value END) AS \"%s\"", stat_key, stat_key), character(1))
+  stats_source_params <- list()
 
   if (isTRUE(use_match_stats)) {
     stats_source <- paste(
@@ -3741,11 +3742,28 @@ build_home_edge_breakdown_base_query <- function(seasons = NULL, team_id = NULL,
       "FROM team_match_stats AS tms",
       "WHERE tms.stat IN (", stat_sql, ")"
     )
+    stats_season_filter <- append_integer_in_filter(stats_source, stats_source_params, "tms.season", seasons, "stats_season")
+    stats_source <- stats_season_filter$query
+    stats_source_params <- stats_season_filter$params
+    if (!is.null(team_id)) {
+      stats_source <- paste0(stats_source, " AND tms.squad_id = ?stats_team_id")
+      stats_source_params$stats_team_id <- as.integer(team_id)
+    }
   } else {
     stats_source <- paste(
       "SELECT tps.match_id, tps.squad_id, tps.stat, ROUND(CAST(SUM(tps.value_number) AS numeric), 2) AS stat_value",
       "FROM team_period_stats AS tps",
-      "WHERE tps.stat IN (", stat_sql, ")",
+      "WHERE tps.stat IN (", stat_sql, ")"
+    )
+    stats_season_filter <- append_integer_in_filter(stats_source, stats_source_params, "tps.season", seasons, "stats_season")
+    stats_source <- stats_season_filter$query
+    stats_source_params <- stats_season_filter$params
+    if (!is.null(team_id)) {
+      stats_source <- paste0(stats_source, " AND tps.squad_id = ?stats_team_id")
+      stats_source_params$stats_team_id <- as.integer(team_id)
+    }
+    stats_source <- paste(
+      stats_source,
       "GROUP BY tps.match_id, tps.squad_id, tps.stat"
     )
   }
@@ -3770,7 +3788,7 @@ build_home_edge_breakdown_base_query <- function(seasons = NULL, team_id = NULL,
     "WHERE matches.home_score IS NOT NULL AND matches.away_score IS NOT NULL"
   ), collapse = " ")
 
-  params <- list()
+  params <- stats_source_params
   season_filter <- append_integer_in_filter(query, params, "matches.season", seasons, "season")
   query <- season_filter$query
   params <- season_filter$params
