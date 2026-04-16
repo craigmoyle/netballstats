@@ -1544,4 +1544,17 @@ bad_sort <- request_json(base_url, '/scoreflow-team-summary',
   query = list(sort_by = 'invalid_sort'), expected_status = 400L)
 check_step('/scoreflow-team-summary returns 400 for an invalid sort_by')
 
+cat("Checking /scoreflow-featured-records default response...\n")
+scoreflow_featured <- request_json(base_url, "/scoreflow-featured-records", query = list(
+  seasons = paste(default_season, default_season - 1L, sep = ",")
+))
+assert_true(is.list(scoreflow_featured$filters),
+  "Expected /scoreflow-featured-records to include a filters block.")
+assert_true(is.list(scoreflow_featured$data) && length(scoreflow_featured$data) == 3L,
+  "Expected /scoreflow-featured-records to return exactly three featured cards.")
+first_featured <- first_record(scoreflow_featured$data)
+assert_true(all(c("slug", "label", "metric", "scenario", "href_query", "record") %in% names(first_featured)),
+  "Expected featured scoreflow cards to expose slug, label, metric, scenario, href_query, and record.")
+check_step('/scoreflow-featured-records returns a valid payload with three cards')
+
 cat('All API regression checks passed.\n')

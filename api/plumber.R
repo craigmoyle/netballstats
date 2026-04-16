@@ -1707,6 +1707,37 @@ function(season = "", seasons = "", team_id = "", min_matches = "1", sort_by = "
   })
 }
 
+#* @get /scoreflow-featured-records
+#* @get /api/scoreflow-featured-records
+#* @serializer unboxedJSON
+#* @summary Scoreflow featured records — three curated cards for the archive homepage
+#* @param season Optional single season year (overridden by seasons).
+#* @param seasons Optional comma-separated season years.
+#* @param team_id Optional integer squad ID to focus the featured cards on one club.
+function(season = "", seasons = "", team_id = "", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+  if (!has_match_scoreflow_summary(conn)) {
+    return(scoreflow_table_unavailable(res))
+  }
+
+  tryCatch({
+    effective_seasons <- parse_season_filter(season, seasons)
+    team_id <- parse_optional_int(team_id, "team_id", minimum = 1L)
+    list(
+      filters = list(
+        seasons = if (is.null(effective_seasons)) list() else as.list(as.integer(effective_seasons)),
+        team_id = team_id
+      ),
+      data = fetch_scoreflow_featured_records(conn, seasons = effective_seasons, team_id = team_id)
+    )
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
 #* @plumber
 function(pr) {
   # Startup warmup: populate in-process caches before the first request arrives.
