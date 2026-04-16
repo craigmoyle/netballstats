@@ -548,11 +548,13 @@ write_database <- function(tables, build_mode) {
       "  UNION ALL",
       "  -- Fallback: MAX observed scoring timestamp when periodInfo was absent.",
       "  -- Undercounts by the dead time after the last goal in each period.",
-      "  -- Triggered only for matches missing from match_period_durations (e.g. pre-2017).",
+      "  -- Triggered per (match_id, period) missing from match_period_durations.",
+      "  -- Covers pre-2017 matches (no periodInfo at all) and any partially-covered match.",
       "  SELECT sfe.match_id, sfe.period, MAX(sfe.period_seconds) AS period_max_sec",
       "  FROM score_flow_events sfe",
       "  WHERE NOT EXISTS (",
-      "    SELECT 1 FROM match_period_durations mpd WHERE mpd.match_id = sfe.match_id",
+      "    SELECT 1 FROM match_period_durations mpd",
+      "    WHERE mpd.match_id = sfe.match_id AND mpd.period = sfe.period",
       "  )",
       "  GROUP BY sfe.match_id, sfe.period",
       "),",
@@ -585,7 +587,7 @@ write_database <- function(tables, build_mode) {
       "  FROM period_events",
       "),",
       "with_margin AS (",
-      "  SELECT match_id,",
+      "  SELECT match_id, event_seq,",
       "    match_seconds AS state_from,",
       "    home_score - away_score AS margin,",
       "    COALESCE(",
@@ -595,18 +597,20 @@ write_database <- function(tables, build_mode) {
       "  FROM running_score",
       "),",
       "all_states AS (",
-      "  SELECT match_id, 0 AS margin, 0 AS state_from, MIN(state_from) AS state_to",
+      "  -- Synthetic pre-match tied state (event_seq=0, always before real events).",
+      "  SELECT match_id, 0 AS margin, 0 AS state_from, MIN(state_from) AS state_to, 0 AS event_seq",
       "  FROM with_margin",
       "  GROUP BY match_id",
       "  UNION ALL",
-      "  SELECT match_id, margin, state_from, state_to",
+      "  SELECT match_id, margin, state_from, state_to, event_seq",
       "  FROM with_margin",
       "),",
       "lead_changes_cte AS (",
       "  SELECT match_id, COUNT(*) AS lead_changes",
       "  FROM (",
       "    SELECT match_id, SIGN(margin) AS lead_sign,",
-      "      LAG(SIGN(margin)) OVER (PARTITION BY match_id ORDER BY state_from) AS prev_lead_sign",
+      "      -- Order by (state_from, event_seq) so concurrent-second events are stable.",
+      "      LAG(SIGN(margin)) OVER (PARTITION BY match_id ORDER BY state_from, event_seq) AS prev_lead_sign",
       "    FROM all_states",
       "    WHERE margin != 0",
       "  ) t",
@@ -639,6 +643,27 @@ write_database <- function(tables, build_mode) {
       "LEFT JOIN match_summary ms ON ms.match_id = m.match_id"
     ))
     DBI::dbExecute(conn, "CREATE INDEX idx_mls_match_id ON match_lead_state(match_id)")
+
+    # Guard: every match with score events must produce positive total time in
+    # match_lead_state.  Zero total time despite having events means the
+    # period_offsets JOIN silently dropped all events — which can happen if the
+    # NOT EXISTS fallback in period_maxes is gated per-match instead of per-period.
+    mls_zero_time <- DBI::dbGetQuery(conn, paste(
+      "SELECT COUNT(*) AS count",
+      "FROM (SELECT DISTINCT match_id FROM score_flow_events) sfe",
+      "JOIN match_lead_state mls ON mls.match_id = sfe.match_id",
+      "WHERE mls.home_seconds_leading + mls.away_seconds_leading + mls.tied_seconds = 0"
+    ))
+    if (mls_zero_time$count > 0) {
+      stop(sprintf(
+        paste(
+          "match_lead_state invariant: %d match(es) have score events but",
+          "total time = 0 — events were dropped during period offset JOIN.",
+          "Check the per-period NOT EXISTS clause in the period_maxes CTE."
+        ),
+        mls_zero_time$count
+      ))
+    }
 
     # Derive match_scoreflow_summary: per-team-per-match analytics layer.
     #
