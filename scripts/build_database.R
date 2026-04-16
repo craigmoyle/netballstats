@@ -62,6 +62,23 @@ is_played_match_payload <- function(payload) {
     length(payload$teamPeriodStats$team) > 0
 }
 
+extract_scoreflow_scores <- function(scoreflow_payload) {
+  if (!is.list(scoreflow_payload)) {
+    return(NULL)
+  }
+
+  score_entries <- scoreflow_payload$score
+  if (is.null(score_entries) || length(score_entries) == 0) {
+    return(NULL)
+  }
+
+  if (!is.list(score_entries)) {
+    return(NULL)
+  }
+
+  score_entries
+}
+
 fetch_match_payload <- function(comp_id, round_number, game_number) {
   tryCatch(
     superNetballR::downloadMatch(as.character(comp_id), round_number, game_number),
@@ -306,12 +323,23 @@ prepare_match_tables <- function(entries, competitions) {
     # unexpected and emits a named warning so it is visible in build logs.
     scoreflow_expected <- entry$season >= 2017L
 
-    if (!is.null(payload$scoreFlow)) {
-      if (!is.null(payload$scoreFlow$score) && length(payload$scoreFlow$score) > 0) {
+    scoreflow_payload <- payload$scoreFlow
+    scoreflow_scores <- extract_scoreflow_scores(scoreflow_payload)
+
+    if (!is.null(scoreflow_payload)) {
+      if (!is.list(scoreflow_payload)) {
+        if (scoreflow_expected) {
+          warning(sprintf(
+            "scoreFlow present but malformed for season=%s competition_id=%s round=%s game=%s",
+            entry$season, entry$competition_id,
+            match_info$roundNumber, match_info$matchNumber
+          ))
+        }
+      } else if (!is.null(scoreflow_scores)) {
         # Well-formed score list: extract events.
         score_flow_event_rows[[index]] <- tryCatch(
           {
-            events_df <- dplyr::bind_rows(payload$scoreFlow$score)
+            events_df <- dplyr::bind_rows(scoreflow_scores)
             dplyr::transmute(
               events_df,
               match_id      = match_info$matchId,
