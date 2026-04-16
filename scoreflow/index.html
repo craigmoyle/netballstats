@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Scoreflow | Netball Stats Database</title>
+    <meta name="description" content="Track comebacks, control, and pressure through scoreflow records across the netball archive.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/scoreflow.js"></script>
+  </head>
+  <body class="scoreflow-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Explore archive</a>
+        <a class="page-nav__link" href="/round/">Round recap</a>
+        <a class="page-nav__link page-nav__link--accent" href="/scoreflow/">Scoreflow</a>
+        <a class="page-nav__link" href="/players/">Player profiles</a>
+        <a class="page-nav__link" href="/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/compare/">Compare</a>
+        <a class="page-nav__link" href="/home-court-advantage/">Home court advantage</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+      <section class="hero-panel scoreflow-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Momentum archive and lead-state records</p>
+          <h1>Scoreflow</h1>
+          <p class="intro-copy">Find the games that swung hardest, the teams that lived in those scripts, and the definitions that make the numbers trustworthy.</p>
+        </div>
+        <aside class="hero-aside" aria-label="Scoreflow spotlight">
+          <div class="hero-aside__card hero-aside__card--archive">
+            <span class="hero-aside__label">Featured script</span>
+            <strong id="scoreflow-hero-label">Loading…</strong>
+            <p id="scoreflow-hero-summary">Loading the leading scoreflow story.</p>
+          </div>
+        </aside>
+      </section>
+    </header>
+    <main id="main-content" class="page-shell page-main">
+      <!-- filter desk, summary band, records table, team rail, glossary -->
+    </main>
+  </body>
+</html>
