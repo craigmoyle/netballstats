@@ -690,7 +690,7 @@ write_database <- function(tables, build_mode) {
           "total time = 0 — events were dropped during period offset JOIN.",
           "Check the per-period NOT EXISTS clause in the period_maxes CTE."
         ),
-        mls_zero_time$count
+        as.integer(mls_zero_time$count)
       ))
     }
 
@@ -911,43 +911,43 @@ write_database <- function(tables, build_mode) {
     if (mss_check$time_component_overflow_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
         "%d rows where a time component (seconds_leading/trailing/tied) exceeds match_total_seconds",
-        mss_check$time_component_overflow_rows
+        as.integer(mss_check$time_component_overflow_rows)
       ))
     }
     if (mss_check$comeback_win_invalid_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
         "%d rows with comeback_win=1 but won!=1 or deepest_deficit_points<=0",
-        mss_check$comeback_win_invalid_rows
+        as.integer(mss_check$comeback_win_invalid_rows)
       ))
     }
     if (mss_check$trailed_most_invalid_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
         "%d rows with trailed_most_of_match=1 but seconds_trailing <= match_total_seconds/2",
-        mss_check$trailed_most_invalid_rows
+        as.integer(mss_check$trailed_most_invalid_rows)
       ))
     }
     if (mss_check$won_trailing_most_invalid_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
         "%d rows with won_trailing_most=1 but won!=1 or seconds_trailing <= match_total_seconds/2",
-        mss_check$won_trailing_most_invalid_rows
+        as.integer(mss_check$won_trailing_most_invalid_rows)
       ))
     }
     if (mss_check$comeback_deficit_mismatch_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
         "%d rows where comeback_deficit_points != deepest_deficit_points when comeback_win=1",
-        mss_check$comeback_deficit_mismatch_rows
+        as.integer(mss_check$comeback_deficit_mismatch_rows)
       ))
     }
     if (mss_check$comeback_deficit_nonzero_when_no_win_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
         "%d rows with comeback_deficit_points > 0 but comeback_win != 1",
-        mss_check$comeback_deficit_nonzero_when_no_win_rows
+        as.integer(mss_check$comeback_deficit_nonzero_when_no_win_rows)
       ))
     }
     if (mss_check$negative_value_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
         "%d rows with negative timing or deficit values",
-        mss_check$negative_value_rows
+        as.integer(mss_check$negative_value_rows)
       ))
     }
     if (length(mss_violations) > 0) {
@@ -959,8 +959,8 @@ write_database <- function(tables, build_mode) {
     }
     message(sprintf(
       "match_scoreflow_summary built: %d rows (%d with scoreflow coverage).",
-      mss_check$total_rows,
-      mss_check$scoreflow_rows
+      as.integer(mss_check$total_rows),
+      as.integer(mss_check$scoreflow_rows)
     ))
 
     metadata <- dplyr::bind_rows(
