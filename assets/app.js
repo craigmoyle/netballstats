@@ -135,7 +135,8 @@ const elements = {
   teamValueHeading: document.getElementById("team-value-heading"),
   playerValueHeading: document.getElementById("player-value-heading"),
   panelViewButtons: document.querySelectorAll("[data-panel][data-view-mode]"),
-  seasonActionButtons: document.querySelectorAll("[data-season-action]")
+  seasonActionButtons: document.querySelectorAll("[data-season-action]"),
+  scoreflowTeaserCards: document.getElementById("scoreflow-teaser-cards")
 };
 
 
@@ -1350,6 +1351,8 @@ async function runQueries() {
     setPanelView("player-leaders", state.views["player-leaders"]);
     showStatus("Archive ready.", "success", { kicker: "Ready", autoHideMs: 2200 });
 
+    void loadScoreflowHomeCards();
+
     if (!isRecordMode()) {
       void fetchDeferredPanel("competition", seq);
     }
@@ -1366,8 +1369,119 @@ async function runQueries() {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Scoreflow teaser band — homepage editorial bridge to /scoreflow/
+// ---------------------------------------------------------------------------
+
+function scoreflowHomeParams() {
+  return {
+    seasons: state.filters.seasons,
+    team_id: state.filters.teamId
+  };
+}
+
+function buildScoreflowDeepLink(hrefQuery) {
+  const url = new URL("/scoreflow/", window.location.href);
+  const q = hrefQuery || {};
+  if (Array.isArray(q.seasons) && q.seasons.length) {
+    url.searchParams.set("seasons", q.seasons.join(","));
+  }
+  if (q.team_id != null && `${q.team_id}`.trim() !== "") {
+    url.searchParams.set("team_id", q.team_id);
+  }
+  if (q.metric && q.metric !== "comeback_deficit_points") {
+    url.searchParams.set("metric", q.metric);
+  }
+  if (q.scenario && q.scenario !== "all") {
+    url.searchParams.set("scenario", q.scenario);
+  }
+  return url.toString();
+}
+
+function formatScoreflowCardValue(record, metric) {
+  if (!record) return "—";
+  switch (metric) {
+    case "comeback_deficit_points": {
+      const n = Number(record.comeback_deficit_points);
+      return Number.isFinite(n) && n > 0 ? `${formatNumber(n)} pts` : "—";
+    }
+    case "trailing_share": {
+      const n = Number(record.trailing_share);
+      return Number.isFinite(n) ? `${(n * 100).toFixed(1)}%` : "—";
+    }
+    case "seconds_leading": {
+      const n = Number(record.seconds_leading);
+      return Number.isFinite(n) ? `${formatNumber(Math.floor(n / 60))} min` : "—";
+    }
+    default:
+      return "—";
+  }
+}
+
+function renderScoreflowTeaserCards(cards) {
+  const container = elements.scoreflowTeaserCards;
+  if (!container) return;
+
+  if (!Array.isArray(cards) || !cards.length) {
+    const empty = document.createElement("p");
+    empty.className = "scoreflow-teaser__empty";
+    empty.textContent = "Scoreflow records are available across the full archive — adjust the season filter or explore the dedicated page.";
+    container.replaceChildren(empty);
+    return;
+  }
+
+  const fragment = document.createDocumentFragment();
+  cards.forEach((card) => {
+    const record = card.record;
+    const link = document.createElement("a");
+    link.className = "scoreflow-teaser__card";
+    link.href = buildScoreflowDeepLink(card.href_query);
+
+    const labelEl = document.createElement("span");
+    labelEl.className = "scoreflow-teaser__card-label";
+    labelEl.textContent = card.label || card.slug || "Scoreflow";
+
+    const valueEl = document.createElement("strong");
+    valueEl.className = "scoreflow-teaser__card-value";
+    valueEl.textContent = formatScoreflowCardValue(record, card.metric);
+
+    const teamEl = document.createElement("span");
+    teamEl.className = "scoreflow-teaser__card-team";
+    teamEl.textContent = record?.squad_name || "—";
+
+    const ctxParts = [];
+    if (record?.opponent_name) ctxParts.push(`vs ${record.opponent_name}`);
+    if (record?.season) ctxParts.push(String(record.season));
+    if (record?.round_number != null) ctxParts.push(`Rd ${record.round_number}`);
+
+    const ctxEl = document.createElement("span");
+    ctxEl.className = "scoreflow-teaser__card-context";
+    ctxEl.textContent = ctxParts.length ? ctxParts.join(" · ") : "Archive record";
+
+    const arrowEl = document.createElement("span");
+    arrowEl.className = "scoreflow-teaser__card-arrow";
+    arrowEl.setAttribute("aria-hidden", "true");
+    arrowEl.textContent = "→";
+
+    link.append(labelEl, valueEl, teamEl, ctxEl, arrowEl);
+    fragment.appendChild(link);
+  });
+
+  container.replaceChildren(fragment);
+}
+
+async function loadScoreflowHomeCards() {
+  if (!elements.scoreflowTeaserCards) return;
+  try {
+    const payload = await fetchOptionalJson("/scoreflow-featured-records", scoreflowHomeParams());
+    renderScoreflowTeaserCards(payload.data || []);
+  } catch {
+    // Silent failure: teaser is supplementary — do not surface errors on the homepage.
+    renderScoreflowTeaserCards([]);
+  }
+}
+
 async function initialise() {
-  clearAllTables("Loading…");
   clearAllCharts("Loading…");
   renderEditorialLead(null);
 
