@@ -5,7 +5,10 @@
   function clearChart(container, message) {
     container.replaceChildren();
     container.dataset.state = "empty";
+    container.removeAttribute("role");
+    container.removeAttribute("aria-label");
     container.removeAttribute("aria-describedby");
+    container.setAttribute("aria-live", "polite");
     const empty = document.createElement("p");
     empty.className = "chart-empty";
     empty.textContent = message;
@@ -43,7 +46,9 @@
   function applyChartAccessibility(container, ariaLabel, summaryText, ...nodes) {
     container.replaceChildren(...nodes.filter(Boolean));
     container.removeAttribute("data-state");
+    container.setAttribute("role", "img");
     container.setAttribute("aria-label", ariaLabel);
+    container.removeAttribute("aria-live");
 
     if (!summaryText) {
       container.removeAttribute("aria-describedby");
