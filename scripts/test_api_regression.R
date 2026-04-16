@@ -1087,4 +1087,105 @@ if (file.exists(helpers_path)) {
   check_step('match_scoreflow_summary semantic unit tests pass (trailed_most threshold, comeback_win conditions, won_trailing_most, comeback_deficit_points, no-scoreflow NULLs)')
 }
 
+# --- DB-backed match_scoreflow_summary verification ---
+# Queries the actual built table to validate structure and cross-row invariants
+# against real data. Skips gracefully if no DB connection can be opened.
+{
+  db_env <- new.env(parent = globalenv())
+  db_conn <- tryCatch({
+    if (!requireNamespace("DBI", quietly = TRUE)) {
+      stop("DBI not available", call. = FALSE)
+    }
+    sys.source(file.path(getwd(), "R", "database.R"), envir = db_env)
+    db_env$open_database_connection()
+  }, error = function(e) {
+    message(sprintf("match_scoreflow_summary DB check skipped: %s", conditionMessage(e)))
+    NULL
+  })
+
+  if (!is.null(db_conn)) {
+    tryCatch({
+      # 1. Table exists and has the expected columns.
+      mss_cols <- DBI::dbGetQuery(db_conn, paste(
+        "SELECT column_name FROM information_schema.columns",
+        "WHERE table_name = 'match_scoreflow_summary'",
+        "ORDER BY ordinal_position"
+      ))$column_name
+      required_cols <- c(
+        "match_id", "squad_id", "squad_name", "won",
+        "match_has_scoreflow", "match_total_seconds",
+        "seconds_leading", "seconds_trailing", "seconds_tied",
+        "leading_share", "trailing_share", "tied_share",
+        "largest_lead_points", "deepest_deficit_points",
+        "trailed_most_of_match", "comeback_win",
+        "won_trailing_most", "comeback_deficit_points"
+      )
+      missing_cols <- setdiff(required_cols, mss_cols)
+      assert_true(
+        length(missing_cols) == 0L,
+        sprintf("match_scoreflow_summary missing columns: %s", paste(missing_cols, collapse = ", "))
+      )
+
+      # 2. Exactly two rows per completed match (home team + away team).
+      pair_check <- DBI::dbGetQuery(db_conn, paste(
+        "SELECT",
+        "  COUNT(*) AS total_rows,",
+        "  SUM(CASE WHEN match_has_scoreflow = 1 THEN 1 ELSE 0 END) AS scoreflow_rows,",
+        "  COUNT(*) - 2 * COUNT(DISTINCT match_id) AS unpaired_rows",
+        "FROM match_scoreflow_summary"
+      ))
+      assert_true(
+        pair_check$unpaired_rows == 0L,
+        sprintf(
+          "match_scoreflow_summary: %d unpaired team rows (expected exactly 2 per match_id)",
+          abs(pair_check$unpaired_rows)
+        )
+      )
+
+      # 3. Invariants against actual data — the source of truth for whether the
+      #    build SQL produced correct results, not just whether the logic is right.
+      inv <- DBI::dbGetQuery(db_conn, paste(
+        "SELECT",
+        "  SUM(CASE WHEN match_has_scoreflow = 1",
+        "            AND (seconds_leading + seconds_trailing + seconds_tied) != match_total_seconds",
+        "            THEN 1 ELSE 0 END) AS time_mismatch,",
+        "  SUM(CASE WHEN match_has_scoreflow = 1",
+        "            AND comeback_win = 1",
+        "            AND (won != 1 OR deepest_deficit_points <= 0)",
+        "            THEN 1 ELSE 0 END) AS comeback_win_invalid,",
+        "  SUM(CASE WHEN match_has_scoreflow = 1",
+        "            AND won_trailing_most = 1",
+        "            AND (won != 1 OR seconds_trailing <= match_total_seconds / 2.0)",
+        "            THEN 1 ELSE 0 END) AS won_trailing_most_invalid,",
+        "  SUM(CASE WHEN match_has_scoreflow = 1",
+        "            AND comeback_win = 1",
+        "            AND comeback_deficit_points != deepest_deficit_points",
+        "            THEN 1 ELSE 0 END) AS comeback_deficit_mismatch,",
+        "  SUM(CASE WHEN match_has_scoreflow = 1",
+        "            AND COALESCE(comeback_win, 0) = 0",
+        "            AND COALESCE(comeback_deficit_points, 0) != 0",
+        "            THEN 1 ELSE 0 END) AS comeback_deficit_nonzero_no_win",
+        "FROM match_scoreflow_summary"
+      ))
+      assert_true(inv$time_mismatch == 0L,
+        "DB: match_scoreflow_summary has rows where time components do not sum to match_total_seconds")
+      assert_true(inv$comeback_win_invalid == 0L,
+        "DB: match_scoreflow_summary has invalid comeback_win rows (won=0 or deficit=0)")
+      assert_true(inv$won_trailing_most_invalid == 0L,
+        "DB: match_scoreflow_summary has invalid won_trailing_most rows")
+      assert_true(inv$comeback_deficit_mismatch == 0L,
+        "DB: match_scoreflow_summary comeback_deficit_points != deepest_deficit_points for comeback_win rows")
+      assert_true(inv$comeback_deficit_nonzero_no_win == 0L,
+        "DB: match_scoreflow_summary comeback_deficit_points nonzero without comeback_win")
+
+      check_step(sprintf(
+        "match_scoreflow_summary DB validation pass (%d rows, %d with scoreflow coverage)",
+        pair_check$total_rows, pair_check$scoreflow_rows
+      ))
+    }, finally = {
+      DBI::dbDisconnect(db_conn)
+    })
+  }
+}
+
 cat('All API regression checks passed.\n')
