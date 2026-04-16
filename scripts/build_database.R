@@ -849,47 +849,57 @@ write_database <- function(tables, build_mode) {
       "            OR deepest_deficit_points < 0 THEN 1 ELSE 0 END) AS negative_value_rows",
       "FROM match_scoreflow_summary"
     ))
+    # Accumulate all invariant violations and stop() once — inside dbWithTransaction,
+    # a stop() rolls back the entire write so a corrupt table is never published.
+    mss_violations <- character(0)
     if (mss_check$time_mismatch_rows > 0) {
-      warning(sprintf(
-        "match_scoreflow_summary: %d rows where seconds_leading + seconds_trailing + seconds_tied != match_total_seconds",
+      mss_violations <- c(mss_violations, sprintf(
+        "%d rows where seconds_leading + seconds_trailing + seconds_tied != match_total_seconds",
         mss_check$time_mismatch_rows
       ))
     }
     if (mss_check$comeback_win_invalid_rows > 0) {
-      warning(sprintf(
-        "match_scoreflow_summary: %d rows with comeback_win=1 but won!=1 or deepest_deficit_points<=0",
+      mss_violations <- c(mss_violations, sprintf(
+        "%d rows with comeback_win=1 but won!=1 or deepest_deficit_points<=0",
         mss_check$comeback_win_invalid_rows
       ))
     }
     if (mss_check$trailed_most_invalid_rows > 0) {
-      warning(sprintf(
-        "match_scoreflow_summary: %d rows with trailed_most_of_match=1 but seconds_trailing <= match_total_seconds/2",
+      mss_violations <- c(mss_violations, sprintf(
+        "%d rows with trailed_most_of_match=1 but seconds_trailing <= match_total_seconds/2",
         mss_check$trailed_most_invalid_rows
       ))
     }
     if (mss_check$won_trailing_most_invalid_rows > 0) {
-      warning(sprintf(
-        "match_scoreflow_summary: %d rows with won_trailing_most=1 but won!=1 or seconds_trailing <= match_total_seconds/2",
+      mss_violations <- c(mss_violations, sprintf(
+        "%d rows with won_trailing_most=1 but won!=1 or seconds_trailing <= match_total_seconds/2",
         mss_check$won_trailing_most_invalid_rows
       ))
     }
     if (mss_check$comeback_deficit_mismatch_rows > 0) {
-      warning(sprintf(
-        "match_scoreflow_summary: %d rows where comeback_deficit_points != deepest_deficit_points when comeback_win=1",
+      mss_violations <- c(mss_violations, sprintf(
+        "%d rows where comeback_deficit_points != deepest_deficit_points when comeback_win=1",
         mss_check$comeback_deficit_mismatch_rows
       ))
     }
     if (mss_check$comeback_deficit_nonzero_when_no_win_rows > 0) {
-      warning(sprintf(
-        "match_scoreflow_summary: %d rows with comeback_deficit_points > 0 but comeback_win != 1",
+      mss_violations <- c(mss_violations, sprintf(
+        "%d rows with comeback_deficit_points > 0 but comeback_win != 1",
         mss_check$comeback_deficit_nonzero_when_no_win_rows
       ))
     }
     if (mss_check$negative_value_rows > 0) {
-      warning(sprintf(
-        "match_scoreflow_summary: %d rows with negative timing or deficit values",
+      mss_violations <- c(mss_violations, sprintf(
+        "%d rows with negative timing or deficit values",
         mss_check$negative_value_rows
       ))
+    }
+    if (length(mss_violations) > 0) {
+      stop(
+        "match_scoreflow_summary invariant failures — aborting build:\n  ",
+        paste(mss_violations, collapse = "\n  "),
+        call. = FALSE
+      )
     }
     message(sprintf(
       "match_scoreflow_summary built: %d rows (%d with scoreflow coverage).",
