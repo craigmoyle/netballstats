@@ -1013,11 +1013,26 @@ if (file.exists(helpers_path)) {
     } else {
       NA_integer_
     }
+    # won_trailing_most: explicit combined field — won after trailing > half the match.
+    won_trailing_most <- if (match_total_seconds > 0) {
+      if (won == 1L && seconds_trailing > match_total_seconds / 2) 1L else 0L
+    } else {
+      NA_integer_
+    }
+    # comeback_deficit_points: explicit comeback-size field for ranking.
+    # deepest_deficit_points when won with a deficit; 0 otherwise.
+    comeback_deficit_points <- if (match_total_seconds > 0) {
+      if (won == 1L && deepest_deficit_points > 0) deepest_deficit_points else 0L
+    } else {
+      NA_integer_
+    }
     list(
       match_has_scoreflow = match_has_scoreflow,
       trailing_share = trailing_share,
       trailed_most_of_match = trailed_most,
-      comeback_win = comeback_win
+      comeback_win = comeback_win,
+      won_trailing_most = won_trailing_most,
+      comeback_deficit_points = comeback_deficit_points
     )
   }
 
@@ -1027,21 +1042,30 @@ if (file.exists(helpers_path)) {
   assert_true(identical(case1$trailed_most_of_match, 1L), 'Case 1: trailed_most_of_match should be 1 (61 > 120/2).')
   assert_true(identical(case1$comeback_win, 1L), 'Case 1: comeback_win should be 1 (won with deficit).')
   assert_true(abs(case1$trailing_share - 0.5083) < 0.0001, 'Case 1: trailing_share should be ~0.5083.')
+  # Combined analytics: both new explicit fields must fire together.
+  assert_true(identical(case1$won_trailing_most, 1L), 'Case 1: won_trailing_most should be 1 (won + trailed > half).')
+  assert_true(identical(case1$comeback_deficit_points, 3L), 'Case 1: comeback_deficit_points should equal deepest_deficit_points (3).')
 
   # Case 2: team trailed for exactly half the match (not > half; trailed_most = 0).
   case2 <- check_mss_row(seconds_trailing = 60, match_total_seconds = 120, won = 1L, deepest_deficit_points = 2L)
   assert_true(identical(case2$trailed_most_of_match, 0L), 'Case 2: trailed_most_of_match should be 0 (60 = 120/2, not strictly more).')
   assert_true(identical(case2$comeback_win, 1L), 'Case 2: comeback_win should be 1 (won with deficit).')
+  assert_true(identical(case2$won_trailing_most, 0L), 'Case 2: won_trailing_most should be 0 (not trailing strictly more than half).')
+  assert_true(identical(case2$comeback_deficit_points, 2L), 'Case 2: comeback_deficit_points should be 2 (won with deficit regardless of time share).')
 
-  # Case 3: team won but was never behind — comeback_win should be 0.
+  # Case 3: team won but was never behind — comeback fields should be 0.
   case3 <- check_mss_row(seconds_trailing = 0, match_total_seconds = 120, won = 1L, deepest_deficit_points = 0L)
   assert_true(identical(case3$comeback_win, 0L), 'Case 3: comeback_win should be 0 (deepest_deficit_points = 0).')
   assert_true(identical(case3$trailed_most_of_match, 0L), 'Case 3: trailed_most_of_match should be 0 (never trailed).')
+  assert_true(identical(case3$won_trailing_most, 0L), 'Case 3: won_trailing_most should be 0 (never trailed).')
+  assert_true(identical(case3$comeback_deficit_points, 0L), 'Case 3: comeback_deficit_points should be 0 (no deficit to overcome).')
 
-  # Case 4: team lost despite having a lead — comeback_win should be 0.
+  # Case 4: team lost despite having trailed most of the match — won_trailing_most must be 0.
   case4 <- check_mss_row(seconds_trailing = 80, match_total_seconds = 120, won = 0L, deepest_deficit_points = 5L)
   assert_true(identical(case4$comeback_win, 0L), 'Case 4: comeback_win should be 0 (lost, not won).')
   assert_true(identical(case4$trailed_most_of_match, 1L), 'Case 4: trailed_most_of_match should be 1 (80 > 60).')
+  assert_true(identical(case4$won_trailing_most, 0L), 'Case 4: won_trailing_most should be 0 (lost the match).')
+  assert_true(identical(case4$comeback_deficit_points, 0L), 'Case 4: comeback_deficit_points should be 0 (lost, not a comeback win).')
 
   # Case 5: no scoreflow coverage — all derived flags should be NA/NULL.
   case5 <- check_mss_row(seconds_trailing = 0, match_total_seconds = 0, won = 1L, deepest_deficit_points = 0L)
@@ -1049,8 +1073,18 @@ if (file.exists(helpers_path)) {
   assert_true(is.na(case5$trailing_share), 'Case 5: trailing_share should be NA for no-scoreflow match.')
   assert_true(is.na(case5$trailed_most_of_match), 'Case 5: trailed_most_of_match should be NA for no-scoreflow match.')
   assert_true(is.na(case5$comeback_win), 'Case 5: comeback_win should be NA for no-scoreflow match.')
+  assert_true(is.na(case5$won_trailing_most), 'Case 5: won_trailing_most should be NA for no-scoreflow match.')
+  assert_true(is.na(case5$comeback_deficit_points), 'Case 5: comeback_deficit_points should be NA for no-scoreflow match.')
 
-  check_step('match_scoreflow_summary semantic unit tests pass (trailed_most threshold, comeback_win conditions, no-scoreflow NULLs)')
+  # Case 6: won after trailing most of match with a large deficit — validate comeback-size ranking basis.
+  case6 <- check_mss_row(seconds_trailing = 90, match_total_seconds = 120, won = 1L, deepest_deficit_points = 8L)
+  assert_true(identical(case6$won_trailing_most, 1L), 'Case 6: won_trailing_most should be 1.')
+  assert_true(identical(case6$comeback_deficit_points, 8L), 'Case 6: comeback_deficit_points should be 8 (the deficit overcome).')
+  # A bigger comeback deficit means a more significant comeback — verify ranking property.
+  assert_true(case6$comeback_deficit_points > case1$comeback_deficit_points,
+              'Case 6: comeback_deficit_points should rank above Case 1 (8 > 3).')
+
+  check_step('match_scoreflow_summary semantic unit tests pass (trailed_most threshold, comeback_win conditions, won_trailing_most, comeback_deficit_points, no-scoreflow NULLs)')
 }
 
 cat('All API regression checks passed.\n')

@@ -695,8 +695,22 @@ write_database <- function(tables, build_mode) {
     #     1 when won = 1 AND deepest_deficit_points > 0.  Broad definition:
     #     any win where the team was ever behind by at least 1 point, regardless
     #     of how long they trailed.  NULL for no-scoreflow matches (a deficit of
-    #     0 is ambiguous without timing data).  Use trailed_most_of_match for a
-    #     more meaningful filter combining time and outcome.
+    #     0 is ambiguous without timing data).
+    #
+    #   won_trailing_most
+    #     Explicit combined analytic: 1 when won = 1 AND seconds_trailing >
+    #     match_total_seconds / 2.  Encodes "won after trailing for most of the
+    #     match" as a single stable field rather than requiring downstream code
+    #     to recombine won + trailed_most_of_match.  NULL for no-scoreflow
+    #     matches.  Uses the same strict 50% threshold as trailed_most_of_match.
+    #
+    #   comeback_deficit_points
+    #     Explicit combined analytic: the size of the deficit overcome in a
+    #     winning comeback.  Equals deepest_deficit_points when comeback_win = 1,
+    #     else 0.  NULL for no-scoreflow matches.  Encodes "biggest comeback win"
+    #     as a single rankable/filterable field — downstream callers do not need
+    #     to join comeback_win and deepest_deficit_points to rank or filter on
+    #     comeback magnitude.
     DBI::dbExecute(conn, "DROP TABLE IF EXISTS match_scoreflow_summary")
     DBI::dbExecute(conn, paste(
       "CREATE TABLE match_scoreflow_summary AS",
@@ -768,7 +782,18 @@ write_database <- function(tables, build_mode) {
       # comeback_win: won despite ever being behind (broad: any deficit > 0).
       "  CASE WHEN match_total_seconds > 0",
       "       THEN (CASE WHEN won = 1 AND deepest_deficit_points > 0 THEN 1 ELSE 0 END)::integer",
-      "       ELSE NULL END AS comeback_win",
+      "       ELSE NULL END AS comeback_win,",
+      # won_trailing_most: explicit combined field — won after trailing > half the match.
+      # Stable single-column equivalent of (won = 1 AND trailed_most_of_match = 1).
+      "  CASE WHEN match_total_seconds > 0",
+      "       THEN (CASE WHEN won = 1 AND seconds_trailing > match_total_seconds / 2.0 THEN 1 ELSE 0 END)::integer",
+      "       ELSE NULL END AS won_trailing_most,",
+      # comeback_deficit_points: explicit comeback-size field for ranking and filtering.
+      # deepest_deficit_points when comeback_win = 1 (won with any deficit), else 0.
+      # Encodes the "biggest comeback win" basis without requiring downstream recombination.
+      "  CASE WHEN match_total_seconds > 0",
+      "       THEN (CASE WHEN won = 1 AND deepest_deficit_points > 0 THEN deepest_deficit_points ELSE 0 END)::integer",
+      "       ELSE NULL END AS comeback_deficit_points",
       "FROM base"
     ))
     DBI::dbExecute(conn, "CREATE INDEX idx_mss_squad_season ON match_scoreflow_summary(squad_id, season, match_id)")
@@ -781,6 +806,15 @@ write_database <- function(tables, build_mode) {
     DBI::dbExecute(conn, paste(
       "CREATE INDEX idx_mss_trailed_most ON match_scoreflow_summary(season, squad_id)",
       "WHERE trailed_most_of_match = 1"
+    ))
+    DBI::dbExecute(conn, paste(
+      "CREATE INDEX idx_mss_won_trailing_most ON match_scoreflow_summary(season, squad_id)",
+      "WHERE won_trailing_most = 1"
+    ))
+    # comeback_deficit_points: range index for ranking biggest comebacks across seasons.
+    DBI::dbExecute(conn, paste(
+      "CREATE INDEX idx_mss_comeback_deficit ON match_scoreflow_summary(comeback_deficit_points DESC, season, squad_id)",
+      "WHERE comeback_deficit_points > 0"
     ))
 
     # Build-time sanity checks for match_scoreflow_summary.
@@ -798,6 +832,17 @@ write_database <- function(tables, build_mode) {
       "  SUM(CASE WHEN trailed_most_of_match = 1",
       "            AND seconds_trailing <= match_total_seconds / 2.0",
       "            THEN 1 ELSE 0 END) AS trailed_most_invalid_rows,",
+      # won_trailing_most=1 must imply both won=1 and trailing > half the match.
+      "  SUM(CASE WHEN won_trailing_most = 1 AND (won != 1 OR seconds_trailing <= match_total_seconds / 2.0)",
+      "            THEN 1 ELSE 0 END) AS won_trailing_most_invalid_rows,",
+      # comeback_deficit_points must equal deepest_deficit_points when comeback_win=1,
+      # and must be 0 when comeback_win=0 (for scoreflow rows).
+      "  SUM(CASE WHEN match_has_scoreflow = 1",
+      "            AND comeback_win = 1 AND comeback_deficit_points != deepest_deficit_points",
+      "            THEN 1 ELSE 0 END) AS comeback_deficit_mismatch_rows,",
+      "  SUM(CASE WHEN match_has_scoreflow = 1",
+      "            AND COALESCE(comeback_win, 0) = 0 AND COALESCE(comeback_deficit_points, 0) != 0",
+      "            THEN 1 ELSE 0 END) AS comeback_deficit_nonzero_when_no_win_rows,",
       # No negative values in any time or deficit column.
       "  SUM(CASE WHEN seconds_leading < 0 OR seconds_trailing < 0",
       "            OR seconds_tied < 0 OR largest_lead_points < 0",
@@ -820,6 +865,24 @@ write_database <- function(tables, build_mode) {
       warning(sprintf(
         "match_scoreflow_summary: %d rows with trailed_most_of_match=1 but seconds_trailing <= match_total_seconds/2",
         mss_check$trailed_most_invalid_rows
+      ))
+    }
+    if (mss_check$won_trailing_most_invalid_rows > 0) {
+      warning(sprintf(
+        "match_scoreflow_summary: %d rows with won_trailing_most=1 but won!=1 or seconds_trailing <= match_total_seconds/2",
+        mss_check$won_trailing_most_invalid_rows
+      ))
+    }
+    if (mss_check$comeback_deficit_mismatch_rows > 0) {
+      warning(sprintf(
+        "match_scoreflow_summary: %d rows where comeback_deficit_points != deepest_deficit_points when comeback_win=1",
+        mss_check$comeback_deficit_mismatch_rows
+      ))
+    }
+    if (mss_check$comeback_deficit_nonzero_when_no_win_rows > 0) {
+      warning(sprintf(
+        "match_scoreflow_summary: %d rows with comeback_deficit_points > 0 but comeback_win != 1",
+        mss_check$comeback_deficit_nonzero_when_no_win_rows
       ))
     }
     if (mss_check$negative_value_rows > 0) {
