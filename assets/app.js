@@ -1351,7 +1351,7 @@ async function runQueries() {
     setPanelView("player-leaders", state.views["player-leaders"]);
     showStatus("Archive ready.", "success", { kicker: "Ready", autoHideMs: 2200 });
 
-    void loadScoreflowHomeCards();
+    void loadScoreflowHomeCards(seq);
 
     if (!isRecordMode()) {
       void fetchDeferredPanel("competition", seq);
@@ -1470,14 +1470,15 @@ function renderScoreflowTeaserCards(cards) {
   container.replaceChildren(fragment);
 }
 
-async function loadScoreflowHomeCards() {
+async function loadScoreflowHomeCards(seq) {
   if (!elements.scoreflowTeaserCards) return;
   try {
     const payload = await fetchOptionalJson("/scoreflow-featured-records", scoreflowHomeParams());
+    if (seq !== runQuerySeq) return;
     renderScoreflowTeaserCards(payload.data || []);
   } catch {
     // Silent failure: teaser is supplementary — do not surface errors on the homepage.
-    renderScoreflowTeaserCards([]);
+    if (seq === runQuerySeq) renderScoreflowTeaserCards([]);
   }
 }
 
