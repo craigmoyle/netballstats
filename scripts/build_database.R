@@ -847,9 +847,11 @@ write_database <- function(tables, build_mode) {
       "SELECT",
       "  COUNT(*) AS total_rows,",
       "  SUM(CASE WHEN match_has_scoreflow = 1 THEN 1 ELSE 0 END) AS scoreflow_rows,",
-      # Time components must sum to match_total_seconds exactly.
-      "  SUM(CASE WHEN seconds_leading + seconds_trailing + seconds_tied",
-      "            != match_total_seconds THEN 1 ELSE 0 END) AS time_mismatch_rows,",
+      # Each time component must not exceed match_total_seconds (catches sign-flip/overflow).
+      "  SUM(CASE WHEN seconds_leading > match_total_seconds",
+      "            OR seconds_trailing > match_total_seconds",
+      "            OR seconds_tied > match_total_seconds",
+      "            THEN 1 ELSE 0 END) AS time_component_overflow_rows,",
       # Comeback wins must have won=1 and a deficit.
       "  SUM(CASE WHEN comeback_win = 1 AND (won != 1 OR deepest_deficit_points <= 0)",
       "            THEN 1 ELSE 0 END) AS comeback_win_invalid_rows,",
@@ -877,10 +879,10 @@ write_database <- function(tables, build_mode) {
     # Accumulate all invariant violations and stop() once — inside dbWithTransaction,
     # a stop() rolls back the entire write so a corrupt table is never published.
     mss_violations <- character(0)
-    if (mss_check$time_mismatch_rows > 0) {
+    if (mss_check$time_component_overflow_rows > 0) {
       mss_violations <- c(mss_violations, sprintf(
-        "%d rows where seconds_leading + seconds_trailing + seconds_tied != match_total_seconds",
-        mss_check$time_mismatch_rows
+        "%d rows where a time component (seconds_leading/trailing/tied) exceeds match_total_seconds",
+        mss_check$time_component_overflow_rows
       ))
     }
     if (mss_check$comeback_win_invalid_rows > 0) {

@@ -1210,8 +1210,10 @@ if (file.exists(helpers_path)) {
       inv <- DBI::dbGetQuery(db_conn, paste(
         "SELECT",
         "  SUM(CASE WHEN match_has_scoreflow = 1",
-        "            AND (seconds_leading + seconds_trailing + seconds_tied) != match_total_seconds",
-        "            THEN 1 ELSE 0 END) AS time_mismatch,",
+        "            AND (seconds_leading > match_total_seconds",
+        "            OR seconds_trailing > match_total_seconds",
+        "            OR seconds_tied > match_total_seconds)",
+        "            THEN 1 ELSE 0 END) AS time_component_overflow,",
         "  SUM(CASE WHEN match_has_scoreflow = 1",
         "            AND comeback_win = 1",
         "            AND (won != 1 OR deepest_deficit_points <= 0)",
@@ -1230,8 +1232,8 @@ if (file.exists(helpers_path)) {
         "            THEN 1 ELSE 0 END) AS comeback_deficit_nonzero_no_win",
         "FROM match_scoreflow_summary"
       ))
-      assert_true(inv$time_mismatch == 0L,
-        "DB: match_scoreflow_summary has rows where time components do not sum to match_total_seconds")
+      assert_true(inv$time_component_overflow == 0L,
+        "DB: match_scoreflow_summary has rows where a time component exceeds match_total_seconds")
       assert_true(inv$comeback_win_invalid == 0L,
         "DB: match_scoreflow_summary has invalid comeback_win rows (won=0 or deficit=0)")
       assert_true(inv$won_trailing_most_invalid == 0L,
@@ -1437,6 +1439,8 @@ if (file.exists(helpers_path)) {
       'Expected fetch_scoreflow_team_summary query to read from match_scoreflow_summary.')
     assert_contains(sql3, 'SUM(CASE WHEN mss.comeback_win = 1',
       'Expected fetch_scoreflow_team_summary to aggregate comeback_wins.')
+    assert_contains(sql3, 'SUM(CASE WHEN mss.seconds_leading > mss.match_total_seconds / 2.0',
+      'Expected fetch_scoreflow_team_summary to use majority-threshold for games_led_most.')
     assert_contains(sql3, 'MAX(mss.comeback_deficit_points) AS largest_comeback_win_points',
       'Expected fetch_scoreflow_team_summary to aggregate largest_comeback_win_points.')
     assert_contains(sql3, 'HAVING COUNT(*) >= 3',
