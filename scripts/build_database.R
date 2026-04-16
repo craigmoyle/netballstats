@@ -668,7 +668,8 @@ write_database <- function(tables, build_mode) {
       "  COALESCE(ms.away_deepest_deficit, 0)::integer AS away_deepest_deficit,",
       "  COALESCE(ms.lead_changes, 0)::integer AS lead_changes",
       "FROM matches m",
-      "LEFT JOIN match_summary ms ON ms.match_id = m.match_id"
+      "LEFT JOIN match_summary ms ON ms.match_id = m.match_id",
+      sep = "\n"
     ))
     DBI::dbExecute(conn, "CREATE INDEX idx_mls_match_id ON match_lead_state(match_id)")
 
