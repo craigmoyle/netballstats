@@ -1251,4 +1251,272 @@ if (file.exists(helpers_path)) {
   }
 }
 
+# ---------------------------------------------------------------------------
+# Scoreflow helper unit tests (no live DB required)
+# ---------------------------------------------------------------------------
+{
+  scoreflow_helpers_env <- new.env(parent = globalenv())
+  sys.source(file.path(getwd(), 'api', 'R', 'helpers.R'), envir = scoreflow_helpers_env)
+  scoreflow_helpers_env$api_log <- function(...) NULL
+
+  # Validator exports
+  assert_true(is.function(scoreflow_helpers_env$parse_scoreflow_metric),
+    'Expected parse_scoreflow_metric to be exported from helpers.R.')
+  assert_true(is.function(scoreflow_helpers_env$parse_scoreflow_scenario),
+    'Expected parse_scoreflow_scenario to be exported from helpers.R.')
+  assert_true(is.function(scoreflow_helpers_env$parse_scoreflow_team_sort),
+    'Expected parse_scoreflow_team_sort to be exported from helpers.R.')
+  assert_true(is.function(scoreflow_helpers_env$has_match_scoreflow_summary),
+    'Expected has_match_scoreflow_summary to be exported from helpers.R.')
+  assert_true(is.function(scoreflow_helpers_env$fetch_scoreflow_game_records),
+    'Expected fetch_scoreflow_game_records to be exported from helpers.R.')
+  assert_true(is.function(scoreflow_helpers_env$fetch_scoreflow_team_summary),
+    'Expected fetch_scoreflow_team_summary to be exported from helpers.R.')
+
+  # parse_scoreflow_metric: defaults and validation
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_metric(''), 'comeback_deficit_points'),
+    'Expected parse_scoreflow_metric to default to comeback_deficit_points.'
+  )
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_metric('trailing_share'), 'trailing_share'),
+    'Expected parse_scoreflow_metric to accept trailing_share.'
+  )
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_metric('Seconds_Leading'), 'seconds_leading'),
+    'Expected parse_scoreflow_metric to normalise case.'
+  )
+  assert_true(
+    tryCatch({
+      scoreflow_helpers_env$parse_scoreflow_metric('invalid_metric')
+      FALSE
+    }, error = function(e) TRUE),
+    'Expected parse_scoreflow_metric to reject an unrecognised metric.'
+  )
+
+  # parse_scoreflow_scenario: defaults and validation
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_scenario(''), 'all'),
+    'Expected parse_scoreflow_scenario to default to all.'
+  )
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_scenario('comeback_wins'), 'comeback_wins'),
+    'Expected parse_scoreflow_scenario to accept comeback_wins.'
+  )
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_scenario('WON_TRAILING_MOST'), 'won_trailing_most'),
+    'Expected parse_scoreflow_scenario to normalise case.'
+  )
+  assert_true(
+    tryCatch({
+      scoreflow_helpers_env$parse_scoreflow_scenario('invalid')
+      FALSE
+    }, error = function(e) TRUE),
+    'Expected parse_scoreflow_scenario to reject an unrecognised scenario.'
+  )
+
+  # parse_scoreflow_team_sort: defaults and validation
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_team_sort(''), 'total_seconds_leading'),
+    'Expected parse_scoreflow_team_sort to default to total_seconds_leading.'
+  )
+  assert_true(
+    identical(scoreflow_helpers_env$parse_scoreflow_team_sort('comeback_wins'), 'comeback_wins'),
+    'Expected parse_scoreflow_team_sort to accept comeback_wins.'
+  )
+  assert_true(
+    tryCatch({
+      scoreflow_helpers_env$parse_scoreflow_team_sort('nwar')
+      FALSE
+    }, error = function(e) TRUE),
+    'Expected parse_scoreflow_team_sort to reject an unrecognised sort key.'
+  )
+
+  # fetch_scoreflow_game_records: query shape checks (no live DB; capture generated SQL)
+  {
+    captured_query <- NULL
+    captured_params <- NULL
+    scoreflow_helpers_env$query_rows <- function(conn, query, params = list()) {
+      captured_query  <<- query
+      captured_params <<- params
+      data.frame()
+    }
+    scoreflow_helpers_env$fetch_scoreflow_game_records(
+      conn     = NULL,
+      metric   = 'comeback_deficit_points',
+      scenario = 'comeback_wins',
+      seasons  = c(2023L, 2024L),
+      team_id  = 5L,
+      opponent_id = NULL,
+      limit    = 10L
+    )
+    sql <- normalize_sql(captured_query)
+    assert_contains(sql, 'match_scoreflow_summary mss',
+      'Expected fetch_scoreflow_game_records query to read from match_scoreflow_summary.')
+    assert_contains(sql, 'match_has_scoreflow = 1',
+      'Expected fetch_scoreflow_game_records to filter to rows with scoreflow data.')
+    assert_contains(sql, 'mss.comeback_win = 1',
+      'Expected fetch_scoreflow_game_records to apply the comeback_wins scenario filter.')
+    assert_contains(sql, 'mss.season IN (?season_1, ?season_2)',
+      'Expected fetch_scoreflow_game_records to parameterise the season IN filter.')
+    assert_contains(sql, 'mss.squad_id = ?team_id',
+      'Expected fetch_scoreflow_game_records to parameterise the team_id filter.')
+    assert_contains(sql, 'ORDER BY mss.comeback_deficit_points DESC',
+      'Expected fetch_scoreflow_game_records to order by the selected metric DESC.')
+    assert_true(is.null(captured_params[['opponent_id']]),
+      'Expected fetch_scoreflow_game_records to omit opponent_id param when not supplied.')
+    assert_true(identical(captured_params[['team_id']], 5L),
+      'Expected fetch_scoreflow_game_records to pass team_id as integer.')
+  }
+
+  # fetch_scoreflow_game_records with wins scenario and opponent filter
+  {
+    captured_query2 <- NULL
+    scoreflow_helpers_env$query_rows <- function(conn, query, params = list()) {
+      captured_query2 <<- query
+      data.frame()
+    }
+    scoreflow_helpers_env$fetch_scoreflow_game_records(
+      conn        = NULL,
+      metric      = 'trailing_share',
+      scenario    = 'wins',
+      seasons     = NULL,
+      team_id     = NULL,
+      opponent_id = 7L,
+      limit       = 5L
+    )
+    sql2 <- normalize_sql(captured_query2)
+    assert_contains(sql2, 'mss.won = 1',
+      'Expected wins scenario to apply mss.won = 1 filter.')
+    assert_contains(sql2, 'mss.trailing_share DESC',
+      'Expected trailing_share metric to order by trailing_share.')
+    assert_contains(sql2, 'mss.opponent_id = ?opponent_id',
+      'Expected opponent_id to appear in query when supplied.')
+    assert_true(!grepl('mss.season IN', sql2),
+      'Expected no season filter when seasons is NULL.')
+  }
+
+  # fetch_scoreflow_team_summary: query shape checks
+  {
+    captured_team_query <- NULL
+    scoreflow_helpers_env$query_rows <- function(conn, query, params = list()) {
+      captured_team_query <<- query
+      data.frame()
+    }
+    scoreflow_helpers_env$fetch_scoreflow_team_summary(
+      conn        = NULL,
+      seasons     = c(2022L, 2023L),
+      team_id     = NULL,
+      min_matches = 3L,
+      sort_by     = 'comeback_wins',
+      limit       = 10L
+    )
+    sql3 <- normalize_sql(captured_team_query)
+    assert_contains(sql3, 'match_scoreflow_summary mss',
+      'Expected fetch_scoreflow_team_summary query to read from match_scoreflow_summary.')
+    assert_contains(sql3, 'SUM(CASE WHEN mss.comeback_win = 1',
+      'Expected fetch_scoreflow_team_summary to aggregate comeback_wins.')
+    assert_contains(sql3, 'MAX(mss.comeback_deficit_points) AS largest_comeback_win_points',
+      'Expected fetch_scoreflow_team_summary to aggregate largest_comeback_win_points.')
+    assert_contains(sql3, 'HAVING COUNT(*) >= 3',
+      'Expected fetch_scoreflow_team_summary to apply min_matches HAVING clause.')
+    assert_contains(sql3, 'ORDER BY comeback_wins DESC',
+      'Expected fetch_scoreflow_team_summary to order by comeback_wins.')
+    assert_contains(sql3, 'mss.season IN (?season_1, ?season_2)',
+      'Expected fetch_scoreflow_team_summary to parameterise season filter.')
+  }
+
+  check_step('scoreflow helper unit tests pass (validators, game-records query shape, team-summary query shape)')
+}
+
+# ---------------------------------------------------------------------------
+# Scoreflow live endpoint regression tests
+# ---------------------------------------------------------------------------
+cat("Checking /scoreflow-game-records default response...\n")
+scoreflow_game_records <- request_json(base_url, '/scoreflow-game-records', query = list(limit = '10'))
+assert_true(is.list(scoreflow_game_records),
+  'Expected /scoreflow-game-records to return a list payload.')
+assert_true(is.list(scoreflow_game_records$filters),
+  'Expected /scoreflow-game-records to include a filters block.')
+assert_true(identical(as.character(scalar_value(scoreflow_game_records$filters$metric)), 'comeback_deficit_points'),
+  'Expected /scoreflow-game-records to echo the default metric.')
+assert_true(identical(as.character(scalar_value(scoreflow_game_records$filters$scenario)), 'all'),
+  'Expected /scoreflow-game-records to echo the default scenario.')
+assert_true(is.list(scoreflow_game_records$data),
+  'Expected /scoreflow-game-records to include a data array.')
+check_step('/scoreflow-game-records returns a valid payload with default params')
+
+if (length(scoreflow_game_records$data) >= 1L) {
+  first_sgr <- first_record(scoreflow_game_records$data)
+  expected_game_cols <- c('match_id', 'season', 'round_number', 'squad_id', 'squad_name',
+                          'opponent_id', 'opponent_name', 'is_home', 'won',
+                          'comeback_deficit_points', 'deepest_deficit_points',
+                          'seconds_leading', 'seconds_trailing', 'match_has_scoreflow')
+  missing_game_cols <- setdiff(expected_game_cols, names(first_sgr))
+  assert_true(length(missing_game_cols) == 0L,
+    sprintf('/scoreflow-game-records missing expected columns: %s', paste(missing_game_cols, collapse = ', ')))
+  check_step('/scoreflow-game-records data rows expose expected editorial columns')
+}
+
+cat("Checking /scoreflow-game-records scenario and metric params...\n")
+comeback_records <- request_json(base_url, '/scoreflow-game-records', query = list(
+  scenario = 'comeback_wins',
+  metric   = 'comeback_deficit_points',
+  limit    = '5'
+))
+assert_true(is.list(comeback_records$data),
+  'Expected /scoreflow-game-records?scenario=comeback_wins to return a data array.')
+check_step('/scoreflow-game-records accepts scenario=comeback_wins and metric=comeback_deficit_points')
+
+cat("Checking /scoreflow-game-records validation rejects bad metric...\n")
+bad_metric <- request_json(base_url, '/scoreflow-game-records',
+  query = list(metric = 'bad_metric'), expected_status = 400L)
+check_step('/scoreflow-game-records returns 400 for an invalid metric')
+
+cat("Checking /scoreflow-game-records validation rejects bad scenario...\n")
+bad_scenario <- request_json(base_url, '/scoreflow-game-records',
+  query = list(scenario = 'bad_scenario'), expected_status = 400L)
+check_step('/scoreflow-game-records returns 400 for an invalid scenario')
+
+cat("Checking /scoreflow-team-summary default response...\n")
+scoreflow_team_summary <- request_json(base_url, '/scoreflow-team-summary', query = list(limit = '10'))
+assert_true(is.list(scoreflow_team_summary),
+  'Expected /scoreflow-team-summary to return a list payload.')
+assert_true(is.list(scoreflow_team_summary$filters),
+  'Expected /scoreflow-team-summary to include a filters block.')
+assert_true(identical(as.character(scalar_value(scoreflow_team_summary$filters$sort_by)), 'total_seconds_leading'),
+  'Expected /scoreflow-team-summary to echo the default sort_by.')
+assert_true(is.list(scoreflow_team_summary$data),
+  'Expected /scoreflow-team-summary to include a data array.')
+check_step('/scoreflow-team-summary returns a valid payload with default params')
+
+if (length(scoreflow_team_summary$data) >= 1L) {
+  first_sts <- first_record(scoreflow_team_summary$data)
+  expected_team_cols <- c('squad_id', 'squad_name', 'matches_with_scoreflow',
+                          'total_seconds_leading', 'total_seconds_trailing', 'total_seconds_tied',
+                          'games_led_most', 'games_trailed_most',
+                          'comeback_wins', 'won_trailing_most', 'largest_comeback_win_points')
+  missing_team_cols <- setdiff(expected_team_cols, names(first_sts))
+  assert_true(length(missing_team_cols) == 0L,
+    sprintf('/scoreflow-team-summary missing expected columns: %s', paste(missing_team_cols, collapse = ', ')))
+  check_step('/scoreflow-team-summary data rows expose expected aggregate columns')
+}
+
+cat("Checking /scoreflow-team-summary sort_by param...\n")
+comeback_summary <- request_json(base_url, '/scoreflow-team-summary', query = list(
+  sort_by     = 'comeback_wins',
+  min_matches = '1',
+  limit       = '8'
+))
+assert_true(is.list(comeback_summary$data),
+  'Expected /scoreflow-team-summary?sort_by=comeback_wins to return a data array.')
+assert_true(identical(as.character(scalar_value(comeback_summary$filters$sort_by)), 'comeback_wins'),
+  'Expected /scoreflow-team-summary to echo sort_by=comeback_wins in filters.')
+check_step('/scoreflow-team-summary accepts sort_by=comeback_wins')
+
+cat("Checking /scoreflow-team-summary validation rejects bad sort_by...\n")
+bad_sort <- request_json(base_url, '/scoreflow-team-summary',
+  query = list(sort_by = 'invalid_sort'), expected_status = 400L)
+check_step('/scoreflow-team-summary returns 400 for an invalid sort_by')
+
 cat('All API regression checks passed.\n')
