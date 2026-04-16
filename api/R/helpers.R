@@ -4789,3 +4789,50 @@ fetch_scoreflow_team_summary <- function(
 scoreflow_statement_timeout_ms <- function() {
   parse_nonnegative_env_int("NETBALL_STATS_DB_SCOREFLOW_STATEMENT_TIMEOUT_MS", 20000L)
 }
+
+SCOREFLOW_FEATURED_CONFIG <- list(
+  list(
+    slug = "biggest-comeback",
+    label = "Biggest comeback",
+    metric = "comeback_deficit_points",
+    scenario = "comeback_wins"
+  ),
+  list(
+    slug = "won-trailing-most",
+    label = "Won trailing most",
+    metric = "trailing_share",
+    scenario = "won_trailing_most"
+  ),
+  list(
+    slug = "most-time-in-front",
+    label = "Most time in front",
+    metric = "seconds_leading",
+    scenario = "all"
+  )
+)
+
+fetch_scoreflow_featured_records <- function(conn, seasons = NULL, team_id = NULL) {
+  lapply(SCOREFLOW_FEATURED_CONFIG, function(card) {
+    rows <- fetch_scoreflow_game_records(
+      conn,
+      metric = card$metric,
+      scenario = card$scenario,
+      seasons = seasons,
+      team_id = team_id,
+      limit = 1L
+    )
+    list(
+      slug = card$slug,
+      label = card$label,
+      metric = card$metric,
+      scenario = card$scenario,
+      href_query = list(
+        seasons = seasons,
+        team_id = team_id,
+        metric = card$metric,
+        scenario = card$scenario
+      ),
+      record = if (nrow(rows)) rows_to_records(rows)[[1]] else NULL
+    )
+  })
+}
