@@ -10,8 +10,8 @@ const outputDir = path.join(repoRoot, 'dist');
 const assetSourceDir = path.join(repoRoot, 'assets');
 const assetOutputDir = path.join(outputDir, 'assets');
 
-const staticEntries = ['changelog', 'home-court-advantage', 'index.html', 'compare', 'nwar', 'player', 'players', 'query', 'round', 'staticwebapp.config.json'];
-const htmlEntries = ['changelog/index.html', 'home-court-advantage/index.html', 'index.html', 'compare/index.html', 'nwar/index.html', 'player/index.html', 'players/index.html', 'query/index.html', 'round/index.html'];
+const staticEntries = ['changelog', 'home-court-advantage', 'index.html', 'compare', 'nwar', 'player', 'players', 'query', 'round', 'scoreflow', 'staticwebapp.config.json'];
+const htmlEntries = ['changelog/index.html', 'home-court-advantage/index.html', 'index.html', 'compare/index.html', 'nwar/index.html', 'player/index.html', 'players/index.html', 'query/index.html', 'round/index.html', 'scoreflow/index.html'];
 const fingerprintedAssets = [
   'app.js',
   'charts.js',
@@ -23,6 +23,7 @@ const fingerprintedAssets = [
   'players.js',
   'query.js',
   'round.js',
+  'scoreflow.js',
   'styles.css',
   'telemetry.js',
   'theme.js'
