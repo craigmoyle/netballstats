@@ -1383,10 +1383,13 @@ function scoreflowHomeParams() {
 function buildScoreflowDeepLink(hrefQuery) {
   const url = new URL("/scoreflow/", window.location.href);
   const q = hrefQuery || {};
-  if (Array.isArray(q.seasons) && q.seasons.length) {
-    url.searchParams.set("seasons", q.seasons.join(","));
+  const seasons = Array.isArray(q.seasons)
+    ? q.seasons
+    : (q.seasons == null || typeof q.seasons === "object" ? [] : [q.seasons]);
+  if (seasons.length) {
+    url.searchParams.set("seasons", seasons.join(","));
   }
-  if (q.team_id != null && `${q.team_id}`.trim() !== "") {
+  if (q.team_id != null && typeof q.team_id !== "object" && `${q.team_id}`.trim() !== "") {
     url.searchParams.set("team_id", q.team_id);
   }
   if (q.metric && q.metric !== "comeback_deficit_points") {
