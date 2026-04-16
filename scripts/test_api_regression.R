@@ -989,4 +989,68 @@ if (file.exists(helpers_path)) {
   }
 }
 
+# match_scoreflow_summary semantic unit tests.
+#
+# These verify the scalar semantics of the derived columns without a live DB.
+# The actual build-time invariant checks (row counts, time sums, etc.) run
+# inside build_database.R after match_scoreflow_summary is created.
+{
+  # Simulate the derived-column expressions over a few representative cases.
+  check_mss_row <- function(seconds_trailing, match_total_seconds, won, deepest_deficit_points) {
+    match_has_scoreflow <- if (match_total_seconds > 0) 1L else 0L
+    trailing_share <- if (match_total_seconds > 0) {
+      round(seconds_trailing / match_total_seconds, 4)
+    } else {
+      NA_real_
+    }
+    trailed_most <- if (match_total_seconds > 0) {
+      if (seconds_trailing > match_total_seconds / 2) 1L else 0L
+    } else {
+      NA_integer_
+    }
+    comeback_win <- if (match_total_seconds > 0) {
+      if (won == 1L && deepest_deficit_points > 0) 1L else 0L
+    } else {
+      NA_integer_
+    }
+    list(
+      match_has_scoreflow = match_has_scoreflow,
+      trailing_share = trailing_share,
+      trailed_most_of_match = trailed_most,
+      comeback_win = comeback_win
+    )
+  }
+
+  # Case 1: team trailed for 61/120 s (just over half) and won with a prior deficit.
+  case1 <- check_mss_row(seconds_trailing = 61, match_total_seconds = 120, won = 1L, deepest_deficit_points = 3L)
+  assert_true(identical(case1$match_has_scoreflow, 1L), 'Case 1: match_has_scoreflow should be 1.')
+  assert_true(identical(case1$trailed_most_of_match, 1L), 'Case 1: trailed_most_of_match should be 1 (61 > 120/2).')
+  assert_true(identical(case1$comeback_win, 1L), 'Case 1: comeback_win should be 1 (won with deficit).')
+  assert_true(abs(case1$trailing_share - 0.5083) < 0.0001, 'Case 1: trailing_share should be ~0.5083.')
+
+  # Case 2: team trailed for exactly half the match (not > half; trailed_most = 0).
+  case2 <- check_mss_row(seconds_trailing = 60, match_total_seconds = 120, won = 1L, deepest_deficit_points = 2L)
+  assert_true(identical(case2$trailed_most_of_match, 0L), 'Case 2: trailed_most_of_match should be 0 (60 = 120/2, not strictly more).')
+  assert_true(identical(case2$comeback_win, 1L), 'Case 2: comeback_win should be 1 (won with deficit).')
+
+  # Case 3: team won but was never behind — comeback_win should be 0.
+  case3 <- check_mss_row(seconds_trailing = 0, match_total_seconds = 120, won = 1L, deepest_deficit_points = 0L)
+  assert_true(identical(case3$comeback_win, 0L), 'Case 3: comeback_win should be 0 (deepest_deficit_points = 0).')
+  assert_true(identical(case3$trailed_most_of_match, 0L), 'Case 3: trailed_most_of_match should be 0 (never trailed).')
+
+  # Case 4: team lost despite having a lead — comeback_win should be 0.
+  case4 <- check_mss_row(seconds_trailing = 80, match_total_seconds = 120, won = 0L, deepest_deficit_points = 5L)
+  assert_true(identical(case4$comeback_win, 0L), 'Case 4: comeback_win should be 0 (lost, not won).')
+  assert_true(identical(case4$trailed_most_of_match, 1L), 'Case 4: trailed_most_of_match should be 1 (80 > 60).')
+
+  # Case 5: no scoreflow coverage — all derived flags should be NA/NULL.
+  case5 <- check_mss_row(seconds_trailing = 0, match_total_seconds = 0, won = 1L, deepest_deficit_points = 0L)
+  assert_true(identical(case5$match_has_scoreflow, 0L), 'Case 5: match_has_scoreflow should be 0.')
+  assert_true(is.na(case5$trailing_share), 'Case 5: trailing_share should be NA for no-scoreflow match.')
+  assert_true(is.na(case5$trailed_most_of_match), 'Case 5: trailed_most_of_match should be NA for no-scoreflow match.')
+  assert_true(is.na(case5$comeback_win), 'Case 5: comeback_win should be NA for no-scoreflow match.')
+
+  check_step('match_scoreflow_summary semantic unit tests pass (trailed_most threshold, comeback_win conditions, no-scoreflow NULLs)')
+}
+
 cat('All API regression checks passed.\n')

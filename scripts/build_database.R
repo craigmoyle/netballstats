@@ -491,7 +491,7 @@ configure_postgres_api_user <- function(conn) {
   DBI::dbExecute(conn, paste0("GRANT CONNECT ON DATABASE ", quoted_database, " TO ", quoted_username))
   DBI::dbExecute(conn, paste0("GRANT USAGE ON SCHEMA public TO ", quoted_username))
 
-  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions", "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows", "score_flow_events", "match_period_durations", "match_lead_state", "metadata")) {
+  for (table_name in c("competitions", "matches", "teams", "players", "player_aliases", "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions", "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows", "score_flow_events", "match_period_durations", "match_lead_state", "match_scoreflow_summary", "metadata")) {
     quoted_table <- DBI::dbQuoteIdentifier(conn, DBI::Id(schema = "public", table = table_name))
     DBI::dbExecute(conn, paste0("GRANT SELECT ON TABLE ", quoted_table, " TO ", quoted_username))
   }
@@ -639,6 +639,200 @@ write_database <- function(tables, build_mode) {
       "LEFT JOIN match_summary ms ON ms.match_id = m.match_id"
     ))
     DBI::dbExecute(conn, "CREATE INDEX idx_mls_match_id ON match_lead_state(match_id)")
+
+    # Derive match_scoreflow_summary: per-team-per-match analytics layer.
+    #
+    # Provides one row per (team, match) for every completed match, giving later
+    # API endpoints a stable, pre-computed surface for scoreflow-derived metrics
+    # without re-reading raw score events.
+    #
+    # Metric semantics (explicit, not implicit):
+    #
+    #   seconds_leading / seconds_trailing / seconds_tied
+    #     Time (in seconds) this team spent leading, trailing, or level during
+    #     the match, derived from match_lead_state (which uses the home_score -
+    #     away_score margin convention).  The three values always sum to
+    #     match_total_seconds for rows with scoreflow coverage.
+    #
+    #   match_total_seconds
+    #     Total timed match duration from match_lead_state
+    #     (home_seconds_leading + away_seconds_leading + tied_seconds).
+    #     0 for matches without scoreflow coverage.
+    #
+    #   largest_lead_points
+    #     Maximum positive margin this team achieved at any moment during the
+    #     match.  0 if the team never led.  For the home team this equals
+    #     away_deepest_deficit in match_lead_state; for the away team it equals
+    #     home_deepest_deficit (the margin viewed from the other side).
+    #
+    #   deepest_deficit_points
+    #     Absolute magnitude of the worst negative margin this team faced.
+    #     0 if the team was never behind.  For the home team this is
+    #     home_deepest_deficit; for the away team, away_deepest_deficit.
+    #
+    #   lead_changes
+    #     Match-level lead-change count from match_lead_state.  Symmetric:
+    #     identical for both teams in a match.  Counts transitions between
+    #     home-leading and away-leading states; tied intervals do not reset
+    #     the previous leader (home→tied→away = one change).
+    #
+    #   match_has_scoreflow
+    #     1 when match_total_seconds > 0 (timing data present), else 0.
+    #     Pre-2017 ANZ Championship matches without scoreFlow events score 0.
+    #     All derived flag and ratio columns are NULL when this is 0.
+    #
+    #   trailing_share
+    #     seconds_trailing / match_total_seconds, rounded to 4 dp.
+    #     NULL for no-scoreflow matches (denominator is 0; result is undefined).
+    #
+    #   trailed_most_of_match
+    #     1 when seconds_trailing > match_total_seconds / 2 (strictly more than
+    #     half the match spent trailing).  0 otherwise.  NULL for no-scoreflow
+    #     matches.  The 50% threshold is an explicit design choice; it excludes
+    #     teams that trailed for exactly half the match.
+    #
+    #   comeback_win
+    #     1 when won = 1 AND deepest_deficit_points > 0.  Broad definition:
+    #     any win where the team was ever behind by at least 1 point, regardless
+    #     of how long they trailed.  NULL for no-scoreflow matches (a deficit of
+    #     0 is ambiguous without timing data).  Use trailed_most_of_match for a
+    #     more meaningful filter combining time and outcome.
+    DBI::dbExecute(conn, "DROP TABLE IF EXISTS match_scoreflow_summary")
+    DBI::dbExecute(conn, paste(
+      "CREATE TABLE match_scoreflow_summary AS",
+      "WITH base AS (",
+      # Home team perspective: positive margin = home leading.
+      "  SELECT",
+      "    m.match_id, m.season, m.competition_id,",
+      "    COALESCE(m.competition_phase, '') AS competition_phase,",
+      "    m.round_number, m.game_number,",
+      "    m.home_squad_id AS squad_id,",
+      "    m.away_squad_id AS opponent_id,",
+      "    1::integer AS is_home,",
+      "    CASE WHEN m.home_score > m.away_score THEN 1 ELSE 0 END::integer AS won,",
+      "    COALESCE(mls.home_seconds_leading, 0)::integer AS seconds_leading,",
+      "    COALESCE(mls.away_seconds_leading, 0)::integer AS seconds_trailing,",
+      "    COALESCE(mls.tied_seconds, 0)::integer AS seconds_tied,",
+      "    (COALESCE(mls.home_seconds_leading, 0) +",
+      "     COALESCE(mls.away_seconds_leading, 0) +",
+      "     COALESCE(mls.tied_seconds, 0))::integer AS match_total_seconds,",
+      # Home largest lead = how far ahead home got = away's deepest deficit.
+      "    COALESCE(mls.away_deepest_deficit, 0)::integer AS largest_lead_points,",
+      # Home deepest deficit = how far behind home got.
+      "    COALESCE(mls.home_deepest_deficit, 0)::integer AS deepest_deficit_points,",
+      "    COALESCE(mls.lead_changes, 0)::integer AS lead_changes",
+      "  FROM matches m",
+      "  LEFT JOIN match_lead_state mls ON mls.match_id = m.match_id",
+      "  WHERE m.home_score IS NOT NULL AND m.away_score IS NOT NULL",
+      "  UNION ALL",
+      # Away team perspective: negative margin (from home view) = away leading.
+      "  SELECT",
+      "    m.match_id, m.season, m.competition_id,",
+      "    COALESCE(m.competition_phase, '') AS competition_phase,",
+      "    m.round_number, m.game_number,",
+      "    m.away_squad_id AS squad_id,",
+      "    m.home_squad_id AS opponent_id,",
+      "    0::integer AS is_home,",
+      "    CASE WHEN m.away_score > m.home_score THEN 1 ELSE 0 END::integer AS won,",
+      "    COALESCE(mls.away_seconds_leading, 0)::integer AS seconds_leading,",
+      "    COALESCE(mls.home_seconds_leading, 0)::integer AS seconds_trailing,",
+      "    COALESCE(mls.tied_seconds, 0)::integer AS seconds_tied,",
+      "    (COALESCE(mls.home_seconds_leading, 0) +",
+      "     COALESCE(mls.away_seconds_leading, 0) +",
+      "     COALESCE(mls.tied_seconds, 0))::integer AS match_total_seconds,",
+      # Away largest lead = how far ahead away got = home's deepest deficit.
+      "    COALESCE(mls.home_deepest_deficit, 0)::integer AS largest_lead_points,",
+      # Away deepest deficit = how far behind away got.
+      "    COALESCE(mls.away_deepest_deficit, 0)::integer AS deepest_deficit_points,",
+      "    COALESCE(mls.lead_changes, 0)::integer AS lead_changes",
+      "  FROM matches m",
+      "  LEFT JOIN match_lead_state mls ON mls.match_id = m.match_id",
+      "  WHERE m.home_score IS NOT NULL AND m.away_score IS NOT NULL",
+      ")",
+      "SELECT",
+      "  match_id, season, competition_id, competition_phase,",
+      "  round_number, game_number, squad_id, opponent_id,",
+      "  is_home, won,",
+      "  seconds_leading, seconds_trailing, seconds_tied, match_total_seconds,",
+      "  largest_lead_points, deepest_deficit_points, lead_changes,",
+      # match_has_scoreflow: 1 when real timing data is present.
+      "  CASE WHEN match_total_seconds > 0 THEN 1 ELSE 0 END::integer AS match_has_scoreflow,",
+      # trailing_share: fraction of match time spent trailing; NULL without timing data.
+      "  CASE WHEN match_total_seconds > 0",
+      "       THEN ROUND(seconds_trailing::numeric / match_total_seconds, 4)",
+      "       ELSE NULL END AS trailing_share,",
+      # trailed_most_of_match: strictly more than 50% of match time trailing.
+      "  CASE WHEN match_total_seconds > 0",
+      "       THEN (CASE WHEN seconds_trailing > match_total_seconds / 2.0 THEN 1 ELSE 0 END)::integer",
+      "       ELSE NULL END AS trailed_most_of_match,",
+      # comeback_win: won despite ever being behind (broad: any deficit > 0).
+      "  CASE WHEN match_total_seconds > 0",
+      "       THEN (CASE WHEN won = 1 AND deepest_deficit_points > 0 THEN 1 ELSE 0 END)::integer",
+      "       ELSE NULL END AS comeback_win",
+      "FROM base"
+    ))
+    DBI::dbExecute(conn, "CREATE INDEX idx_mss_squad_season ON match_scoreflow_summary(squad_id, season, match_id)")
+    DBI::dbExecute(conn, "CREATE INDEX idx_mss_match_id ON match_scoreflow_summary(match_id, squad_id)")
+    # Partial indexes for comeback/trailed-most queries — only cover rows with real data.
+    DBI::dbExecute(conn, paste(
+      "CREATE INDEX idx_mss_comeback ON match_scoreflow_summary(season, squad_id)",
+      "WHERE comeback_win = 1"
+    ))
+    DBI::dbExecute(conn, paste(
+      "CREATE INDEX idx_mss_trailed_most ON match_scoreflow_summary(season, squad_id)",
+      "WHERE trailed_most_of_match = 1"
+    ))
+
+    # Build-time sanity checks for match_scoreflow_summary.
+    mss_check <- DBI::dbGetQuery(conn, paste(
+      "SELECT",
+      "  COUNT(*) AS total_rows,",
+      "  SUM(CASE WHEN match_has_scoreflow = 1 THEN 1 ELSE 0 END) AS scoreflow_rows,",
+      # Time components must sum to match_total_seconds exactly.
+      "  SUM(CASE WHEN seconds_leading + seconds_trailing + seconds_tied",
+      "            != match_total_seconds THEN 1 ELSE 0 END) AS time_mismatch_rows,",
+      # Comeback wins must have won=1 and a deficit.
+      "  SUM(CASE WHEN comeback_win = 1 AND (won != 1 OR deepest_deficit_points <= 0)",
+      "            THEN 1 ELSE 0 END) AS comeback_win_invalid_rows,",
+      # trailed_most=1 must imply trailing > half the match.
+      "  SUM(CASE WHEN trailed_most_of_match = 1",
+      "            AND seconds_trailing <= match_total_seconds / 2.0",
+      "            THEN 1 ELSE 0 END) AS trailed_most_invalid_rows,",
+      # No negative values in any time or deficit column.
+      "  SUM(CASE WHEN seconds_leading < 0 OR seconds_trailing < 0",
+      "            OR seconds_tied < 0 OR largest_lead_points < 0",
+      "            OR deepest_deficit_points < 0 THEN 1 ELSE 0 END) AS negative_value_rows",
+      "FROM match_scoreflow_summary"
+    ))
+    if (mss_check$time_mismatch_rows > 0) {
+      warning(sprintf(
+        "match_scoreflow_summary: %d rows where seconds_leading + seconds_trailing + seconds_tied != match_total_seconds",
+        mss_check$time_mismatch_rows
+      ))
+    }
+    if (mss_check$comeback_win_invalid_rows > 0) {
+      warning(sprintf(
+        "match_scoreflow_summary: %d rows with comeback_win=1 but won!=1 or deepest_deficit_points<=0",
+        mss_check$comeback_win_invalid_rows
+      ))
+    }
+    if (mss_check$trailed_most_invalid_rows > 0) {
+      warning(sprintf(
+        "match_scoreflow_summary: %d rows with trailed_most_of_match=1 but seconds_trailing <= match_total_seconds/2",
+        mss_check$trailed_most_invalid_rows
+      ))
+    }
+    if (mss_check$negative_value_rows > 0) {
+      warning(sprintf(
+        "match_scoreflow_summary: %d rows with negative timing or deficit values",
+        mss_check$negative_value_rows
+      ))
+    }
+    message(sprintf(
+      "match_scoreflow_summary built: %d rows (%d with scoreflow coverage).",
+      mss_check$total_rows,
+      mss_check$scoreflow_rows
+    ))
 
     metadata <- dplyr::bind_rows(
       dplyr::tibble(
@@ -1032,7 +1226,7 @@ write_database <- function(tables, build_mode) {
                   "team_period_stats", "player_period_stats", "player_match_stats", "player_match_positions",
                   "team_match_stats", "home_venue_impact_rows", "home_venue_breakdown_rows",
                   "score_flow_events", "match_period_durations", "match_lead_state",
-                  "player_match_participation", "metadata")) {
+                  "match_scoreflow_summary", "player_match_participation", "metadata")) {
       DBI::dbExecute(conn, paste0("ANALYZE ", DBI::dbQuoteIdentifier(conn, tbl)))
     }
   })
