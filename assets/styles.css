@@ -4313,6 +4313,140 @@ caption.table-caption {
 
 /* ----- Scoreflow page ----- */
 
+/* ---------------------------------------------------------------------------
+   Scoreflow teaser band — homepage editorial bridge to /scoreflow/
+   Three featured cards with generous breathing room, teal/amber editorial tone.
+   --------------------------------------------------------------------------- */
+
+.scoreflow-teaser {
+  display: grid;
+  gap: var(--space-lg);
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-cool) 12%, transparent), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 5%, transparent), transparent 62%),
+    var(--panel-solid);
+  border-color: color-mix(in srgb, var(--accent-cool) 18%, var(--border));
+}
+
+.scoreflow-teaser__header {
+  display: grid;
+  gap: var(--space-xs);
+}
+
+.scoreflow-teaser__header h2 {
+  margin: 0;
+  max-width: 22ch;
+}
+
+.scoreflow-teaser__header .panel__lead {
+  margin: 0;
+  color: var(--muted);
+  font-size: var(--text-ui-size);
+  line-height: 1.65;
+}
+
+.scoreflow-teaser__all-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  color: var(--accent-cool);
+  text-decoration: none;
+  font-size: var(--type-sm);
+  font-weight: 600;
+  margin-top: calc(var(--space-xs) * 0.5);
+  transition: color 0.18s ease-out;
+}
+
+.scoreflow-teaser__all-link:hover,
+.scoreflow-teaser__all-link:focus-visible {
+  color: var(--text);
+}
+
+.scoreflow-teaser__cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+
+.scoreflow-teaser__card {
+  display: grid;
+  gap: 0.5rem;
+  padding: 1.6rem 1.35rem 1.35rem;
+  border-radius: var(--radius-card);
+  border: 1px solid color-mix(in srgb, var(--text) 10%, transparent);
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--accent-cool) 7%, transparent), transparent 52%),
+    color-mix(in srgb, var(--panel-alt) 90%, transparent);
+  color: var(--text);
+  text-decoration: none;
+  align-content: start;
+  transition: border-color 0.2s ease-out, background 0.2s ease-out, transform 0.2s ease-out;
+}
+
+.scoreflow-teaser__card:hover,
+.scoreflow-teaser__card:focus-visible {
+  border-color: color-mix(in srgb, var(--accent-cool) 30%, var(--border-strong));
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--accent-cool) 14%, transparent), transparent 52%),
+    color-mix(in srgb, var(--panel-alt) 88%, transparent);
+  transform: translateY(-2px);
+}
+
+.scoreflow-teaser__card-label {
+  font-size: var(--type-xs);
+  text-transform: uppercase;
+  letter-spacing: var(--tracking-kicker);
+  color: var(--accent-cool);
+  font-weight: 700;
+}
+
+.scoreflow-teaser__card-value {
+  font-family: var(--display-font);
+  font-size: clamp(1.65rem, 2.8vw, 2.3rem);
+  line-height: 0.95;
+  letter-spacing: 0.025em;
+  margin-top: 0.1rem;
+}
+
+.scoreflow-teaser__card-team {
+  font-weight: 600;
+  font-size: var(--text-ui-size);
+  margin-top: 0.35rem;
+}
+
+.scoreflow-teaser__card-context {
+  color: var(--muted);
+  font-size: var(--type-sm);
+  line-height: 1.5;
+}
+
+.scoreflow-teaser__card-arrow {
+  margin-top: 0.65rem;
+  color: var(--accent-cool);
+  font-family: var(--display-font);
+  font-size: 1.15rem;
+  line-height: 1;
+}
+
+.scoreflow-teaser__empty {
+  color: var(--muted);
+  font-size: var(--text-ui-size);
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+@media (max-width: 860px) {
+  .scoreflow-teaser__cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .scoreflow-teaser__cards {
+    grid-template-columns: 1fr;
+  }
+}
+
 .scoreflow-page .hero-panel {
   padding: 1.35rem 1.45rem;
   background: linear-gradient(180deg, rgba(17, 27, 36, 0.92), rgba(10, 18, 25, 0.84));
