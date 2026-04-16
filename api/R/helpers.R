@@ -4525,3 +4525,266 @@ fetch_nwar_rows <- function(conn, seasons = NULL, team_id = NULL, min_games = 5L
   rownames(all_rows) <- NULL
   head(all_rows, as.integer(limit))
 }
+
+# ---------------------------------------------------------------------------
+# Scoreflow analytics helpers
+# ---------------------------------------------------------------------------
+
+# Supported metric column names for /scoreflow-game-records.
+SCOREFLOW_GAME_METRICS <- c(
+  "comeback_deficit_points",
+  "largest_lead_points",
+  "deepest_deficit_points",
+  "seconds_leading",
+  "seconds_trailing",
+  "trailing_share"
+)
+
+# Supported scenario filter names for /scoreflow-game-records.
+SCOREFLOW_GAME_SCENARIOS <- c(
+  "all",
+  "comeback_wins",
+  "won_trailing_most",
+  "trailed_most",
+  "wins"
+)
+
+# Supported sort_by column names for /scoreflow-team-summary.
+SCOREFLOW_TEAM_SORT_KEYS <- c(
+  "total_seconds_leading",
+  "total_seconds_trailing",
+  "games_led_most",
+  "games_trailed_most",
+  "comeback_wins",
+  "won_trailing_most",
+  "largest_comeback_win_points"
+)
+
+# Returns TRUE when match_scoreflow_summary is available.
+has_match_scoreflow_summary <- function(conn) {
+  cached <- getOption("netballstats.mss_available")
+  if (!is.null(cached)) return(isTRUE(cached))
+  result <- isTRUE(tryCatch(
+    DBI::dbExistsTable(conn, "match_scoreflow_summary"),
+    error = function(e) FALSE
+  ))
+  options(netballstats.mss_available = result)
+  result
+}
+
+# Parses the metric parameter for /scoreflow-game-records.
+# Returns a validated metric column name (default: comeback_deficit_points).
+parse_scoreflow_metric <- function(value) {
+  if (is.null(value) || !nzchar(trimws(value))) {
+    return("comeback_deficit_points")
+  }
+  parsed <- tolower(trimws(value))
+  if (!parsed %in% SCOREFLOW_GAME_METRICS) {
+    stop(
+      "metric must be one of: ", paste(SCOREFLOW_GAME_METRICS, collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  parsed
+}
+
+# Parses the scenario parameter for /scoreflow-game-records.
+# Returns a validated scenario name (default: all).
+parse_scoreflow_scenario <- function(value) {
+  if (is.null(value) || !nzchar(trimws(value))) {
+    return("all")
+  }
+  parsed <- tolower(trimws(value))
+  if (!parsed %in% SCOREFLOW_GAME_SCENARIOS) {
+    stop(
+      "scenario must be one of: ", paste(SCOREFLOW_GAME_SCENARIOS, collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  parsed
+}
+
+# Parses the sort_by parameter for /scoreflow-team-summary.
+# Returns a validated column name (default: total_seconds_leading).
+parse_scoreflow_team_sort <- function(value) {
+  if (is.null(value) || !nzchar(trimws(value))) {
+    return("total_seconds_leading")
+  }
+  parsed <- tolower(trimws(value))
+  if (!parsed %in% SCOREFLOW_TEAM_SORT_KEYS) {
+    stop(
+      "sort_by must be one of: ", paste(SCOREFLOW_TEAM_SORT_KEYS, collapse = ", "), ".",
+      call. = FALSE
+    )
+  }
+  parsed
+}
+
+# Returns per-team-match scoreflow records from match_scoreflow_summary with
+# editorial context columns joined from matches and teams.
+#
+# metric: one of SCOREFLOW_GAME_METRICS — the column used for ordering.
+# scenario: one of SCOREFLOW_GAME_SCENARIOS — filters rows to a named subset.
+# seasons: integer vector of season years, or NULL for all seasons.
+# team_id: optional squad_id filter (team's own perspective rows).
+# opponent_id: optional squad_id filter for the opposing team.
+# limit: max rows returned.
+fetch_scoreflow_game_records <- function(
+  conn,
+  metric    = "comeback_deficit_points",
+  scenario  = "all",
+  seasons   = NULL,
+  team_id   = NULL,
+  opponent_id = NULL,
+  limit     = 25L
+) {
+  query <- paste(
+    "SELECT",
+    "  mss.match_id,",
+    "  mss.season,",
+    "  mss.round_number,",
+    "  mss.game_number,",
+    "  mss.squad_id,",
+    "  t.squad_name,",
+    "  t.squad_code,",
+    "  mss.opponent_id,",
+    "  opp.squad_name AS opponent_name,",
+    "  opp.squad_code AS opponent_code,",
+    "  mss.is_home,",
+    "  mss.won,",
+    "  mss.seconds_leading,",
+    "  mss.seconds_trailing,",
+    "  mss.seconds_tied,",
+    "  mss.match_total_seconds,",
+    "  mss.trailing_share,",
+    "  mss.largest_lead_points,",
+    "  mss.deepest_deficit_points,",
+    "  mss.comeback_deficit_points,",
+    "  mss.comeback_win,",
+    "  mss.won_trailing_most,",
+    "  mss.trailed_most_of_match,",
+    "  mss.lead_changes,",
+    "  mss.match_has_scoreflow",
+    "FROM match_scoreflow_summary mss",
+    "JOIN teams t   ON t.squad_id   = mss.squad_id",
+    "JOIN teams opp ON opp.squad_id = mss.opponent_id",
+    "WHERE mss.match_has_scoreflow = 1"
+  )
+  params <- list()
+
+  season_result <- append_integer_in_filter(query, params, "mss.season", seasons, "season")
+  query  <- season_result$query
+  params <- season_result$params
+
+  if (!is.null(team_id)) {
+    query  <- paste(query, "AND mss.squad_id = ?team_id")
+    params[["team_id"]] <- as.integer(team_id)
+  }
+
+  if (!is.null(opponent_id)) {
+    query  <- paste(query, "AND mss.opponent_id = ?opponent_id")
+    params[["opponent_id"]] <- as.integer(opponent_id)
+  }
+
+  scenario_sql <- switch(scenario,
+    comeback_wins    = "AND mss.comeback_win = 1",
+    won_trailing_most = "AND mss.won_trailing_most = 1",
+    trailed_most     = "AND mss.trailed_most_of_match = 1",
+    wins             = "AND mss.won = 1",
+    ""  # "all" — no additional filter
+  )
+  if (nzchar(scenario_sql)) {
+    query <- paste(query, scenario_sql)
+  }
+
+  order_col <- switch(metric,
+    comeback_deficit_points = "mss.comeback_deficit_points DESC",
+    largest_lead_points     = "mss.largest_lead_points DESC",
+    deepest_deficit_points  = "mss.deepest_deficit_points DESC",
+    seconds_leading         = "mss.seconds_leading DESC",
+    seconds_trailing        = "mss.seconds_trailing DESC",
+    trailing_share          = "mss.trailing_share DESC",
+    "mss.comeback_deficit_points DESC"
+  )
+
+  query <- paste(query, "ORDER BY", order_col, ", mss.season DESC, mss.round_number DESC")
+  query <- paste(query, "LIMIT", as.integer(limit))
+
+  query_rows(conn, query, params)
+}
+
+# Returns per-team aggregates from match_scoreflow_summary.
+#
+# Aggregates include time-share totals, scenario counts, and the largest
+# single-match comeback for each team.
+#
+# seasons: integer vector of season years, or NULL for all seasons.
+# team_id: optional squad_id to restrict to a single team.
+# min_matches: minimum number of matches with scoreflow data for inclusion.
+# sort_by: one of SCOREFLOW_TEAM_SORT_KEYS.
+# limit: max rows returned.
+fetch_scoreflow_team_summary <- function(
+  conn,
+  seasons     = NULL,
+  team_id     = NULL,
+  min_matches = 1L,
+  sort_by     = "total_seconds_leading",
+  limit       = 20L
+) {
+  query <- paste(
+    "SELECT",
+    "  mss.squad_id,",
+    "  t.squad_name,",
+    "  t.squad_code,",
+    "  COUNT(*) AS matches_with_scoreflow,",
+    "  SUM(mss.seconds_leading)  AS total_seconds_leading,",
+    "  SUM(mss.seconds_trailing) AS total_seconds_trailing,",
+    "  SUM(mss.seconds_tied)     AS total_seconds_tied,",
+    "  SUM(CASE WHEN mss.seconds_leading > mss.seconds_trailing",
+    "           AND mss.seconds_leading > mss.seconds_tied",
+    "           THEN 1 ELSE 0 END) AS games_led_most,",
+    "  SUM(CASE WHEN mss.trailed_most_of_match = 1 THEN 1 ELSE 0 END) AS games_trailed_most,",
+    "  SUM(CASE WHEN mss.comeback_win = 1 THEN 1 ELSE 0 END) AS comeback_wins,",
+    "  SUM(CASE WHEN mss.won_trailing_most = 1 THEN 1 ELSE 0 END) AS won_trailing_most,",
+    "  MAX(mss.comeback_deficit_points) AS largest_comeback_win_points",
+    "FROM match_scoreflow_summary mss",
+    "JOIN teams t ON t.squad_id = mss.squad_id",
+    "WHERE mss.match_has_scoreflow = 1"
+  )
+  params <- list()
+
+  season_result <- append_integer_in_filter(query, params, "mss.season", seasons, "season")
+  query  <- season_result$query
+  params <- season_result$params
+
+  if (!is.null(team_id)) {
+    query  <- paste(query, "AND mss.squad_id = ?team_id")
+    params[["team_id"]] <- as.integer(team_id)
+  }
+
+  query <- paste(query, "GROUP BY mss.squad_id, t.squad_name, t.squad_code")
+
+  if (!is.null(min_matches) && min_matches > 1L) {
+    query <- paste(query, "HAVING COUNT(*) >=", as.integer(min_matches))
+  }
+
+  order_col <- switch(sort_by,
+    total_seconds_leading      = "total_seconds_leading DESC",
+    total_seconds_trailing     = "total_seconds_trailing DESC",
+    games_led_most             = "games_led_most DESC",
+    games_trailed_most         = "games_trailed_most DESC",
+    comeback_wins              = "comeback_wins DESC",
+    won_trailing_most          = "won_trailing_most DESC",
+    largest_comeback_win_points = "largest_comeback_win_points DESC",
+    "total_seconds_leading DESC"
+  )
+
+  query <- paste(query, "ORDER BY", order_col, ", t.squad_name")
+  query <- paste(query, "LIMIT", as.integer(limit))
+
+  query_rows(conn, query, params)
+}
+
+scoreflow_statement_timeout_ms <- function() {
+  parse_nonnegative_env_int("NETBALL_STATS_DB_SCOREFLOW_STATEMENT_TIMEOUT_MS", 20000L)
+}

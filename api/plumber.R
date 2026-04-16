@@ -1589,6 +1589,139 @@ function(season = "", seasons = "", team_id = "", era = "", position_group = "",
   })
 }
 
+#* @get /scoreflow-game-records
+#* @get /api/scoreflow-game-records
+#* @serializer unboxedJSON
+#* @summary Scoreflow game records — team-match level scoreflow analytics
+#* @param season Optional single season year (e.g. 2023). Overridden by seasons.
+#* @param seasons Optional comma-separated season years (e.g. 2022,2023).
+#* @param team_id Optional integer squad ID to filter to that team's perspective rows.
+#* @param opponent_id Optional integer squad ID to filter by the opposing team.
+#* @param metric Metric to rank by. One of: comeback_deficit_points (default), largest_lead_points, deepest_deficit_points, seconds_leading, seconds_trailing, trailing_share.
+#* @param scenario Optional scenario filter. One of: all (default), comeback_wins, won_trailing_most, trailed_most, wins.
+#* @param limit Maximum rows to return (default 25, max 100).
+function(season = "", seasons = "", team_id = "", opponent_id = "", metric = "", scenario = "", limit = "25", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    effective_seasons <- parse_season_filter(season, seasons)
+    team_id           <- parse_optional_int(team_id, "team_id", minimum = 1L)
+    opponent_id       <- parse_optional_int(opponent_id, "opponent_id", minimum = 1L)
+    metric            <- parse_scoreflow_metric(metric)
+    scenario          <- parse_scoreflow_scenario(scenario)
+    limit             <- parse_limit(limit, default = 25L, maximum = 100L)
+
+    if (!has_match_scoreflow_summary(conn)) {
+      return(list(
+        filters = list(
+          seasons    = if (is.null(effective_seasons)) list() else as.list(as.integer(effective_seasons)),
+          team_id    = team_id,
+          opponent_id = opponent_id,
+          metric     = jsonlite::unbox(metric),
+          scenario   = jsonlite::unbox(scenario),
+          limit      = limit
+        ),
+        data = list()
+      ))
+    }
+
+    rows <- with_statement_timeout(
+      conn,
+      scoreflow_statement_timeout_ms(),
+      fetch_scoreflow_game_records(
+        conn,
+        metric      = metric,
+        scenario    = scenario,
+        seasons     = effective_seasons,
+        team_id     = team_id,
+        opponent_id = opponent_id,
+        limit       = limit
+      )
+    )
+
+    list(
+      filters = list(
+        seasons     = if (is.null(effective_seasons)) list() else as.list(as.integer(effective_seasons)),
+        team_id     = team_id,
+        opponent_id = opponent_id,
+        metric      = jsonlite::unbox(metric),
+        scenario    = jsonlite::unbox(scenario),
+        limit       = limit
+      ),
+      data = rows_to_records(rows)
+    )
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /scoreflow-team-summary
+#* @get /api/scoreflow-team-summary
+#* @serializer unboxedJSON
+#* @summary Scoreflow team summary — per-team aggregates from match_scoreflow_summary
+#* @param season Optional single season year (e.g. 2023). Overridden by seasons.
+#* @param seasons Optional comma-separated season years (e.g. 2022,2023).
+#* @param team_id Optional integer squad ID to restrict to a single team.
+#* @param min_matches Minimum matches with scoreflow data for inclusion (default 1, max 200).
+#* @param sort_by Aggregate column to rank by. One of: total_seconds_leading (default), total_seconds_trailing, games_led_most, games_trailed_most, comeback_wins, won_trailing_most, largest_comeback_win_points.
+#* @param limit Maximum rows to return (default 20, max 50).
+function(season = "", seasons = "", team_id = "", min_matches = "1", sort_by = "", limit = "20", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    effective_seasons <- parse_season_filter(season, seasons)
+    team_id     <- parse_optional_int(team_id, "team_id", minimum = 1L)
+    min_matches <- parse_optional_int(min_matches, "min_matches", minimum = 1L, maximum = 200L) %||% 1L
+    sort_by     <- parse_scoreflow_team_sort(sort_by)
+    limit       <- parse_limit(limit, default = 20L, maximum = 50L)
+
+    if (!has_match_scoreflow_summary(conn)) {
+      return(list(
+        filters = list(
+          seasons     = if (is.null(effective_seasons)) list() else as.list(as.integer(effective_seasons)),
+          team_id     = team_id,
+          min_matches = min_matches,
+          sort_by     = jsonlite::unbox(sort_by),
+          limit       = limit
+        ),
+        data = list()
+      ))
+    }
+
+    rows <- with_statement_timeout(
+      conn,
+      scoreflow_statement_timeout_ms(),
+      fetch_scoreflow_team_summary(
+        conn,
+        seasons     = effective_seasons,
+        team_id     = team_id,
+        min_matches = min_matches,
+        sort_by     = sort_by,
+        limit       = limit
+      )
+    )
+
+    list(
+      filters = list(
+        seasons     = if (is.null(effective_seasons)) list() else as.list(as.integer(effective_seasons)),
+        team_id     = team_id,
+        min_matches = min_matches,
+        sort_by     = jsonlite::unbox(sort_by),
+        limit       = limit
+      ),
+      data = rows_to_records(rows)
+    )
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
 #* @plumber
 function(pr) {
   # Startup warmup: populate in-process caches before the first request arrives.
