@@ -18,4 +18,9 @@ assert.match(pageHtml, /league-composition-summary-body/, "Expected the built pa
 assert.match(pageHtml, /league-composition-band-body/, "Expected the built page to include league-composition-band-body.");
 assert.match(css, /\.league-composition-desk\b/, "Expected built CSS to include .league-composition-desk.");
 
+assert.match(pageHtml, /league-composition-editorial-lead/, "Expected the built page to include league-composition-editorial-lead.");
+assert.match(pageHtml, /league-composition-coverage-note/, "Expected the built page to include league-composition-coverage-note.");
+assert.match(css, /\.league-composition-editorial-lead\b/, "Expected built CSS to include .league-composition-editorial-lead.");
+assert.match(css, /\.league-composition-coverage-note\b/, "Expected built CSS to include .league-composition-coverage-note.");
+
 console.log("League composition smoke checks passed");
