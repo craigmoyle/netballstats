@@ -386,7 +386,7 @@ function renderPlayerIdentity(profile) {
     renderIdentityRow("Experience", identity.experience_seasons != null ? `Season ${identity.experience_seasons}` : "")
   );
 
-  elements.playerIdentityStatus.textContent = identity.reference_status === "verified"
+  elements.playerIdentityStatus.textContent = identity.reference_status === "maintained"
     ? `Verified against ${identity.source_label || "the maintained player reference file"}.`
     : identity.reference_status === "missing"
       ? "Some maintained identity fields are not yet verified for this player."
