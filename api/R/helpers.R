@@ -4838,26 +4838,29 @@ fetch_scoreflow_featured_records <- function(conn, seasons = NULL, team_id = NUL
 }
 
 # Returns TRUE when the player_reference table is available in the database.
+# Returns TRUE once player_reference is confirmed present.
+# FALSE is never cached: a transient miss (e.g. before the first DB build
+# completes, or during a rolling deploy) must not permanently suppress identity
+# enrichment in /player-profile for the lifetime of the process.
 has_player_reference <- function(conn) {
-  cached <- getOption("netballstats.pr_available")
-  if (!is.null(cached)) return(isTRUE(cached))
+  if (isTRUE(getOption("netballstats.pr_available"))) return(TRUE)
   result <- isTRUE(tryCatch(
     DBI::dbExistsTable(conn, "player_reference"),
     error = function(e) FALSE
   ))
-  options(netballstats.pr_available = result)
+  if (result) options(netballstats.pr_available = TRUE)
   result
 }
 
-# Returns TRUE when player_season_demographics is available in the database.
+# Returns TRUE once player_season_demographics is confirmed present.
+# Same cache-TRUE-only policy as has_player_reference().
 has_player_season_demographics <- function(conn) {
-  cached <- getOption("netballstats.psd_available")
-  if (!is.null(cached)) return(isTRUE(cached))
+  if (isTRUE(getOption("netballstats.psd_available"))) return(TRUE)
   result <- isTRUE(tryCatch(
     DBI::dbExistsTable(conn, "player_season_demographics"),
     error = function(e) FALSE
   ))
-  options(netballstats.psd_available = result)
+  if (result) options(netballstats.psd_available = TRUE)
   result
 }
 
