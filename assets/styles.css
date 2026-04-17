@@ -4577,6 +4577,13 @@ caption.table-caption {
   }
 }
 
+/* ----- League composition ----- */
+.league-composition-desk,
+.player-identity-card {
+  position: relative;
+  overflow: hidden;
+}
+
 /* ----- Print ----- */
 @media print {
   .skip-link,
