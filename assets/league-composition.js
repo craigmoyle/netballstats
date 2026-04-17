@@ -2,11 +2,14 @@ const {
   fetchJson,
   getCheckedValues = () => [],
   renderEmptyTableRow = () => {},
+  renderSeasonCheckboxes = () => {},
+  setCheckedValues = () => {},
   showStatusBanner = () => {},
   syncResponsiveTable = () => {}
 } = window.NetballStatsUI || {};
 
 const state = {
+  meta: null,
   seasons: [],
   summary: [],
   bands: []
@@ -25,6 +28,13 @@ const elements = {
 
 function selectedSeasons() {
   return getCheckedValues(elements.seasonChoices).sort((a, b) => Number(a) - Number(b));
+}
+
+function renderSeasonChoices(seasons = []) {
+  renderSeasonCheckboxes(elements.seasonChoices, seasons, {
+    inputName: "league-composition-season-choice",
+    onChange: () => loadPage()
+  });
 }
 
 function renderSummaryRows(rows) {
@@ -87,24 +97,49 @@ function renderLead(rows) {
   elements.leadCopy.textContent = `The current frame shows ${latest.average_experience_seasons ?? "—"} average seasons of experience and ${latest.import_share != null ? `${(Number(latest.import_share) * 100).toFixed(1)}%` : "—"} import share.`;
 }
 
+async function loadMetadata() {
+  try {
+    const meta = await fetchJson("/meta");
+    state.meta = meta;
+    renderSeasonChoices(meta.seasons || []);
+    return meta;
+  } catch (error) {
+    if (elements.meta) elements.meta.textContent = "Archive metadata is taking longer than usual.";
+  }
+}
+
 async function loadPage() {
   showStatusBanner(elements.status, "Loading league composition…", "loading");
   const seasons = selectedSeasons();
   const params = seasons.length ? { seasons: seasons.join(",") } : {};
 
-  const [summaryPayload, bandsPayload] = await Promise.all([
-    fetchJson("/league-composition-summary", params),
-    fetchJson("/league-composition-debut-bands", params)
-  ]);
+  try {
+    const [summaryPayload, bandsPayload] = await Promise.all([
+      fetchJson("/league-composition-summary", params),
+      fetchJson("/league-composition-debut-bands", params)
+    ]);
 
-  state.summary = summaryPayload.data || [];
-  state.bands = bandsPayload.data || [];
-  elements.meta.textContent = seasons.length ? `Showing ${seasons.length} selected seasons.` : "Showing all seasons.";
-  renderLead(state.summary);
-  renderCoverage(summaryPayload);
-  renderSummaryRows(state.summary);
-  renderBandRows(state.bands);
-  showStatusBanner(elements.status, "");
+    state.summary = summaryPayload.data || [];
+    state.bands = bandsPayload.data || [];
+    elements.meta.textContent = seasons.length ? `Showing ${seasons.length} selected seasons.` : "Showing all seasons.";
+    renderLead(state.summary);
+    renderCoverage(summaryPayload);
+    renderSummaryRows(state.summary);
+    renderBandRows(state.bands);
+    showStatusBanner(elements.status, "");
+  } catch (error) {
+    if (elements.meta) elements.meta.textContent = "League composition unavailable.";
+    showStatusBanner(elements.status, error.message || "Unable to load league composition data.", "error");
+  }
 }
 
-window.addEventListener("DOMContentLoaded", loadPage);
+async function initialise() {
+  await loadMetadata();
+  if (!selectedSeasons().length && state.meta?.default_season) {
+    setCheckedValues(elements.seasonChoices, [String(state.meta.default_season)]);
+  }
+  await loadPage();
+}
+
+window.addEventListener("DOMContentLoaded", initialise);
+
