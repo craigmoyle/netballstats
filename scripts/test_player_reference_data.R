@@ -15,6 +15,7 @@ reference_path <- file.path(repo_root, "config", "player_reference.csv")
 reference_rows <- read_player_reference_csv(reference_path)
 invalid_reference_path <- file.path(repo_root, "config", ".player_reference_invalid_test.csv")
 duplicate_reference_path <- file.path(repo_root, "config", ".player_reference_duplicate_test.csv")
+template_reference_path <- file.path(repo_root, "config", ".player_reference_template_test.csv")
 writeLines(
   c(
     "player_id,date_of_birth,nationality,import_status,source_label,source_url,verified_at,notes",
@@ -30,7 +31,14 @@ writeLines(
   ),
   duplicate_reference_path
 )
-on.exit(unlink(c(invalid_reference_path, duplicate_reference_path)), add = TRUE)
+writeLines(
+  c(
+    "player_id,player_name,date_of_birth,nationality,import_status,source_label,source_url,verified_at,notes",
+    "1,Example One,,,,,,,"
+  ),
+  template_reference_path
+)
+on.exit(unlink(c(invalid_reference_path, duplicate_reference_path, template_reference_path)), add = TRUE)
 
 stopifnot(
   identical(
@@ -60,6 +68,12 @@ duplicate_player_id_error <- tryCatch(
   error = function(error) error$message
 )
 stopifnot(identical(duplicate_player_id_error, "player_id must be unique in the maintained player reference file."))
+template_reference_rows <- read_player_reference_csv(template_reference_path)
+stopifnot(nrow(template_reference_rows) == 1L)
+stopifnot(identical(template_reference_rows$player_id[[1]], 1L))
+stopifnot(is.na(template_reference_rows$date_of_birth[[1]]))
+stopifnot(is.na(template_reference_rows$import_status[[1]]))
+stopifnot(identical(template_reference_rows$notes[[1]], ""))
 
 players_fixture <- data.frame(
   player_id = c(1L, 2L),
