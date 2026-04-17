@@ -30,6 +30,17 @@ has_missing_reference_text <- function(values) {
   is.na(values) | !nzchar(values)
 }
 
+normalize_player_reference_id <- function(values) {
+  normalized <- trimws(as.character(values))
+  normalized[is.na(values)] <- NA_character_
+
+  if (any(is.na(normalized) | !grepl("^[0-9]+$", normalized))) {
+    stop("player_id must be an integer in every maintained row.", call. = FALSE)
+  }
+
+  as.integer(normalized)
+}
+
 debut_age_band <- function(age_years) {
   age_years <- suppressWarnings(as.numeric(age_years))
   if (is.na(age_years)) return(NA_character_)
@@ -47,10 +58,7 @@ read_player_reference_csv <- function(path) {
   }
 
   rows <- rows[required_player_reference_columns()]
-  rows$player_id <- as.integer(rows$player_id)
-  if (anyNA(rows$player_id)) {
-    stop("player_id must be an integer in every maintained row.", call. = FALSE)
-  }
+  rows$player_id <- normalize_player_reference_id(rows$player_id)
 
   rows$date_of_birth <- as.Date(rows$date_of_birth)
   if (any(is.na(rows$date_of_birth))) {
