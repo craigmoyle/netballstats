@@ -51,7 +51,22 @@ debut_age_band <- function(age_years) {
 }
 
 season_anchor_dates <- function(matches_rows) {
-  aggregate(match_date ~ season, data = matches_rows, FUN = min)
+  split_dates <- split(matches_rows$match_date, matches_rows$season)
+  data.frame(
+    season = as.integer(names(split_dates)),
+    match_date = as.Date(vapply(
+      split_dates,
+      function(values) {
+        observed_dates <- values[!is.na(values)]
+        if (!length(observed_dates)) {
+          return(NA_character_)
+        }
+        as.character(min(observed_dates))
+      },
+      character(1)
+    )),
+    stringsAsFactors = FALSE
+  )
 }
 
 age_in_years_on <- function(date_of_birth, anchor_date) {

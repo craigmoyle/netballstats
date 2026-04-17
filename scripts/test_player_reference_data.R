@@ -95,4 +95,14 @@ stopifnot(all(empty_reference_tables$league_composition_summary$players_with_imp
 stopifnot(all(is.na(empty_reference_tables$league_composition_summary$import_share)))
 stopifnot(nrow(empty_reference_tables$league_composition_debut_bands) == 0L)
 
+missing_match_date_fixture <- matches_fixture
+missing_match_date_fixture$match_date <- as.Date(rep(NA_character_, nrow(missing_match_date_fixture)))
+missing_match_date_tables <- build_player_reference_tables(players_fixture, player_period_fixture, missing_match_date_fixture, reference_fixture)
+
+stopifnot(nrow(missing_match_date_tables$player_season_demographics) == 4L)
+stopifnot(all(is.na(missing_match_date_tables$player_season_demographics$match_date)))
+stopifnot(all(is.na(missing_match_date_tables$league_composition_summary$average_player_age)))
+stopifnot(all(is.na(missing_match_date_tables$league_composition_summary$average_debut_age)))
+stopifnot(nrow(missing_match_date_tables$league_composition_debut_bands) == 0L)
+
 cat("Player reference contract checks passed\n")
