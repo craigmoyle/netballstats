@@ -367,13 +367,13 @@ function setMetric(nextMetric) {
 }
 
 function renderIdentityRow(label, value) {
-  const fragment = document.createDocumentFragment();
+  const wrapper = document.createElement("div");
   const dt = document.createElement("dt");
   dt.textContent = label;
   const dd = document.createElement("dd");
   dd.textContent = value || "Not yet verified";
-  fragment.append(dt, dd);
-  return fragment;
+  wrapper.append(dt, dd);
+  return wrapper;
 }
 
 function renderPlayerIdentity(profile) {
@@ -386,9 +386,11 @@ function renderPlayerIdentity(profile) {
     renderIdentityRow("Experience", identity.experience_seasons != null ? `Season ${identity.experience_seasons}` : "")
   );
 
-  elements.playerIdentityStatus.textContent = identity.reference_status === "missing"
-    ? "Some maintained identity fields are not yet verified for this player."
-    : `Verified against ${identity.source_label || "the maintained player reference file"}.`;
+  elements.playerIdentityStatus.textContent = identity.reference_status === "verified"
+    ? `Verified against ${identity.source_label || "the maintained player reference file"}.`
+    : identity.reference_status === "missing"
+      ? "Some maintained identity fields are not yet verified for this player."
+      : "Birthday, nationality, and import status are drawn from the maintained player reference file where available.";
 }
 
 function renderProfile(profile) {
