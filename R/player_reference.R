@@ -10,6 +10,9 @@ required_player_reference_columns <- function() {
 }
 
 normalize_import_status <- function(value) {
+  if (is.null(value) || length(value) == 0L || all(is.na(value))) {
+    return(NA_character_)
+  }
   normalized <- tolower(trimws(as.character(player_reference_default(value, ""))))
   if (!nzchar(normalized)) {
     return(NA_character_)
@@ -205,8 +208,9 @@ read_player_reference_csv <- function(path) {
     stop("player_id must be unique in the maintained player reference file.", call. = FALSE)
   }
 
-  rows$date_of_birth <- as.Date(rows$date_of_birth)
-  if (any(is.na(rows$date_of_birth))) {
+  raw_date_of_birth <- rows$date_of_birth
+  rows$date_of_birth <- as.Date(raw_date_of_birth)
+  if (any(!is.na(raw_date_of_birth) & is.na(rows$date_of_birth))) {
     stop("date_of_birth must be ISO-8601 (YYYY-MM-DD) in every maintained row.", call. = FALSE)
   }
 
@@ -214,12 +218,11 @@ read_player_reference_csv <- function(path) {
   rows$nationality <- normalize_required_reference_text(rows$nationality)
   rows$source_label <- normalize_required_reference_text(rows$source_label)
   rows$source_url <- normalize_required_reference_text(rows$source_url)
-  rows$verified_at <- as.Date(rows$verified_at)
-
-  if (any(has_missing_reference_text(rows$nationality))) stop("nationality is required for every maintained row.", call. = FALSE)
-  if (any(has_missing_reference_text(rows$source_label))) stop("source_label is required for every maintained row.", call. = FALSE)
-  if (any(has_missing_reference_text(rows$source_url))) stop("source_url is required for every maintained row.", call. = FALSE)
-  if (any(is.na(rows$verified_at))) stop("verified_at must be ISO-8601 (YYYY-MM-DD) in every maintained row.", call. = FALSE)
+  raw_verified_at <- rows$verified_at
+  rows$verified_at <- as.Date(raw_verified_at)
+  if (any(!is.na(raw_verified_at) & is.na(rows$verified_at))) {
+    stop("verified_at must be ISO-8601 (YYYY-MM-DD) in every maintained row.", call. = FALSE)
+  }
 
   rows$notes <- trimws(as.character(rows$notes))
   rows$notes[is.na(rows$notes)] <- ""
