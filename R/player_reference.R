@@ -50,6 +50,83 @@ debut_age_band <- function(age_years) {
   "26 and over"
 }
 
+season_anchor_dates <- function(matches_rows) {
+  aggregate(match_date ~ season, data = matches_rows, FUN = min)
+}
+
+age_in_years_on <- function(date_of_birth, anchor_date) {
+  floor(as.numeric(anchor_date - date_of_birth) / 365.25)
+}
+
+build_player_reference_tables <- function(players_rows, player_period_rows, matches_rows, reference_rows) {
+  debut_rows <- aggregate(season ~ player_id, data = unique(player_period_rows[c("player_id", "season")]), FUN = min)
+  names(debut_rows)[2] <- "debut_season"
+
+  player_reference <- merge(players_rows, reference_rows, by = "player_id", all.x = TRUE, sort = FALSE)
+  player_reference <- merge(player_reference, debut_rows, by = "player_id", all.x = TRUE, sort = FALSE)
+
+  anchors <- season_anchor_dates(matches_rows)
+  season_players <- unique(player_period_rows[c("player_id", "season")])
+  season_players <- merge(season_players, player_reference, by = "player_id", all.x = TRUE, sort = FALSE)
+  season_players <- merge(season_players, anchors, by = "season", all.x = TRUE, sort = FALSE)
+
+  season_players$experience_seasons <- ifelse(
+    is.na(season_players$debut_season),
+    NA_integer_,
+    as.integer(season_players$season - season_players$debut_season + 1L)
+  )
+  season_players$age_years <- ifelse(
+    is.na(season_players$date_of_birth) | is.na(season_players$match_date),
+    NA_real_,
+    age_in_years_on(season_players$date_of_birth, season_players$match_date)
+  )
+  season_players$debut_age_band <- ifelse(
+    season_players$season == season_players$debut_season,
+    vapply(season_players$age_years, debut_age_band, character(1)),
+    NA_character_
+  )
+
+  players_per_season <- aggregate(player_id ~ season, data = season_players, FUN = length)
+  names(players_per_season)[2] <- "players_with_matches"
+
+  age_counts <- aggregate(!is.na(age_years) ~ season, data = season_players, FUN = sum)
+  names(age_counts)[2] <- "players_with_birth_date"
+
+  import_counts <- aggregate(!is.na(import_status) ~ season, data = season_players, FUN = sum)
+  names(import_counts)[2] <- "players_with_import_status"
+
+  avg_age <- aggregate(age_years ~ season, data = season_players, FUN = function(x) round(mean(x, na.rm = TRUE), 2))
+  avg_experience <- aggregate(experience_seasons ~ season, data = season_players, FUN = function(x) round(mean(x, na.rm = TRUE), 2))
+  avg_debut_age <- aggregate(age_years ~ season, data = subset(season_players, season == debut_season), FUN = function(x) round(mean(x, na.rm = TRUE), 2))
+  names(avg_age)[2] <- "average_player_age"
+  names(avg_experience)[2] <- "average_experience_seasons"
+  names(avg_debut_age)[2] <- "average_debut_age"
+
+  import_share <- aggregate(import_status == "import" ~ season, data = subset(season_players, !is.na(import_status)), FUN = function(x) round(mean(x), 4))
+  names(import_share)[2] <- "import_share"
+
+  league_summary <- Reduce(function(left, right) merge(left, right, by = "season", all = TRUE), list(
+    players_per_season, age_counts, import_counts, avg_age, avg_experience, avg_debut_age, import_share
+  ))
+  league_summary$age_coverage_share <- round(league_summary$players_with_birth_date / league_summary$players_with_matches, 4)
+  league_summary$import_coverage_share <- round(league_summary$players_with_import_status / league_summary$players_with_matches, 4)
+
+  debut_rows_only <- subset(season_players, season == debut_season & !is.na(debut_age_band))
+  debut_band_counts <- aggregate(player_id ~ season + debut_age_band, data = debut_rows_only, FUN = length)
+  names(debut_band_counts) <- c("season", "age_band", "players")
+  debut_totals <- aggregate(players ~ season, data = debut_band_counts, FUN = sum)
+  names(debut_totals)[2] <- "total_debut_players"
+  debut_bands <- merge(debut_band_counts, debut_totals, by = "season", all.x = TRUE, sort = FALSE)
+  debut_bands$share <- round(debut_bands$players / debut_bands$total_debut_players, 4)
+
+  list(
+    player_reference = player_reference,
+    player_season_demographics = season_players,
+    league_composition_summary = league_summary,
+    league_composition_debut_bands = debut_bands
+  )
+}
+
 read_player_reference_csv <- function(path) {
   rows <- utils::read.csv(path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
   missing_columns <- setdiff(required_player_reference_columns(), names(rows))

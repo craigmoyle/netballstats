@@ -44,4 +44,47 @@ invalid_player_id_error <- tryCatch(
 )
 stopifnot(identical(invalid_player_id_error, "player_id must be an integer in every maintained row."))
 
+players_fixture <- data.frame(
+  player_id = c(1L, 2L),
+  canonical_name = c("Example One", "Example Two"),
+  stringsAsFactors = FALSE
+)
+
+player_period_fixture <- data.frame(
+  player_id = c(1L, 1L, 2L, 2L),
+  season = c(2022L, 2023L, 2023L, 2024L),
+  match_id = c(10L, 11L, 21L, 22L),
+  squad_name = c("Swifts", "Swifts", "Fever", "Fever"),
+  stringsAsFactors = FALSE
+)
+
+matches_fixture <- data.frame(
+  match_id = c(10L, 11L, 21L, 22L),
+  season = c(2022L, 2023L, 2023L, 2024L),
+  match_date = as.Date(c("2022-04-01", "2023-03-25", "2023-03-25", "2024-03-30")),
+  home_squad_id = c(1L, 1L, 2L, 2L),
+  away_squad_id = c(9L, 9L, 8L, 8L),
+  stringsAsFactors = FALSE
+)
+
+reference_fixture <- data.frame(
+  player_id = c(1L, 2L),
+  date_of_birth = as.Date(c("2003-02-10", "1995-07-01")),
+  nationality = c("Australia", "Jamaica"),
+  import_status = c("local", "import"),
+  source_label = c("Club profile", "Club profile"),
+  source_url = c("https://example.com/1", "https://example.com/2"),
+  verified_at = as.Date(c("2026-04-17", "2026-04-17")),
+  notes = c("", ""),
+  stringsAsFactors = FALSE
+)
+
+tables <- build_player_reference_tables(players_fixture, player_period_fixture, matches_fixture, reference_fixture)
+
+stopifnot(all(c("player_reference", "player_season_demographics", "league_composition_summary", "league_composition_debut_bands") %in% names(tables)))
+stopifnot(nrow(tables$player_reference) == 2L)
+stopifnot(any(tables$player_season_demographics$debut_season == 2022L))
+stopifnot(any(tables$league_composition_summary$season == 2023L))
+stopifnot(any(tables$league_composition_debut_bands$age_band == "19 and under"))
+
 cat("Player reference contract checks passed\n")
