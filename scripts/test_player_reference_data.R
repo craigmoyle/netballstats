@@ -14,6 +14,7 @@ source(file.path(repo_root, "R", "player_reference.R"), local = TRUE)
 reference_path <- file.path(repo_root, "config", "player_reference.csv")
 reference_rows <- read_player_reference_csv(reference_path)
 invalid_reference_path <- file.path(repo_root, "config", ".player_reference_invalid_test.csv")
+duplicate_reference_path <- file.path(repo_root, "config", ".player_reference_duplicate_test.csv")
 writeLines(
   c(
     "player_id,date_of_birth,nationality,import_status,source_label,source_url,verified_at,notes",
@@ -21,7 +22,15 @@ writeLines(
   ),
   invalid_reference_path
 )
-on.exit(unlink(invalid_reference_path), add = TRUE)
+writeLines(
+  c(
+    "player_id,date_of_birth,nationality,import_status,source_label,source_url,verified_at,notes",
+    "1,2000-01-01,Australia,local,Manual,https://example.com/1,2026-04-17,",
+    "1,2001-02-02,Jamaica,import,Manual,https://example.com/2,2026-04-17,"
+  ),
+  duplicate_reference_path
+)
+on.exit(unlink(c(invalid_reference_path, duplicate_reference_path)), add = TRUE)
 
 stopifnot(
   identical(
@@ -43,6 +52,14 @@ invalid_player_id_error <- tryCatch(
   error = function(error) error$message
 )
 stopifnot(identical(invalid_player_id_error, "player_id must be an integer in every maintained row."))
+duplicate_player_id_error <- tryCatch(
+  {
+    read_player_reference_csv(duplicate_reference_path)
+    NULL
+  },
+  error = function(error) error$message
+)
+stopifnot(identical(duplicate_player_id_error, "player_id must be unique in the maintained player reference file."))
 
 players_fixture <- data.frame(
   player_id = c(1L, 2L),

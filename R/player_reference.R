@@ -201,6 +201,9 @@ read_player_reference_csv <- function(path) {
 
   rows <- rows[required_player_reference_columns()]
   rows$player_id <- normalize_player_reference_id(rows$player_id)
+  if (anyDuplicated(rows$player_id)) {
+    stop("player_id must be unique in the maintained player reference file.", call. = FALSE)
+  }
 
   rows$date_of_birth <- as.Date(rows$date_of_birth)
   if (any(is.na(rows$date_of_birth))) {
