@@ -13,7 +13,7 @@ source(file.path(repo_root, "R", "player_reference.R"), local = TRUE)
 
 run_player_reference_tests <- function() {
 reference_path <- file.path(repo_root, "config", "player_reference.csv")
-raw_reference_rows <- utils::read.csv(reference_path, stringsAsFactors = FALSE, na.strings = c("", "NA"))
+raw_reference_rows <- utils::read.csv(reference_path, stringsAsFactors = FALSE, na.strings = "NA")
 reference_rows <- read_player_reference_csv(reference_path)
 invalid_reference_path <- file.path(repo_root, "config", ".player_reference_invalid_test.csv")
 duplicate_reference_path <- file.path(repo_root, "config", ".player_reference_duplicate_test.csv")
@@ -44,6 +44,18 @@ on.exit(unlink(c(invalid_reference_path, duplicate_reference_path, template_refe
 
 stopifnot("player_name" %in% names(raw_reference_rows))
 stopifnot(all(nzchar(raw_reference_rows$player_name)))
+stopifnot(
+  raw_reference_rows$nationality[match("Ameliaranne Ekenasio", raw_reference_rows$player_name)] == ""
+)
+stopifnot(
+  all(raw_reference_rows$nationality[raw_reference_rows$player_name == "Hulita Veve"] == "")
+)
+stopifnot(
+  all(
+    raw_reference_rows$source_url[raw_reference_rows$player_name == "Hulita Veve"] ==
+      "https://en.wikipedia.org/wiki/Hulita_Veve"
+  )
+)
 stopifnot(
   identical(
     names(reference_rows),
