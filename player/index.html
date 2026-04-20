@@ -42,11 +42,23 @@
           <div id="player-squads" class="tag-list" aria-label="Player clubs"></div>
         </div>
 
-        <aside class="hero-aside" aria-label="Career snapshot">
+        <aside class="hero-aside" aria-label="Player profile">
           <div class="hero-aside__card">
-            <span class="hero-aside__label">Career span</span>
-            <strong id="career-span">--</strong>
-            <p id="career-span-summary">Loading seasons and clubs.</p>
+            <span class="hero-aside__label">Profile</span>
+            <dl id="hero-profile-list" class="hero-profile-list" aria-live="polite">
+              <div>
+                <dt>Birthday</dt>
+                <dd id="hero-profile-birthday">Not yet verified</dd>
+              </div>
+              <div>
+                <dt>Nationality</dt>
+                <dd id="hero-profile-nationality">Not yet verified</dd>
+              </div>
+              <div>
+                <dt>Debut season</dt>
+                <dd id="hero-profile-debut-season">Not yet verified</dd>
+              </div>
+            </dl>
           </div>
         </aside>
       </section>
@@ -82,15 +94,6 @@
             <span id="summary-primary" class="summary-card__value summary-card__value--small">--</span>
           </article>
         </div>
-      </section>
-
-      <section class="panel reveal player-identity-card" aria-label="Player identity and debut context">
-        <div class="panel__heading">
-          <p class="panel__eyebrow">Identity context</p>
-          <h2>Profile context</h2>
-          <p id="player-identity-status" class="panel__lead">Loading birthday, nationality, debut, and import context.</p>
-        </div>
-        <dl id="player-identity-list" class="player-identity-list"></dl>
       </section>
 
       <section class="panel player-dossier__pillars reveal" aria-label="Career pillars">

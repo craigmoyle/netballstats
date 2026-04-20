@@ -23,11 +23,11 @@ assert.match(pageHtml, /league-composition-coverage-note/, "Expected the built p
 assert.match(css, /\.league-composition-editorial-lead\b/, "Expected built CSS to include .league-composition-editorial-lead.");
 assert.match(css, /\.league-composition-coverage-note\b/, "Expected built CSS to include .league-composition-coverage-note.");
 
-assert.match(playerHtml, /player-identity-card/, "Expected the built player page to include player-identity-card.");
-assert.match(playerHtml, /player-identity-list/, "Expected the built player page to include player-identity-list.");
-assert.match(playerHtml, /player-identity-status/, "Expected the built player page to include player-identity-status.");
-assert.match(css, /\.player-identity-card\b/, "Expected built CSS to include .player-identity-card.");
-assert.match(css, /\.player-identity-list\b/, "Expected built CSS to include .player-identity-list.");
-assert.match(css, /\.player-identity-status\b/, "Expected built CSS to include .player-identity-status.");
+assert.doesNotMatch(playerHtml, /player-identity-card/, "Expected the built player page to remove player-identity-card.");
+assert.doesNotMatch(playerHtml, /player-identity-list/, "Expected the built player page to remove player-identity-list.");
+assert.doesNotMatch(playerHtml, /player-identity-status/, "Expected the built player page to remove player-identity-status.");
+assert.match(playerHtml, /hero-profile-list/, "Expected the built player page to include hero-profile-list.");
+assert.match(playerHtml, /<span class="hero-aside__label">Profile<\/span>/, "Expected the built player page to relabel the hero card to Profile.");
+assert.match(css, /\.hero-profile-list\b/, "Expected built CSS to include .hero-profile-list.");
 
 console.log("League composition smoke checks passed");

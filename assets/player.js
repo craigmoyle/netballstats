@@ -55,8 +55,9 @@ const elements = {
   playerSubtitle: document.getElementById("player-subtitle"),
   playerIntro: document.getElementById("player-intro"),
   playerSquads: document.getElementById("player-squads"),
-  careerSpan: document.getElementById("career-span"),
-  careerSpanSummary: document.getElementById("career-span-summary"),
+  heroProfileBirthday: document.getElementById("hero-profile-birthday"),
+  heroProfileNationality: document.getElementById("hero-profile-nationality"),
+  heroProfileDebutSeason: document.getElementById("hero-profile-debut-season"),
   summaryGames: document.getElementById("summary-games"),
   summarySeasons: document.getElementById("summary-seasons"),
   summaryTeams: document.getElementById("summary-teams"),
@@ -69,8 +70,6 @@ const elements = {
   playerPillars: document.getElementById("player-pillars"),
   playerMarginalia: document.getElementById("player-marginalia"),
   seasonLedgerNotes: document.getElementById("season-ledger-notes"),
-  playerIdentityStatus: document.getElementById("player-identity-status"),
-  playerIdentityList: document.getElementById("player-identity-list"),
   metricButtons: Array.from(document.querySelectorAll("[data-metric]"))
 };
 
@@ -366,31 +365,11 @@ function setMetric(nextMetric) {
   }
 }
 
-function renderIdentityRow(label, value) {
-  const wrapper = document.createElement("div");
-  const dt = document.createElement("dt");
-  dt.textContent = label;
-  const dd = document.createElement("dd");
-  dd.textContent = value || "Not yet verified";
-  wrapper.append(dt, dd);
-  return wrapper;
-}
-
-function renderPlayerIdentity(profile) {
+function renderHeroProfile(profile) {
   const identity = profile.identity || {};
-  elements.playerIdentityList.replaceChildren(
-    renderIdentityRow("Birthday", identity.date_of_birth),
-    renderIdentityRow("Nationality", identity.nationality),
-    renderIdentityRow("Import status", identity.import_status),
-    renderIdentityRow("Debut season", identity.debut_season != null ? `${identity.debut_season}` : ""),
-    renderIdentityRow("Experience", identity.experience_seasons != null ? `Season ${identity.experience_seasons}` : "")
-  );
-
-  elements.playerIdentityStatus.textContent = identity.reference_status === "maintained"
-    ? `Verified against ${identity.source_label || "the maintained player reference file"}.`
-    : identity.reference_status === "missing"
-      ? "Some maintained identity fields are not yet verified for this player."
-      : "Birthday, nationality, and import status are drawn from the maintained player reference file where available.";
+  elements.heroProfileBirthday.textContent = identity.date_of_birth || "Not yet verified";
+  elements.heroProfileNationality.textContent = identity.nationality || "Not yet verified";
+  elements.heroProfileDebutSeason.textContent = identity.debut_season != null ? `${identity.debut_season}` : "Not yet verified";
 }
 
 function renderProfile(profile) {
@@ -409,12 +388,6 @@ function renderProfile(profile) {
   elements.playerName.textContent = playerName;
   elements.playerSubtitle.textContent = `Archive record ${profile.player?.player_id ?? ""}`.trim();
   elements.playerIntro.textContent = `${overview.first_season && overview.last_season ? `${overview.first_season}\u2013${overview.last_season}` : "Single-season"} dossier · ${formatNumber(overview.games_played)} games across ${formatNumber(overview.seasons_played)} seasons and ${formatNumber(overview.teams_played)} clubs.`;
-  elements.careerSpan.textContent = overview.first_season && overview.last_season
-    ? `${overview.first_season} to ${overview.last_season}`
-    : "Single season";
-  elements.careerSpanSummary.textContent = (overview.squad_names || []).length
-    ? `Filed under ${(overview.squad_names || []).join(", ")}`
-    : "Club history unavailable.";
 
   elements.summaryGames.textContent = formatNumber(overview.games_played);
   elements.summarySeasons.textContent = formatNumber(overview.seasons_played);
@@ -425,7 +398,7 @@ function renderProfile(profile) {
     : "No totals yet";
 
   renderSquads(overview.squad_names || []);
-  renderPlayerIdentity(profile);
+  renderHeroProfile(profile);
   renderCareerStats(careerStats);
   renderDossierPillars(pillars);
   renderDossierNotes(notes);
