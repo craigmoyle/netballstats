@@ -1587,6 +1587,8 @@ assert_true(is.list(debut_bands$data),
   'Expected /league-composition-debut-bands to return a data list.')
 assert_true(length(debut_bands$data) >= 1L,
   'Expected /league-composition-debut-bands to return at least one band row.')
-check_step('/league-composition-debut-bands returns at least one debut age band row')
+assert_true("debut_player_names" %in% names(debut_bands$data[[1]]),
+  'Expected /league-composition-debut-bands rows to include debut_player_names.')
+check_step('/league-composition-debut-bands returns debut age bands with player-name detail')
 
 cat('All API regression checks passed.\n')
