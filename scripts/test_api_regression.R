@@ -246,7 +246,7 @@ serializer_payload <- list(
     stringsAsFactors = FALSE
   ))
 )
-serializer_json <- jsonlite::toJSON(serializer_payload, auto_unbox = TRUE, null = 'null')
+serializer_json <- jsonlite::toJSON(serializer_payload, auto_unbox = TRUE, null = 'null', na = 'null')
 assert_true(
   grepl('"players_with_import_status":null', serializer_json, fixed = TRUE),
   'Expected record_to_scalars to serialize NA coverage values as JSON null.'

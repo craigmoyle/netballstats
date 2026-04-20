@@ -692,15 +692,14 @@ json_scalar <- function(value) {
   }
 
   if (!is.list(value) && length(value) == 1L) {
-    scalar <- value[[1L]]
-    if (is.null(scalar) || length(scalar) == 0L || (length(scalar) == 1L && is.na(scalar))) {
-      return(NULL)
-    }
-
-    return(jsonlite::unbox(unname(scalar)))
+    return(jsonlite::unbox(unname(value[[1L]])))
   }
 
   value
+}
+
+serializer_unboxed_json_null_na <- function(...) {
+  plumber::serializer_unboxed_json(na = "null", ...)
 }
 
 record_to_scalars <- function(values) {
@@ -1592,7 +1591,7 @@ function(season = "", seasons = "", team_id = "", venue_name = "", min_matches =
 
 #* @get /home-venue-breakdown
 #* @get /api/home-venue-breakdown
-#* @serializer unboxedJSON
+#* @serializer serializer_unboxed_json_null_na
 #* @summary Home venue stat breakdown
 #* @param season Optional single season year (e.g. 2023). Overridden by seasons.
 #* @param seasons Optional comma-separated season years (e.g. 2022,2023).
@@ -1682,7 +1681,7 @@ function(season = "", seasons = "", team_id = "", era = "", position_group = "",
 
 #* @get /scoreflow-game-records
 #* @get /api/scoreflow-game-records
-#* @serializer unboxedJSON
+#* @serializer serializer_unboxed_json_null_na
 #* @summary Scoreflow game records — team-match level scoreflow analytics
 #* @param season Optional single season year (e.g. 2023). Overridden by seasons.
 #* @param seasons Optional comma-separated season years (e.g. 2022,2023).
@@ -1740,7 +1739,7 @@ function(season = "", seasons = "", team_id = "", opponent_id = "", metric = "",
 
 #* @get /scoreflow-team-summary
 #* @get /api/scoreflow-team-summary
-#* @serializer unboxedJSON
+#* @serializer serializer_unboxed_json_null_na
 #* @summary Scoreflow team summary — per-team aggregates from match_scoreflow_summary
 #* @param season Optional single season year (e.g. 2023). Overridden by seasons.
 #* @param seasons Optional comma-separated season years (e.g. 2022,2023).
@@ -1794,7 +1793,7 @@ function(season = "", seasons = "", team_id = "", min_matches = "1", sort_by = "
 
 #* @get /scoreflow-featured-records
 #* @get /api/scoreflow-featured-records
-#* @serializer unboxedJSON
+#* @serializer serializer_unboxed_json_null_na
 #* @summary Scoreflow featured records — three curated cards for the archive homepage
 #* @param season Optional single season year (overridden by seasons).
 #* @param seasons Optional comma-separated season years.
@@ -1829,7 +1828,7 @@ function(season = "", seasons = "", team_id = "", res) {
 
 #* @get /league-composition-summary
 #* @get /api/league-composition-summary
-#* @serializer unboxedJSON
+#* @serializer serializer_unboxed_json_null_na
 #* @summary League composition summary — per-season player count and demographic aggregates
 #* @param season Optional single season year (e.g. 2023). Overridden by seasons.
 #* @param seasons Optional comma-separated season years (e.g. 2022,2023).
@@ -1852,7 +1851,7 @@ function(season = "", seasons = "", res) {
 
 #* @get /league-composition-debut-bands
 #* @get /api/league-composition-debut-bands
-#* @serializer unboxedJSON
+#* @serializer serializer_unboxed_json_null_na
 #* @summary League debut age bands — per-season debut age distribution for debutants
 #* @param season Optional single season year (e.g. 2023). Overridden by seasons.
 #* @param seasons Optional comma-separated season years (e.g. 2022,2023).
