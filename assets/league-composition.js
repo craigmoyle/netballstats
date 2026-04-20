@@ -72,7 +72,14 @@ function renderBandRows(rows) {
   rows.forEach((row) => {
     const tr = document.createElement("tr");
     const td = document.createElement("td");
-    td.textContent = `${row.season}: ${row.age_band} — ${row.players} debut players (${(Number(row.share) * 100).toFixed(1)}%)`;
+    const summary = document.createElement("div");
+    summary.textContent = `${row.season}: ${row.age_band} — ${row.players} debut players (${(Number(row.share) * 100).toFixed(1)}%)`;
+    td.appendChild(summary);
+    if (row.debut_player_names) {
+      const names = document.createElement("div");
+      names.textContent = `Debutants: ${row.debut_player_names}`;
+      td.appendChild(names);
+    }
     tr.appendChild(td);
     fragment.appendChild(tr);
   });
@@ -158,4 +165,3 @@ async function initialise() {
 }
 
 window.addEventListener("DOMContentLoaded", initialise);
-

@@ -172,9 +172,22 @@ build_player_reference_tables <- function(players_rows, player_period_rows, matc
   if (nrow(debut_rows_only) > 0L) {
     debut_band_counts <- aggregate(player_id ~ season + debut_age_band, data = debut_rows_only, FUN = length)
     names(debut_band_counts) <- c("season", "age_band", "players")
+    debut_band_names <- aggregate(
+      canonical_name ~ season + debut_age_band,
+      data = debut_rows_only,
+      FUN = function(values) {
+        names <- sort(unique(as.character(values[!is.na(values) & nzchar(values)])))
+        if (!length(names)) {
+          return(NA_character_)
+        }
+        paste(names, collapse = ", ")
+      }
+    )
+    names(debut_band_names) <- c("season", "age_band", "debut_player_names")
     debut_totals <- aggregate(players ~ season, data = debut_band_counts, FUN = sum)
     names(debut_totals)[2] <- "total_debut_players"
     debut_bands <- merge(debut_band_counts, debut_totals, by = "season", all.x = TRUE, sort = FALSE)
+    debut_bands <- merge(debut_bands, debut_band_names, by = c("season", "age_band"), all.x = TRUE, sort = FALSE)
     debut_bands$share <- round(debut_bands$players / debut_bands$total_debut_players, 4)
   } else {
     debut_bands <- data.frame(
@@ -182,6 +195,7 @@ build_player_reference_tables <- function(players_rows, player_period_rows, matc
       age_band = character(),
       players = integer(),
       total_debut_players = integer(),
+      debut_player_names = character(),
       share = numeric(),
       stringsAsFactors = FALSE
     )

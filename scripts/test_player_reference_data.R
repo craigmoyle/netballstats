@@ -139,6 +139,25 @@ stopifnot(nrow(tables$player_reference) == 2L)
 stopifnot(any(tables$player_season_demographics$debut_season == 2022L))
 stopifnot(any(tables$league_composition_summary$season == 2023L))
 stopifnot(any(tables$league_composition_debut_bands$age_band == "19 and under"))
+stopifnot("debut_player_names" %in% names(tables$league_composition_debut_bands))
+stopifnot(
+  identical(
+    tables$league_composition_debut_bands$debut_player_names[
+      tables$league_composition_debut_bands$season == 2022L &
+        tables$league_composition_debut_bands$age_band == "19 and under"
+    ][[1]],
+    "Example One"
+  )
+)
+stopifnot(
+  identical(
+    tables$league_composition_debut_bands$debut_player_names[
+      tables$league_composition_debut_bands$season == 2023L &
+        tables$league_composition_debut_bands$age_band == "26 and over"
+    ][[1]],
+    "Example Two"
+  )
+)
 
 empty_reference_fixture <- reference_fixture[0, ]
 empty_reference_tables <- build_player_reference_tables(players_fixture, player_period_fixture, matches_fixture, empty_reference_fixture)
@@ -147,6 +166,7 @@ stopifnot(nrow(empty_reference_tables$player_reference) == 2L)
 stopifnot(all(empty_reference_tables$league_composition_summary$players_with_import_status == 0))
 stopifnot(all(is.na(empty_reference_tables$league_composition_summary$import_share)))
 stopifnot(nrow(empty_reference_tables$league_composition_debut_bands) == 0L)
+stopifnot("debut_player_names" %in% names(empty_reference_tables$league_composition_debut_bands))
 
 missing_match_date_fixture <- matches_fixture
 missing_match_date_fixture$match_date <- as.Date(rep(NA_character_, nrow(missing_match_date_fixture)))
