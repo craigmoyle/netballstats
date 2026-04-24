@@ -1449,7 +1449,7 @@ if (!sample_mode) {
               home_squad_id <- if (!is.null(m$homeSquadId)) as.integer(m$homeSquadId) else 0L
               away_squad_id <- if (!is.null(m$awaySquadId)) as.integer(m$awaySquadId) else 0L
               game_number <- if (!is.null(m$gameNumber)) as.integer(m$gameNumber) else 1L
-              season_year <- as.integer(format(Sys.Date(), "%Y")) + 1L
+              season_year <- as.integer(format(Sys.Date(), "%Y"))
               
               DBI::dbExecute(conn, "
                 INSERT INTO matches (
