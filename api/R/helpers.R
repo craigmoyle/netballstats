@@ -2813,6 +2813,98 @@ build_round_fact <- function(title, value, detail, badges = character()) {
   )
 }
 
+fetch_next_upcoming_round <- function(conn, season = NULL) {
+  query <- paste(
+    "SELECT season, COALESCE(competition_phase, '') AS competition_phase, round_number,",
+    "COUNT(*) AS total_matches, MIN(local_start_time) AS round_start_time",
+    "FROM matches",
+    "WHERE local_start_time >= CURRENT_TIMESTAMP",
+    "AND home_score IS NULL AND away_score IS NULL"
+  )
+  params <- list()
+
+  if (!is.null(season)) {
+    query <- paste0(query, " AND season = ?season")
+    params$season <- as.integer(season)
+  }
+
+  query <- paste0(
+    query,
+    " GROUP BY season, COALESCE(competition_phase, ''), round_number",
+    " ORDER BY round_start_time ASC, season ASC, round_number ASC LIMIT 1"
+  )
+
+  query_rows(conn, query, params)
+}
+
+fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", round_number) {
+  query_rows(
+    conn,
+    paste(
+      "SELECT match_id, season, COALESCE(competition_phase, '') AS competition_phase, round_number, game_number, local_start_time, venue_name,",
+      "home_squad_id, home_squad_name, away_squad_id, away_squad_name",
+      "FROM matches",
+      "WHERE home_score IS NULL AND away_score IS NULL",
+      "AND season = ?season",
+      "AND COALESCE(competition_phase, '') = ?competition_phase",
+      "AND round_number = ?round_number",
+      "ORDER BY local_start_time ASC, game_number ASC, match_id ASC"
+    ),
+    list(
+      season = as.integer(season),
+      competition_phase = as.character(competition_phase %||% ""),
+      round_number = as.integer(round_number)
+    )
+  )
+}
+
+build_round_preview_payload <- function(conn, season = NULL) {
+  selected_round <- fetch_next_upcoming_round(conn, season = season)
+  if (!nrow(selected_round)) {
+    return(NULL)
+  }
+
+  season_value <- suppressWarnings(as.integer(selected_round$season[[1]]))
+  round_value <- suppressWarnings(as.integer(selected_round$round_number[[1]]))
+  competition_phase <- as.character(selected_round$competition_phase[[1]] %||% "")
+  matches <- fetch_upcoming_round_matches(conn, season_value, competition_phase, round_value)
+  if (!nrow(matches)) {
+    return(NULL)
+  }
+
+  list(
+    season = season_value,
+    round_number = round_value,
+    round_label = format_round_label(competition_phase, round_value),
+    round_intro = sprintf("%s fixtures are scheduled in the next upcoming round.", nrow(matches)),
+    summary_cards = list(
+      list(label = "Matches", value = as.character(nrow(matches)))
+    ),
+    matches = lapply(seq_len(nrow(matches)), function(i) {
+      row <- matches[i, , drop = FALSE]
+      list(
+        fixture = list(
+          match_id = suppressWarnings(as.integer(row$match_id[[1]])),
+          home_team = normalize_record_value(row$home_squad_name[[1]]),
+          away_team = normalize_record_value(row$away_squad_name[[1]]),
+          home_team_id = suppressWarnings(as.integer(row$home_squad_id[[1]])),
+          away_team_id = suppressWarnings(as.integer(row$away_squad_id[[1]])),
+          home_logo_url = NULL,
+          away_logo_url = NULL,
+          venue = normalize_record_value(row$venue_name[[1]] %||% NULL),
+          local_start_time = normalize_record_value(row$local_start_time[[1]] %||% NULL)
+        ),
+        head_to_head = NULL,
+        last_meeting = NULL,
+        recent_form = NULL,
+        streaks = NULL,
+        player_watch = list(),
+        fact_cards = list()
+      )
+    })
+  )
+}
+
 # Per-process cache for round summary payloads (keyed by season+round+phase).
 # Cleared automatically when the Container App restarts (e.g. after a DB refresh).
 .round_summary_cache <- new.env(parent = emptyenv())

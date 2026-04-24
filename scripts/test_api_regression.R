@@ -179,6 +179,48 @@ if (identical(round_summary_status, 200L)) {
   check_step('round summary endpoint returns a clean 404 when no completed round is available')
 }
 
+round_preview_url <- build_endpoint_url(base_url, '/round-preview-summary')
+round_preview_response <- httr::GET(round_preview_url, httr::timeout(30))
+round_preview_status <- httr::status_code(round_preview_response)
+round_preview_text <- httr::content(round_preview_response, as = 'text', encoding = 'UTF-8')
+round_preview_payload <- if (nzchar(round_preview_text)) {
+  jsonlite::fromJSON(round_preview_text, simplifyVector = FALSE)
+} else {
+  list()
+}
+
+assert_true(
+  round_preview_status %in% c(200L, 404L),
+  sprintf('Expected /round-preview-summary to return 200 or 404, got %s.', round_preview_status)
+)
+
+if (identical(round_preview_status, 200L)) {
+  assert_true(
+    nzchar(as.character(scalar_value(round_preview_payload$round_label %||% ''))),
+    'Expected /round-preview-summary to return a round label.'
+  )
+  assert_true(
+    is.list(round_preview_payload$summary_cards),
+    'Expected /round-preview-summary to return summary cards.'
+  )
+  assert_true(
+    is.list(round_preview_payload$matches) && length(round_preview_payload$matches) >= 1,
+    'Expected /round-preview-summary to return upcoming matches.'
+  )
+  first_preview_match <- first_record(round_preview_payload$matches)
+  assert_true(
+    is.list(first_preview_match$fixture),
+    'Expected round preview matches to include fixture metadata.'
+  )
+  check_step('round preview endpoint returns upcoming-round content')
+} else {
+  assert_true(
+    nzchar(as.character(scalar_value(round_preview_payload$error %||% ''))),
+    'Expected /round-preview-summary 404 responses to include an error payload.'
+  )
+  check_step('round preview endpoint returns a clean 404 when no upcoming round is available')
+}
+
 query_payload <- request_json(
   base_url,
   '/query',
