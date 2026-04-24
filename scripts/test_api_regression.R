@@ -246,6 +246,9 @@ round_preview_helpers_env <- new.env(parent = globalenv())
 sys.source(file.path(getwd(), 'api', 'R', 'helpers.R'), envir = round_preview_helpers_env)
 round_preview_helpers_env$api_log <- function(...) NULL
 round_preview_helpers_env$has_player_match_stats <- function(conn) TRUE
+assert_true(identical(round_preview_helpers_env$round_preview_team_logo_url('NSW Swifts'), '/team-logos/swifts.svg'), 'Expected round preview logo helper to map NSW Swifts to the local crest asset.')
+assert_true(identical(round_preview_helpers_env$round_preview_team_logo_url('GIANTS Netball'), '/team-logos/giants.svg'), 'Expected round preview logo helper to map GIANTS Netball to the local crest asset.')
+assert_true(is.null(round_preview_helpers_env$round_preview_team_logo_url('Unknown Team')), 'Expected round preview logo helper to return NULL for unmapped teams.')
 captured_preview_queries <- character()
 round_preview_helpers_env$query_rows <- function(conn, query, params = list()) {
   captured_preview_queries <<- c(captured_preview_queries, normalize_sql(query))
@@ -321,7 +324,7 @@ assert_true(identical(last_meeting_gain_watch$summary, 'Sample Defender recorded
 assert_true(length(captured_preview_queries) == 4L, 'Expected player watch helpers to query both points and gains when no point leader is available.')
 assert_true(!any(grepl('pms.value_number', captured_preview_queries, fixed = TRUE)), 'Expected round preview player watch fallback queries to avoid the missing player_match_stats.value_number column.')
 assert_true(all(grepl('pms.match_value', captured_preview_queries, fixed = TRUE)), 'Expected round preview player watch fallback queries to use player_match_stats.match_value.')
-check_step('round preview player watch queries use player_match_stats.match_value')
+check_step('round preview helpers map crest assets and use player_match_stats.match_value')
 
 query_payload <- request_json(
   base_url,

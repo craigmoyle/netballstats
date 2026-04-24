@@ -2866,6 +2866,30 @@ fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", r
   )
 }
 
+round_preview_team_logo_url <- function(team_name) {
+  normalized <- trimws(as.character(team_name %||% ""))
+  if (!nzchar(normalized)) {
+    return(NULL)
+  }
+
+  logo_file <- c(
+    "NSW Swifts" = "swifts.svg",
+    "GIANTS Netball" = "giants.svg",
+    "Queensland Firebirds" = "firebirds.svg",
+    "Sunshine Coast Lightning" = "lightning.svg",
+    "Melbourne Mavericks" = "mavericks.svg",
+    "West Coast Fever" = "fever.svg",
+    "Adelaide Thunderbirds" = "thunderbirds.svg",
+    "Melbourne Vixens" = "vixens.svg"
+  )[[normalized]]
+
+  if (is.null(logo_file) || !nzchar(logo_file)) {
+    return(NULL)
+  }
+
+  paste0("/team-logos/", logo_file)
+}
+
 build_round_preview_payload <- function(conn, season = NULL) {
   now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
 
@@ -2920,8 +2944,8 @@ build_round_preview_payload <- function(conn, season = NULL) {
           away_team = away_team,
           home_team_id = home_squad_id,
           away_team_id = away_squad_id,
-          home_logo_url = NULL,
-          away_logo_url = NULL,
+          home_logo_url = round_preview_team_logo_url(home_team),
+          away_logo_url = round_preview_team_logo_url(away_team),
           venue = normalize_record_value(row$venue_name[[1]] %||% NULL),
           local_start_time = normalize_record_value(row$local_start_time[[1]] %||% NULL)
         ),
