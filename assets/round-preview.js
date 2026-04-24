@@ -28,17 +28,25 @@
     "Checking recent form\u2026"
   ];
 
+  function isPlainObject(value) {
+    return !!value && typeof value === "object" && !Array.isArray(value);
+  }
+
   function createSummaryCard(card, accent) {
+    if (!isPlainObject(card)) {
+      return null;
+    }
+
     const article = document.createElement("article");
     article.className = accent ? "summary-card summary-card--accent" : "summary-card";
 
     const label = document.createElement("span");
     label.className = "summary-card__label";
-    label.textContent = card.label || "";
+    label.textContent = card.label == null ? "" : String(card.label);
 
     const value = document.createElement("span");
     value.className = "summary-card__value";
-    value.textContent = card.value || "--";
+    value.textContent = card.value == null ? "--" : String(card.value);
 
     article.append(label, value);
     return article;
@@ -73,6 +81,22 @@
     return div;
   }
 
+  function normalizeMatch(match) {
+    if (!isPlainObject(match)) {
+      return null;
+    }
+
+    return {
+      fixture: isPlainObject(match.fixture) ? match.fixture : {},
+      headToHead: isPlainObject(match.head_to_head) ? match.head_to_head : null,
+      lastMeeting: isPlainObject(match.last_meeting) ? match.last_meeting : null,
+      recentForm: isPlainObject(match.recent_form) ? match.recent_form : null,
+      streaks: isPlainObject(match.streaks) ? match.streaks : null,
+      factCards: Array.isArray(match.fact_cards) ? match.fact_cards : [],
+      playerWatch: Array.isArray(match.player_watch) ? match.player_watch : []
+    };
+  }
+
   function renderMatches(matches) {
     elements.matchGrid.replaceChildren();
 
@@ -92,7 +116,12 @@
     const fragment = document.createDocumentFragment();
 
     matches.forEach((match) => {
-      const fixture = match.fixture || {};
+      const safeMatch = normalizeMatch(match);
+      if (!safeMatch) {
+        return;
+      }
+
+      const { fixture, headToHead, lastMeeting, recentForm, streaks, factCards, playerWatch } = safeMatch;
 
       const article = document.createElement("article");
       article.className = "round-preview-card";
@@ -126,28 +155,24 @@
         meta.appendChild(venueItem);
       }
 
-      const h2h = match.head_to_head;
-      if (h2h && h2h.summary) {
+      if (headToHead && headToHead.summary) {
         const h2hItem = document.createElement("li");
-        h2hItem.textContent = h2h.summary;
+        h2hItem.textContent = headToHead.summary;
         meta.appendChild(h2hItem);
       }
 
-      const lastMeeting = match.last_meeting;
       if (lastMeeting && lastMeeting.summary) {
         const lmItem = document.createElement("li");
         lmItem.textContent = lastMeeting.summary;
         meta.appendChild(lmItem);
       }
 
-      const recentForm = match.recent_form;
       if (recentForm && recentForm.summary) {
         const rfItem = document.createElement("li");
         rfItem.textContent = recentForm.summary;
         meta.appendChild(rfItem);
       }
 
-      const streaks = match.streaks;
       if (streaks) {
         if (streaks.home && streaks.home.summary) {
           const shItem = document.createElement("li");
@@ -165,10 +190,10 @@
         article.appendChild(meta);
       }
 
-      if (Array.isArray(match.fact_cards) && match.fact_cards.length) {
+      if (factCards.length) {
         const facts = document.createElement("div");
         facts.className = "round-preview-card__fact";
-        match.fact_cards.forEach((factText) => {
+        factCards.forEach((factText) => {
           if (!factText) return;
           const p = document.createElement("p");
           p.textContent = factText;
@@ -179,10 +204,10 @@
         }
       }
 
-      if (Array.isArray(match.player_watch) && match.player_watch.length) {
+      if (playerWatch.length) {
         const watchList = document.createElement("ul");
         watchList.className = "round-preview-card__watch-list";
-        match.player_watch.forEach((note) => {
+        playerWatch.forEach((note) => {
           if (!note || !note.summary) return;
           const item = document.createElement("li");
           item.textContent = note.summary;
@@ -237,7 +262,10 @@
       if (elements.summaryBand && Array.isArray(payload.summary_cards) && payload.summary_cards.length) {
         elements.summaryBand.replaceChildren();
         payload.summary_cards.forEach((card, i) => {
-          elements.summaryBand.appendChild(createSummaryCard(card, i === 0));
+          const summaryCard = createSummaryCard(card, i === 0);
+          if (summaryCard) {
+            elements.summaryBand.appendChild(summaryCard);
+          }
         });
       }
 
@@ -263,7 +291,7 @@
         elements.meta.textContent = "Try again shortly.";
       }
 
-      renderMatches([]);
+      elements.matchGrid.replaceChildren();
 
       showStatusBanner(elements.status, message, "error", {
         kicker: "Preview unavailable"
