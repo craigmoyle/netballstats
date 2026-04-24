@@ -2813,8 +2813,10 @@ build_round_fact <- function(title, value, detail, badges = character()) {
   )
 }
 
-fetch_next_upcoming_round <- function(conn, season = NULL) {
-  now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+fetch_next_upcoming_round <- function(conn, season = NULL, now_utc = NULL) {
+  if (is.null(now_utc)) {
+    now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  }
 
   query <- paste(
     "SELECT season, COALESCE(competition_phase, '') AS competition_phase, round_number,",
@@ -2840,7 +2842,7 @@ fetch_next_upcoming_round <- function(conn, season = NULL) {
   query_rows(conn, query, params)
 }
 
-fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", round_number) {
+fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", round_number, now_utc) {
   query_rows(
     conn,
     paste(
@@ -2848,12 +2850,15 @@ fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", r
       "home_squad_id, home_squad_name, away_squad_id, away_squad_name",
       "FROM matches",
       "WHERE home_score IS NULL AND away_score IS NULL",
+      "AND utc_start_time IS NOT NULL",
+      "AND utc_start_time > ?now",
       "AND season = ?season",
       "AND COALESCE(competition_phase, '') = ?competition_phase",
       "AND round_number = ?round_number",
       "ORDER BY local_start_time ASC, game_number ASC, match_id ASC"
     ),
     list(
+      now = now_utc,
       season = as.integer(season),
       competition_phase = as.character(competition_phase %||% ""),
       round_number = as.integer(round_number)
@@ -2862,7 +2867,9 @@ fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", r
 }
 
 build_round_preview_payload <- function(conn, season = NULL) {
-  selected_round <- fetch_next_upcoming_round(conn, season = season)
+  now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
+  selected_round <- fetch_next_upcoming_round(conn, season = season, now_utc = now_utc)
   if (!nrow(selected_round)) {
     return(NULL)
   }
@@ -2870,7 +2877,7 @@ build_round_preview_payload <- function(conn, season = NULL) {
   season_value <- suppressWarnings(as.integer(selected_round$season[[1]]))
   round_value <- suppressWarnings(as.integer(selected_round$round_number[[1]]))
   competition_phase <- as.character(selected_round$competition_phase[[1]] %||% "")
-  matches <- fetch_upcoming_round_matches(conn, season_value, competition_phase, round_value)
+  matches <- fetch_upcoming_round_matches(conn, season_value, competition_phase, round_value, now_utc)
   if (!nrow(matches)) {
     return(NULL)
   }
