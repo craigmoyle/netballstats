@@ -12,6 +12,9 @@ assert.ok(stylesheetHrefMatch, "Expected the built round preview page to referen
 assert.match(pageHtml, /round-preview-page/, "Expected the built page to include round-preview-page.");
 assert.match(pageHtml, /round-preview-status/, "Expected the built page to include round-preview-status.");
 assert.match(pageHtml, /round-preview-match-grid/, "Expected the built page to include round-preview-match-grid.");
+assert.match(pageHtml, /id="round-preview-hero-label"/, "Expected the built page to include round-preview-hero-label.");
+assert.match(pageHtml, /id="round-preview-hero-summary"/, "Expected the built page to include round-preview-hero-summary.");
+assert.match(pageHtml, /href="\/round-preview\/"/, "Expected the built page to include the round preview nav link.");
 assert.match(pageHtml, /\/assets\/round-preview\.[^"]+\.js/, "Expected the built page to include the fingerprinted round-preview asset.");
 
 console.log("Round preview UI smoke checks passed");
