@@ -2814,13 +2814,16 @@ build_round_fact <- function(title, value, detail, badges = character()) {
 }
 
 fetch_next_upcoming_round <- function(conn, season = NULL) {
+  now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+
   query <- paste(
     "SELECT season, COALESCE(competition_phase, '') AS competition_phase, round_number,",
-    "COUNT(*) AS total_matches, MIN(local_start_time) AS round_start_time",
+    "COUNT(*) AS total_matches, MIN(utc_start_time) AS round_start_time",
     "FROM matches",
-    "WHERE home_score IS NULL AND away_score IS NULL"
+    "WHERE home_score IS NULL AND away_score IS NULL",
+    "AND utc_start_time IS NOT NULL"
   )
-  params <- list()
+  params <- list(now = now_utc)
 
   if (!is.null(season)) {
     query <- paste0(query, " AND season = ?season")
@@ -2830,6 +2833,7 @@ fetch_next_upcoming_round <- function(conn, season = NULL) {
   query <- paste0(
     query,
     " GROUP BY season, COALESCE(competition_phase, ''), round_number",
+    " HAVING MIN(utc_start_time) > ?now",
     " ORDER BY round_start_time ASC, season ASC, round_number ASC LIMIT 1"
   )
 
