@@ -18,3 +18,30 @@ assert.match(pageHtml, /href="\/round-preview\/"/, "Expected the built page to i
 assert.match(pageHtml, /\/assets\/round-preview\.[^"]+\.js/, "Expected the built page to include the fingerprinted round-preview asset.");
 
 console.log("Round preview UI smoke checks passed");
+
+// Nav discoverability: every built page must link to /round-preview/
+const navPages = [
+  "index.html",
+  "changelog/index.html",
+  "compare/index.html",
+  "home-court-advantage/index.html",
+  "league-composition/index.html",
+  "nwar/index.html",
+  "player/index.html",
+  "players/index.html",
+  "query/index.html",
+  "round/index.html",
+  "round-preview/index.html",
+  "scoreflow/index.html",
+];
+
+for (const relPath of navPages) {
+  const html = readFileSync(path.join(distDir, relPath), "utf8");
+  assert.match(
+    html,
+    /href="\/round-preview\/"/,
+    `Expected ${relPath} to contain href="/round-preview/"`
+  );
+}
+
+console.log("Nav discoverability checks passed");

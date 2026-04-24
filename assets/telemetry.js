@@ -314,6 +314,9 @@
     if (pathname === "/round") {
       return "round-recap";
     }
+    if (pathname === "/round-preview") {
+      return "round-preview";
+    }
     if (pathname === "/query") {
       return "ask-stats";
     }
