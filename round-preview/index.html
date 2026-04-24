@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Round Preview | Netball Stats Database</title>
+    <meta name="description" content="Preview the next upcoming Super Netball round with head-to-head records, recent form, streaks, and player-watch notes from across the archive.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/round-preview.js"></script>
+  </head>
+  <body class="round-preview-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Explore archive</a>
+        <a class="page-nav__link" href="/league-composition/">League composition</a>
+        <a class="page-nav__link" href="/round/">Round recap</a>
+        <a class="page-nav__link" href="/round-preview/">Round preview</a>
+        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
+        <a class="page-nav__link" href="/players/">Player profiles</a>
+        <a class="page-nav__link" href="/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/compare/">Compare</a>
+        <a class="page-nav__link" href="/home-court-advantage/">Home court advantage</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Next upcoming round</p>
+          <h1>Round preview</h1>
+          <p class="intro-copy">Head-to-head records, recent form, and player-watch notes for each fixture.</p>
+        </div>
+
+        <aside class="hero-aside" aria-label="Round preview snapshot">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Round snapshot</span>
+            <strong id="round-preview-hero-label">Loading&hellip;</strong>
+            <p id="round-preview-hero-summary">Loading the next upcoming round.</p>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel reveal">
+        <div id="round-preview-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <h2 id="round-preview-heading">Next upcoming round</h2>
+          </div>
+          <p id="round-preview-meta" class="muted" aria-live="polite" aria-atomic="true">Loading the next upcoming round&hellip;</p>
+        </div>
+        <p id="round-preview-intro" class="muted"></p>
+      </section>
+
+      <section class="summary-band reveal" id="round-preview-summary-band" aria-label="Round preview summary cards"></section>
+
+      <section class="results-grid round-results-grid reveal">
+        <section class="panel results-panel results-panel--wide">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <h2>Fixture preview</h2>
+            </div>
+            <p class="muted">Upcoming fixtures with archive context and recent form.</p>
+          </div>
+          <div id="round-preview-match-grid" class="round-preview-match-grid"></div>
+        </section>
+      </section>
+    </main>
+  </body>
+</html>
