@@ -3014,21 +3014,34 @@ fetch_preview_last_meeting <- function(conn, home_squad_id, away_squad_id) {
   }
 
   margin <- abs(as.integer(rows$home_score[[1]]) - as.integer(rows$away_score[[1]]))
+  winner_name <- rows$winner_name[[1]]
+  is_draw <- identical(winner_name, "Draw")
+
+  summary <- if (is_draw) {
+    sprintf(
+      "The last meeting ended in a draw (%s) in Round %s, %s.",
+      sprintf("%s-%s", rows$home_score[[1]], rows$away_score[[1]]),
+      rows$round_number[[1]],
+      rows$season[[1]]
+    )
+  } else {
+    sprintf(
+      "%s won the last meeting by %s points in Round %s, %s.",
+      winner_name,
+      margin,
+      rows$round_number[[1]],
+      rows$season[[1]]
+    )
+  }
 
   list(
-    winner = normalize_record_value(rows$winner_name[[1]]),
+    winner = normalize_record_value(winner_name),
     scoreline = sprintf("%s-%s", rows$home_score[[1]], rows$away_score[[1]]),
     season = as.integer(rows$season[[1]]),
     round_number = as.integer(rows$round_number[[1]]),
     match_id = suppressWarnings(as.integer(rows$match_id[[1]] %||% NA_integer_)),
     local_start_time = normalize_record_value(rows$local_start_time[[1]] %||% NULL),
-    summary = sprintf(
-      "%s won the last meeting by %s points in Round %s, %s.",
-      rows$winner_name[[1]],
-      margin,
-      rows$round_number[[1]],
-      rows$season[[1]]
-    )
+    summary = summary
   )
 }
 
