@@ -1200,6 +1200,29 @@ function(season = "", round = "", res) {
   })
 }
 
+#* @get /round-preview-summary
+#* @get /api/round-preview-summary
+function(season = "", res) {
+  conn <- tryCatch(open_db(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+  on.exit(DBI::dbDisconnect(conn), add = TRUE)
+
+  tryCatch({
+    season <- parse_optional_int(season, "season", minimum = 2017L, maximum = 2100L)
+
+    payload <- build_round_preview_payload(conn, season = season)
+    if (is.null(payload)) {
+      return(json_error(res, 404, "No upcoming round is available for that selection."))
+    }
+
+    payload
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
 #* @get /team-leaders
 #* @get /api/team-leaders
 function(season = "", seasons = "", team_id = "", round = "", stat = "points", metric = "total", ranking = "highest", limit = "8", res) {
