@@ -1421,10 +1421,12 @@ if (!sample_mode) {
       if (httr::status_code(resp) == 200) {
         data <- jsonlite::fromJSON(httr::content(resp, "text"), simplifyVector = FALSE)
         matches_raw <- data$data
+        message(sprintf("  Fetched %d total matches from API", length(matches_raw)))
         
         # Filter to upcoming
         now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
         upcoming <- Filter(function(m) m$utcStartTime > now_utc, matches_raw)
+        message(sprintf("  Found %d upcoming matches after filtering by time", length(upcoming)))
         
         if (length(upcoming) > 0) {
           # Map team names
