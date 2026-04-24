@@ -2818,8 +2818,7 @@ fetch_next_upcoming_round <- function(conn, season = NULL) {
     "SELECT season, COALESCE(competition_phase, '') AS competition_phase, round_number,",
     "COUNT(*) AS total_matches, MIN(local_start_time) AS round_start_time",
     "FROM matches",
-    "WHERE local_start_time >= CURRENT_TIMESTAMP",
-    "AND home_score IS NULL AND away_score IS NULL"
+    "WHERE home_score IS NULL AND away_score IS NULL"
   )
   params <- list()
 
