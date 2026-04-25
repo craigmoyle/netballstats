@@ -1,0 +1,141 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2025-01-01T00:00:00Z",
+  "title": "Design System: Super Netball Stats",
+  "extensions": {
+    "colorMeta": {
+      "ink-navy":             { "role": "neutral",   "displayName": "Ink Well",               "canonical": "#091117", "tonalRamp": ["#091117", "#0b141b", "#111c25"] },
+      "panel-solid":          { "role": "surface",   "displayName": "Deep Slate",              "canonical": "#111b24", "tonalRamp": ["#111b24", "#162531", "#1e3346"] },
+      "paper-warm":           { "role": "onSurface", "displayName": "Paper Proof",             "canonical": "#f4efe5", "tonalRamp": ["#f4efe5", "#cbc0b4", "#9a8e84"] },
+      "faded-byline":         { "role": "muted",     "displayName": "Faded Byline",            "canonical": "#cbc0b4", "tonalRamp": ["#cbc0b4", "#a89e96", "#8a8078"] },
+      "keepers-amber":        { "role": "primary",   "displayName": "Keeper's Amber",          "canonical": "#f0c67e", "tonalRamp": ["#ffe0a5", "#f0c67e", "#c8944a"] },
+      "recorders-teal":       { "role": "secondary", "displayName": "Recorder's Blue-Green",   "canonical": "#79d8d0", "tonalRamp": ["#a8ede8", "#79d8d0", "#45b5ab"] },
+      "danger-soft":          { "role": "danger",    "displayName": "Danger Soft",             "canonical": "#ff9e9e", "tonalRamp": ["#ffcccc", "#ff9e9e", "#e06060"] },
+      "success-soft":         { "role": "success",   "displayName": "Success Soft",            "canonical": "#a5efc1", "tonalRamp": ["#c8f5d8", "#a5efc1", "#5ec990"] },
+      "text-on-amber":        { "role": "onPrimary", "displayName": "Walnut on Amber",         "canonical": "#20160d", "tonalRamp": ["#20160d", "#3a2810", "#5c3f18"] },
+      "border-base":          { "role": "border",    "displayName": "Amber Tint Border",       "canonical": "#eed29c", "note": "Used at 0.16 opacity (subtle) and 0.35 opacity (strong) via rgba()" }
+    },
+    "typographyMeta": {
+      "display":  { "displayName": "Display",  "purpose": "Hero page titles and large stat values. Teko only — the sole register for the condensed display font." },
+      "headline": { "displayName": "Headline", "purpose": "Panel and section headings. Fraunces 600. Max-width 18ch." },
+      "body":     { "displayName": "Body",     "purpose": "All reading copy. Fraunces 400, max 54–65ch line length." },
+      "label":    { "displayName": "Label",    "purpose": "Kickers, eyebrows, table headers, filter labels. Fraunces 600, uppercase, 0.12em tracking." }
+    },
+    "shadows": [
+      { "name": "panel-dark",    "value": "0 30px 60px rgba(0,0,0,0.28)",                                    "purpose": "Primary structural shadow for raised panels in dark mode." },
+      { "name": "panel-light",   "value": "0 4px 24px rgba(0,0,0,0.08), 0 1px 4px rgba(0,0,0,0.05)",        "purpose": "Primary structural shadow for raised panels in light mode." },
+      { "name": "button-hover",  "value": "0 18px 24px rgba(0,0,0,0.22)",                                    "purpose": "Button lift on hover, combined with translateY(-2px)." },
+      { "name": "aside-card",    "value": "0 18px 34px rgba(0,0,0,0.2)",                                     "purpose": "Hero aside cards; slightly softer than panel shadow to read as nested." }
+    ],
+    "motion": [
+      { "name": "ease-out-default", "value": "cubic-bezier(0, 0, 0.2, 1)", "purpose": "Standard state transitions: 0.2s. No bounce or elastic." },
+      { "name": "ease-out-slow",    "value": "ease-out",                   "purpose": "Slow reveal animations on content entry: 0.6s–0.8s." }
+    ],
+    "breakpoints": [
+      { "name": "mobile-max",    "value": "640px",  "note": "Mobile breakpoint. Nav switches to pill scroll, layout stacks." },
+      { "name": "mid-min",       "value": "641px",  "note": "Mid-screen breakpoint where nav overflow scrolling activates." },
+      { "name": "mid-max",       "value": "1240px", "note": "Upper bound for mid-screen nav overflow. Also the page-shell max-width." },
+      { "name": "desktop-min",   "value": "900px",  "note": "Hero homepage layout switches to single-line tagline." },
+      { "name": "wide-min",      "value": "1451px", "note": "Wide viewport: hero panel reverts to side-by-side layout." }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main call-to-action. Keeper's Amber gradient, pill shape, transitions on hover.",
+      "html": "<button class=\"ds-btn-primary\">View Stats</button>",
+      "css": ".ds-btn-primary { appearance: none; border: 0; border-radius: 999px; background: linear-gradient(135deg, #f0c67e 0%, #ffe0a5 100%); color: #20160d; cursor: pointer; font-family: 'Fraunces', Georgia, serif; font-size: 0.9375rem; font-weight: 600; letter-spacing: 0.01em; line-height: 1.15; padding: 0.95rem 1.3rem; transition: transform 0.2s ease-out, box-shadow 0.2s ease-out, filter 0.2s ease-out; min-block-size: 44px; } .ds-btn-primary:hover { transform: translateY(-2px); filter: brightness(1.03); box-shadow: 0 18px 24px rgba(0,0,0,0.22); } .ds-btn-primary:active { transform: translateY(1px) scale(0.99); box-shadow: 0 8px 14px rgba(0,0,0,0.16); } .ds-btn-primary:focus-visible { outline: 2px solid rgba(240, 198, 126, 0.8); outline-offset: 3px; } .ds-btn-primary:disabled { opacity: 0.55; cursor: not-allowed; transform: none; filter: none; box-shadow: none; pointer-events: none; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Secondary action. Transparent, bordered, Paper Proof text. Used when amber would dominate.",
+      "html": "<button class=\"ds-btn-ghost\">Compare</button>",
+      "css": ".ds-btn-ghost { appearance: none; border-radius: 999px; background: transparent; color: #f4efe5; border: 1px solid rgba(244, 239, 229, 0.14); cursor: pointer; font-family: 'Fraunces', Georgia, serif; font-size: 0.9375rem; font-weight: 600; letter-spacing: 0.01em; line-height: 1.15; padding: 0.95rem 1.3rem; transition: background 0.2s ease-out, box-shadow 0.2s ease-out; min-block-size: 44px; } .ds-btn-ghost:hover { background: rgba(244, 239, 229, 0.05); } .ds-btn-ghost:focus-visible { outline: 2px solid rgba(240, 198, 126, 0.8); outline-offset: 3px; }"
+    },
+    {
+      "name": "Navigation Link",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Pill-shaped page navigation link. Quiet at rest, amber when active.",
+      "html": "<a class=\"ds-nav-link\" href=\"#\">Archive</a><a class=\"ds-nav-link ds-nav-link--active\" href=\"#\" aria-current=\"page\">Compare</a>",
+      "css": ".ds-nav-link { display: inline-flex; align-items: center; gap: 0.4em; border-radius: 999px; border: 1px solid rgba(244, 239, 229, 0.1); background: rgba(244, 239, 229, 0.04); color: #cbc0b4; font-family: 'Fraunces', Georgia, serif; font-size: 0.875rem; font-weight: 600; letter-spacing: 0.01em; padding: 0.72rem 0.95rem; text-decoration: none; transition: background 0.18s ease-out, color 0.18s ease-out, border-color 0.18s ease-out; min-block-size: 44px; } .ds-nav-link:hover { background: rgba(244, 239, 229, 0.07); color: #f4efe5; } .ds-nav-link--active { background: rgba(240, 198, 126, 0.18); border-color: rgba(240, 198, 126, 0.42); color: #ffe0a5; } .ds-nav-link:focus-visible { outline: 2px solid rgba(240, 198, 126, 0.8); outline-offset: 3px; }"
+    },
+    {
+      "name": "Season Chip",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "Multi-select filter pill for season/year selection. Quiet until selected.",
+      "html": "<label class=\"ds-season-chip\"><input type=\"checkbox\" hidden /><span>2024</span></label><label class=\"ds-season-chip ds-season-chip--selected\"><input type=\"checkbox\" checked hidden /><span>2023</span></label>",
+      "css": ".ds-season-chip { position: relative; cursor: pointer; } .ds-season-chip span { display: inline-flex; align-items: center; padding: 0.6rem 1rem; border-radius: 999px; border: 1px solid rgba(244, 239, 229, 0.12); background: rgba(244, 239, 229, 0.04); color: #cbc0b4; font-family: 'Fraunces', Georgia, serif; font-size: 0.875rem; font-weight: 600; transition: background 0.18s ease-out, color 0.18s ease-out, border-color 0.18s ease-out; min-block-size: 44px; } .ds-season-chip--selected span { border-color: rgba(240, 198, 126, 0.42); background: rgba(240, 198, 126, 0.14); color: #f0c67e; } .ds-season-chip input:focus-visible + span { outline: 2px solid rgba(240, 198, 126, 0.8); outline-offset: 3px; border-color: rgba(240, 198, 126, 0.5); }"
+    },
+    {
+      "name": "Tag",
+      "kind": "chip",
+      "refersTo": "tag",
+      "description": "Categorical label on directory and player cards. Quiet; animates on parent card hover.",
+      "html": "<span class=\"ds-tag\">Shooter</span>",
+      "css": ".ds-tag { display: inline-flex; align-items: center; min-height: 2.1rem; padding: 0.45rem 0.8rem; border-radius: 999px; border: 1px solid rgba(244, 239, 229, 0.08); background: rgba(244, 239, 229, 0.04); color: #cbc0b4; font-family: 'Fraunces', Georgia, serif; font-size: 0.9rem; transition: transform 0.18s ease-out, border-color 0.18s ease-out, background 0.18s ease-out, color 0.18s ease-out; } .ds-tag:hover, .ds-tag--highlighted { transform: translateY(-1px); border-color: rgba(240, 198, 126, 0.24); background: rgba(240, 198, 126, 0.08); color: #f4efe5; }"
+    },
+    {
+      "name": "Content Panel",
+      "kind": "card",
+      "refersTo": "button-primary",
+      "description": "Primary content surface. Raised from ground by one tonal step and structural shadow.",
+      "html": "<section class=\"ds-panel\"><header class=\"ds-panel__heading\"><p class=\"ds-panel__eyebrow\">Season Stats</p><h2>Player Leaderboard</h2></header><p>Content here.</p></section>",
+      "css": ".ds-panel { padding: clamp(1.3rem, 1.8vw, 1.8rem); border-radius: 1.375rem; background: #111b24; border: 1px solid rgba(238, 210, 156, 0.16); box-shadow: 0 30px 60px rgba(0,0,0,0.28); contain: layout paint; } .ds-panel__heading { display: grid; gap: clamp(0.45rem, 0.6vw, 0.65rem); margin-bottom: clamp(1.3rem, 1.8vw, 1.8rem); } .ds-panel__eyebrow { margin: 0; color: #79d8d0; font-family: 'Fraunces', Georgia, serif; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; } .ds-panel h2 { margin: 0; font-family: 'Fraunces', Georgia, serif; font-size: clamp(1.5rem, 2.5vw, 2.1rem); font-weight: 600; line-height: 1.12; letter-spacing: 0.01em; color: #f4efe5; max-width: 18ch; }"
+    },
+    {
+      "name": "Text Input",
+      "kind": "input",
+      "refersTo": "input-field",
+      "description": "Standard form input. Dark opaque fill, amber focus ring, Fraunces body text.",
+      "html": "<div class=\"ds-field\"><label class=\"ds-field__label\" for=\"ds-input-1\">Search players</label><input class=\"ds-field__input\" id=\"ds-input-1\" type=\"text\" placeholder=\"Player name\" /></div>",
+      "css": ".ds-field { display: grid; gap: 0.45rem; } .ds-field__label { color: #ffe0a5; font-family: 'Fraunces', Georgia, serif; font-size: 0.8125rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; } .ds-field__input { width: 100%; border-radius: 1.125rem; border: 1px solid rgba(244, 239, 229, 0.1); background: rgba(22, 37, 49, 0.9); color: #f4efe5; font-family: 'Fraunces', Georgia, serif; font-size: 1rem; line-height: 1.45; padding: 0.9rem 0.95rem; } .ds-field__input::placeholder { color: rgba(244, 239, 229, 0.6); font-size: 0.9375rem; } .ds-field__input:focus-visible { outline: 2px solid rgba(240, 198, 126, 0.8); outline-offset: 3px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Data Room After Dark",
+    "overview": "The system lives in a deliberate evening register: deep ink-navy surfaces that read like a room where analysts work after the crowd goes home. Keeper's Amber holds the corner like a good lamp, warm and decisive. Recorder's Blue-Green sits at the whiteboard edge, cool and precise. Together they define a space that feels focused and inhabited rather than assembled from a component library.\n\nThe product is a serious reference tool. Its aesthetic is a direct refusal of the visual language it could have borrowed: SaaS dashboards with their gradient-washed KPI tiles, gambling-adjacent sports sites with neon on black and animated fixtures, and generic dark mode tools that reach for purple and glow by default. What it reaches toward instead is the best data journalism and sports almanacs: composure under density, evidence before flourish, typography doing weight-bearing work.",
+    "keyCharacteristics": [
+      "Dark-first; tonal panel layering as the primary depth signal",
+      "Two accents (amber primary, teal secondary) held at high rarity",
+      "Fraunces owns every word; Teko owns every large number",
+      "Pill-shaped interactive elements with quiet resting states",
+      "No side-stripe borders, no gradient text, no glassmorphism"
+    ],
+    "rules": [
+      { "name": "The Restraint Rule",       "body": "Keeper's Amber and Recorder's Blue-Green appear on ≤10% of any given screen. Use them on borders, kickers, and states — not as backgrounds.",                                          "section": "colors" },
+      { "name": "The Dark-Always Rule",     "body": "Never use #000 or #fff. Every neutral carries at least trace amber warmth.",                                                                                                          "section": "colors" },
+      { "name": "The Fraunces Rule",        "body": "Every word is Fraunces. Every large display number is Teko. Never reverse this.",                                                                                                     "section": "typography" },
+      { "name": "The Kicker Convention",    "body": "Eyebrows and section kickers are always Fraunces 600, 0.8125rem, 0.12em letter-spacing, uppercase. Recorder's Blue-Green on primary panels, Keeper's Amber on secondary contexts.", "section": "typography" },
+      { "name": "The Layered Ground Rule",  "body": "Shadows signal structural separation or interaction response only. A panel gets a shadow because it's raised. A button gets a lift shadow on hover. Nothing else.",                   "section": "elevation" }
+    ],
+    "dos": [
+      "Do use Fraunces for every text element including labels, kickers, headings, and body copy",
+      "Do use Teko only for large display numerics",
+      "Do hold Keeper's Amber and Recorder's Blue-Green to ≤10% of screen surface area",
+      "Do use pill (999px) border-radius for all buttons, chips, tags, and nav links",
+      "Do apply color-mix() tonal gradients for panel depth rather than new fixed hex values",
+      "Do set min-block-size: 44px on every interactive touch target",
+      "Do use the Keeper's Amber 2px focus outline consistently across all focusable elements",
+      "Do keep body line length at 54–65ch maximum",
+      "Do give major pages their own gradient accent variation on their hero panel"
+    ],
+    "donts": [
+      "Don't use #000000 or #ffffff — every neutral needs at least trace warmth",
+      "Don't use border-left or border-right greater than 1px as a colored side stripe",
+      "Don't use background-clip: text with a gradient — use solid colors for text",
+      "Don't use glassmorphism (backdrop-filter: blur with semi-transparent cards)",
+      "Don't build big-number / small-label / gradient-accent hero templates (SaaS KPI cliché)",
+      "Don't use Teko for copy, labels, or headings that require reading",
+      "Don't design to feel like a gambling-adjacent sports site — no neon on black",
+      "Don't make every page identical — the system supports per-page emphasis",
+      "Don't add explanatory copy that restates what the heading or data already says",
+      "Don't use em dashes in copy"
+    ]
+  }
+}
