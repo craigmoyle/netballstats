@@ -100,13 +100,6 @@ if (elements.apiBase) {
   elements.apiBase.textContent = API_BASE_URL;
 }
 
-function escapeHtml(text) {
-  if (!text) return "";
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
-
 function showErrorBanner(message) {
   if (!elements.errorBanner) return;
   elements.errorBanner.hidden = false;
