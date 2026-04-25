@@ -1213,7 +1213,7 @@ function openBuilderModalUI(prefill = {}) {
     }
   }
 
-  showBuilderStep(1);
+  showBuilderStep(2);
   builderElements.modal.showModal();
 }
 
