@@ -37,23 +37,13 @@
           <p class="eyebrow">Editorial archive · ANZ Championship &amp; Super Netball</p>
           <h1>Netball Stats</h1>
           <p class="hero-tagline">2008 finals only. Every full season from 2009.</p>
-          <p class="intro-copy">The archive starts with the 2008 ANZ Championship finals, then runs through every full ANZ Championship and Super Netball season from 2009 onward.</p>
         </div>
-
-        <aside class="hero-aside" aria-label="Archive highlights">
-          <div class="hero-aside__card hero-aside__card--archive">
-            <span class="hero-aside__label">Goals scored</span>
-            <strong id="hero-total-goals">--</strong>
-            <p id="hero-refresh-note">Loading archive…</p>
-          </div>
-        </aside>
       </section>
 
       <section class="home-overview reveal" aria-label="Archive overview">
         <div class="home-overview__intro">
           <p class="panel__eyebrow">Archive at a glance</p>
           <h2>See the archive before you narrow it</h2>
-          <p class="panel__lead">Start with the scale of the archive, then filter.</p>
         </div>
         <div class="home-overview__stats">
           <section class="summary-band" aria-label="Archive totals">
@@ -87,11 +77,10 @@
             <div>
               <p class="panel__eyebrow">Start here</p>
               <h2>Choose the slice</h2>
-              <p class="panel__lead">Start with seasons, player and team stats, and the archive mode. Open the tighter filters only when you want one player, one club, or one round.</p>
             </div>
             <p id="active-filter-summary" class="muted filter-summary">Loading query options…</p>
           </div>
-          <p id="archive-context-note" class="archive-context-note">Use the archive to find a player or team, then open the deeper dossier or season context below.</p>
+          <p id="archive-context-note" class="archive-context-note"></p>
         </div>
 
         <form id="filters-form" class="filters filters--dashboard" novalidate>
@@ -170,7 +159,6 @@
             </div>
           </details>
           <div class="filter-actions filter-actions--primary field--wide">
-            <p class="filter-actions__hint">Refreshes the archive note, match log, leaderboards, and season view below.</p>
             <div class="filter-actions__buttons">
               <button type="submit">Apply filters</button>
               <button type="button" id="reset-filters" class="button button--ghost">Reset</button>
@@ -224,7 +212,6 @@
             <p class="results-panel__eyebrow">Match log</p>
             <h2>Recent results</h2>
           </div>
-          <p class="muted">Start with the fixtures, then read the leaderboards.</p>
         </div>
         <div class="table-wrapper table-wrapper--spotlight">
             <table id="matches-table" class="stack-table">
@@ -243,12 +230,6 @@
       </section>
 
       <section class="results-grid results-grid--home" aria-label="Stat tables">
-        <section class="archive-results-intro reveal" aria-label="Archive reading guide">
-          <p class="results-panel__eyebrow">Archive reading order</p>
-          <h2>Start with the leaders, then open the dossier</h2>
-          <p class="muted">Use the player leaderboard as the lead surface, season totals as context, and clubs as the supporting counterpoint.</p>
-        </section>
-
         <section class="panel results-panel results-panel--lead reveal">
           <div class="panel__heading panel__heading--split">
             <div>
