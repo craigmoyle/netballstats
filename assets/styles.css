@@ -918,14 +918,6 @@ code {
   border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
 }
 
-.filter-actions__hint {
-  margin: 0;
-  max-width: 44ch;
-  color: var(--muted);
-  font-size: var(--text-ui-size);
-  line-height: 1.6;
-}
-
 .filter-actions__buttons {
   display: flex;
   flex-wrap: wrap;
@@ -1467,23 +1459,6 @@ button[aria-busy="true"] {
 
 .archive-advanced[open] .archive-advanced__summary span {
   color: var(--accent);
-}
-
-.archive-results-intro {
-  grid-column: 1 / -1;
-  display: grid;
-  gap: var(--space-2xs);
-  padding: var(--space-sm) var(--space-md);
-  border-radius: var(--radius-card);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 44%),
-    color-mix(in srgb, var(--panel-alt) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 18%, var(--border));
-}
-
-.archive-results-intro h2 {
-  margin: 0;
-  max-width: 20ch;
 }
 
 .archive-context-note {
@@ -4071,10 +4046,6 @@ caption.table-caption {
   }
 
   .archive-control-desk__header,
-  .archive-results-intro {
-    gap: var(--space-xs);
-  }
-
   .table-link__meta {
     font-size: var(--type-xs);
     letter-spacing: 0.04em;
