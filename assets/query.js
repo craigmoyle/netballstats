@@ -917,6 +917,19 @@ function showBuilderValidationError(message) {
 }
 
 function nextBuilderStep() {
+  // Special handling for step 2 (write question): try to parse the question
+  if (builderState.currentStep === 2) {
+    const questionText = (builderElements.questionInput?.value || "").trim();
+    if (!questionText) {
+      showBuilderValidationError("Please enter a question to parse.");
+      return;
+    }
+    
+    // Try to parse the question
+    void parseAndExecuteQuestion(questionText);
+    return;
+  }
+  
   if (!validateBuilderStep(builderState.currentStep)) {
     // Show error message
     showBuilderValidationError(getValidationErrorMessage(builderState.currentStep));
@@ -924,6 +937,61 @@ function nextBuilderStep() {
   }
   if (builderState.currentStep < 5) {
     showBuilderStep(builderState.currentStep + 1);
+  }
+}
+
+async function parseAndExecuteQuestion(questionText) {
+  try {
+    showLoadingStatus(QUERY_LOADING_MESSAGES, "Parsing question");
+    
+    const parseResult = await fetchJson("/ask-the-stats", { question: questionText }, {
+      method: "POST"
+    });
+    
+    if (!parseResult.success) {
+      // Parsing failed - show step 1 (template picker) as fallback
+      showBuilderValidationError(parseResult.error || "Could not parse question. Try a template instead.");
+      showBuilderStep(1);
+      return;
+    }
+    
+    // Parsing succeeded
+    const confidence = parseResult.confidence;
+    
+    if (confidence === "HIGH") {
+      // High confidence - execute directly
+      const result = await fetchJson("/query", {
+        natural_language: true,
+        question: questionText,
+        parsed: parseResult.parsed,
+        limit: 12
+      });
+      renderResult(result);
+      closeBuilderModal();
+    } else if (confidence === "MEDIUM") {
+      // Medium confidence - execute but show a note
+      const result = await fetchJson("/query", {
+        natural_language: true,
+        question: questionText,
+        parsed: parseResult.parsed,
+        limit: 12
+      });
+      if (elements.answerHeadline) {
+        const note = document.createElement("p");
+        note.className = "query-note";
+        note.textContent = "⚠ This parse was medium confidence. Try rephrasing if results don't look right.";
+        elements.answerHeadline.parentElement?.insertBefore(note, elements.answerHeadline);
+      }
+      renderResult(result);
+      closeBuilderModal();
+    } else {
+      // Low confidence - show template picker as fallback
+      showBuilderValidationError("Low confidence in parse. Try a template or rephrase your question.");
+      showBuilderStep(1);
+    }
+  } catch (error) {
+    showBuilderValidationError("Error parsing question: " + (error.message || "Unknown error"));
+    showBuilderStep(1);
   }
 }
 
