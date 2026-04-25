@@ -59,13 +59,18 @@ ENV NETBALL_STATS_PORT=8000
 ENV RENV_PATHS_LIBRARY=/opt/renv/library
 ENV RENV_PATHS_CACHE=/opt/renv/cache
 
+# Ensure cache/library directories exist in runtime
+RUN mkdir -p /opt/renv/cache /opt/renv/library
+
 RUN useradd -u 1000 -m -s /bin/false netballstats \
-  && mkdir -p /opt/renv/cache \
   && chown -R netballstats:netballstats /app /opt/renv
 
 EXPOSE 8000
 
 USER netballstats
 
-# Use standard Rscript invocation with .Rprofile auto-activation
-CMD ["Rscript", "-e", "pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
+# Skip .Rprofile (which has renv activation issues) and run with explicit library paths
+# Set R_PROFILE_USER to empty to skip .Rprofile completely
+ENV R_PROFILE_USER=
+
+CMD ["Rscript", "-e", ".libPaths(c('/opt/renv/library/R-4.5', .libPaths())); pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
