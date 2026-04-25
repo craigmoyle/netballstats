@@ -2963,12 +2963,12 @@ build_round_preview_payload <- function(conn, season = NULL) {
           away = summarize_preview_streak(away_recent$results, away_team)
         ),
         player_watch = Filter(Negate(is.null), list(
-          if (!is.null(home_recent_note)) c(list(team = home_team), home_recent_note) else NULL,
-          if (!is.null(home_fantasy_note)) c(list(team = home_team), home_fantasy_note) else NULL,
-          if (!is.null(home_last_meeting_note)) c(list(team = home_team), home_last_meeting_note) else NULL,
-          if (!is.null(away_recent_note)) c(list(team = away_team), away_recent_note) else NULL,
-          if (!is.null(away_fantasy_note)) c(list(team = away_team), away_fantasy_note) else NULL,
-          if (!is.null(away_last_meeting_note)) c(list(team = away_team), away_last_meeting_note) else NULL
+          if (!is.null(home_recent_note)) list(team = home_team, context = home_recent_note$context, summary = home_recent_note$summary) else NULL,
+          if (!is.null(home_fantasy_note)) list(team = home_team, context = home_fantasy_note$context, summary = home_fantasy_note$summary) else NULL,
+          if (!is.null(home_last_meeting_note)) list(team = home_team, context = home_last_meeting_note$context, summary = home_last_meeting_note$summary) else NULL,
+          if (!is.null(away_recent_note)) list(team = away_team, context = away_recent_note$context, summary = away_recent_note$summary) else NULL,
+          if (!is.null(away_fantasy_note)) list(team = away_team, context = away_fantasy_note$context, summary = away_fantasy_note$summary) else NULL,
+          if (!is.null(away_last_meeting_note)) list(team = away_team, context = away_last_meeting_note$context, summary = away_last_meeting_note$summary) else NULL
         )),
         fact_cards = Filter(Negate(is.null), list(
           sparse_history_note,
