@@ -48,15 +48,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-ENV RENV_PATHS_CACHE=/opt/renv/cache
-
 # Copy compiled R environment and app code from build stage
-COPY --from=build --chown=1000:1000 /opt/renv /opt/renv
-COPY --from=build --chown=1000:1000 /app /app
+COPY --from=build /opt/renv /opt/renv
+COPY --from=build /app /app
 
 ENV NETBALL_STATS_REPO_ROOT=/app
 ENV NETBALL_STATS_HOST=0.0.0.0
 ENV NETBALL_STATS_PORT=8000
+ENV RENV_PATHS_LIBRARY=/opt/renv/library
+ENV RENV_PATHS_CACHE=/opt/renv/cache
 
 RUN useradd -u 1000 -m -s /bin/false netballstats \
   && mkdir -p /opt/renv/cache \
@@ -66,4 +66,6 @@ EXPOSE 8000
 
 USER netballstats
 
-CMD ["Rscript", "-e", "pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
+# Start plumber directly, bypassing .Rprofile activation issues
+# renv libraries are in RENV_PATHS_LIBRARY, skip .Rprofile by using R --vanilla
+CMD ["R", "--vanilla", "-q", "-e", "pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
