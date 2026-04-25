@@ -1,0 +1,5 @@
+{"type":"server-started","port":58810,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:58810","screen_dir":"/Users/craig/Git/netballstats/.superpowers/brainstorm/44289-1777090094/content","state_dir":"/Users/craig/Git/netballstats/.superpowers/brainstorm/44289-1777090094/state"}
+{"type":"screen-added","file":"/Users/craig/Git/netballstats/.superpowers/brainstorm/44289-1777090094/content/current-query-templates.html"}
+{"source":"user-event","type":"click","text":"3. Player List\n    Which players had [threshold]+ [stat] in [season]?\n    Returns all players in a season meeting a stat threshold, ranked by that stat.","choice":"player-list","id":null,"timestamp":1777090126618}
+{"source":"user-event","type":"click","text":"4. Team Low Mark\n    Which teams had the lowest [stat] in [season]?\n    Returns teams ranked by a stat in ascending order (lowest first) within a season.","choice":"team-low","id":null,"timestamp":1777090127931}
+{"type":"screen-added","file":"/Users/craig/Git/netballstats/.superpowers/brainstorm/44289-1777090094/content/design-overview.html"}

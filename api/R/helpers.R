@@ -1472,6 +1472,349 @@ build_fast_team_match_query <- function(stat, seasons = NULL, team_id = NULL, op
   list(query = query, params = params)
 }
 
+build_record_query <- function(stat, subject_type = c("player", "team"), season = NULL, conn) {
+  subject_type <- match.arg(subject_type)
+
+  if (is.null(stat) || !nzchar(stat)) {
+    return(list(status = "unsupported", error = "Stat is required."))
+  }
+
+  if (!stat %in% DEFAULT_PLAYER_STATS && !stat %in% DEFAULT_TEAM_STATS) {
+    return(list(status = "unsupported", error = paste("Stat", stat, "is not recognized.")))
+  }
+
+  stat_label <- query_stat_label(stat)
+  scope <- if (is.null(season)) "all_time" else "seasonal"
+
+  if (identical(stat, "points")) {
+    if (identical(subject_type, "player")) {
+      record_row <- tryCatch({
+        query_rows(
+          conn,
+          paste0(
+            "SELECT pms1.player_id, players.canonical_name AS player_name,",
+            " pms1.squad_name, ", opponent_name_sql("pms1.squad_id"), " AS opponent,",
+            " pms1.season, pms1.round_number, pms1.match_id, matches.local_start_time,",
+            " COALESCE(pms1.match_value, 0) + 2 * COALESCE(pms2.match_value, 0) AS total_value",
+            " FROM player_match_stats pms1",
+            " LEFT JOIN player_match_stats pms2",
+            "   ON pms1.player_id = pms2.player_id AND pms1.match_id = pms2.match_id AND pms2.stat = 'goal2'",
+            " INNER JOIN players ON players.player_id = pms1.player_id",
+            " INNER JOIN matches ON matches.match_id = pms1.match_id",
+            " WHERE pms1.stat = 'goal1'",
+            if (!is.null(season)) " AND pms1.season = ?season" else "",
+            " ORDER BY total_value DESC LIMIT 1"
+          ),
+          if (!is.null(season)) list(season = as.integer(season)) else list()
+        )
+      }, error = function(e) data.frame())
+    } else {
+      record_row <- tryCatch({
+        query_rows(
+          conn,
+          paste0(
+            "SELECT match_id, home_squad_id AS squad_id, home_squad_name AS squad_name,",
+            " away_squad_name AS opponent, season, round_number, local_start_time,",
+            " CAST(home_score AS numeric) AS total_value FROM matches",
+            " WHERE home_score IS NOT NULL",
+            if (!is.null(season)) " AND season = ?season" else "",
+            " UNION ALL",
+            " SELECT match_id, away_squad_id AS squad_id, away_squad_name AS squad_name,",
+            " home_squad_name AS opponent, season, round_number, local_start_time,",
+            " CAST(away_score AS numeric) FROM matches",
+            " WHERE away_score IS NOT NULL",
+            if (!is.null(season)) " AND season = ?season" else "",
+            " ORDER BY total_value DESC LIMIT 1"
+          ),
+          if (!is.null(season)) list(season = as.integer(season)) else list()
+        )
+      }, error = function(e) data.frame())
+    }
+  } else {
+    if (identical(subject_type, "player")) {
+      if (has_player_match_stats(conn)) {
+        record_row <- tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
+              " ", opponent_name_sql("pms.squad_id"), " AS opponent,",
+              " pms.season, pms.round_number, pms.match_id, matches.local_start_time,",
+              " pms.match_value AS total_value FROM player_match_stats AS pms",
+              " INNER JOIN players ON players.player_id = pms.player_id",
+              " INNER JOIN matches ON matches.match_id = pms.match_id",
+              " WHERE pms.stat = ?stat",
+              if (!is.null(season)) " AND pms.season = ?season" else "",
+              " ORDER BY pms.match_value DESC LIMIT 1"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      } else {
+        record_row <- tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT player_id, players.canonical_name AS player_name, stats.squad_name,",
+              " ", opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,",
+              " stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
+              " ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+              " FROM player_period_stats AS stats",
+              " INNER JOIN players ON players.player_id = stats.player_id",
+              " INNER JOIN matches ON matches.match_id = stats.match_id",
+              " WHERE stats.stat = ?stat",
+              if (!is.null(season)) " AND stats.season = ?season" else "",
+              " GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+              " ORDER BY total_value DESC LIMIT 1"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      }
+    } else {
+      if (has_team_match_stats(conn)) {
+        record_row <- tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT tms.squad_id, tms.squad_name,",
+              " ", opponent_name_sql("tms.squad_id"), " AS opponent,",
+              " tms.season, tms.round_number, tms.match_id, matches.local_start_time,",
+              " tms.match_value AS total_value FROM team_match_stats AS tms",
+              " INNER JOIN matches ON matches.match_id = tms.match_id",
+              " WHERE tms.stat = ?stat",
+              if (!is.null(season)) " AND tms.season = ?season" else "",
+              " ORDER BY tms.match_value DESC LIMIT 1"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      } else {
+        record_row <- tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT squad_id, stats.squad_name,",
+              " ", opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,",
+              " stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
+              " ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+              " FROM team_period_stats AS stats",
+              " INNER JOIN matches ON matches.match_id = stats.match_id",
+              " WHERE stats.stat = ?stat",
+              if (!is.null(season)) " AND stats.season = ?season" else "",
+              " GROUP BY stats.squad_id, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+              " ORDER BY total_value DESC LIMIT 1"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      }
+    }
+  }
+
+  if (!nrow(record_row)) {
+    return(list(
+      status = "supported",
+      intent_type = "record",
+      stat = stat,
+      stat_label = stat_label,
+      scope = scope,
+      record = NULL,
+      context = list()
+    ))
+  }
+
+  record_value <- suppressWarnings(as.numeric(record_row$total_value[[1]]))
+  record_all_time_rank <- tryCatch({
+    compute_archive_rank(conn, subject_type, stat, ranking = "highest", total_value = record_value)
+  }, error = function(e) NA_integer_)
+
+  record_entry <- if (identical(subject_type, "player")) {
+    list(
+      player = normalize_record_value(record_row$player_name[[1]]),
+      team = normalize_record_value(record_row$squad_name[[1]]),
+      value = record_value,
+      date = normalize_record_value(record_row$local_start_time[[1]]),
+      opponent = normalize_record_value(record_row$opponent[[1]]),
+      round = suppressWarnings(as.integer(record_row$round_number[[1]])),
+      season = suppressWarnings(as.integer(record_row$season[[1]])),
+      all_time_rank = record_all_time_rank
+    )
+  } else {
+    list(
+      team = normalize_record_value(record_row$squad_name[[1]]),
+      value = record_value,
+      date = normalize_record_value(record_row$local_start_time[[1]]),
+      opponent = normalize_record_value(record_row$opponent[[1]]),
+      round = suppressWarnings(as.integer(record_row$round_number[[1]])),
+      season = suppressWarnings(as.integer(record_row$season[[1]])),
+      all_time_rank = record_all_time_rank
+    )
+  }
+
+  context_rows <- if (identical(stat, "points")) {
+    if (identical(subject_type, "player")) {
+      tryCatch({
+        query_rows(
+          conn,
+          paste0(
+            "SELECT pms1.player_id, players.canonical_name AS player_name,",
+            " pms1.squad_name,",
+            " COALESCE(pms1.match_value, 0) + 2 * COALESCE(pms2.match_value, 0) AS total_value,",
+            " pms1.season, pms1.round_number, pms1.match_id, matches.local_start_time",
+            " FROM player_match_stats pms1",
+            " LEFT JOIN player_match_stats pms2",
+            "   ON pms1.player_id = pms2.player_id AND pms1.match_id = pms2.match_id AND pms2.stat = 'goal2'",
+            " INNER JOIN players ON players.player_id = pms1.player_id",
+            " INNER JOIN matches ON matches.match_id = pms1.match_id",
+            " WHERE pms1.stat = 'goal1'",
+            if (!is.null(season)) " AND pms1.season = ?season" else "",
+            " ORDER BY total_value DESC LIMIT 10"
+          ),
+          if (!is.null(season)) list(season = as.integer(season)) else list()
+        )
+      }, error = function(e) data.frame())
+    } else {
+      tryCatch({
+        query_rows(
+          conn,
+          paste0(
+            "SELECT match_id, home_squad_id AS squad_id, home_squad_name AS squad_name,",
+            " season, round_number, local_start_time,",
+            " CAST(home_score AS numeric) AS total_value FROM matches",
+            " WHERE home_score IS NOT NULL",
+            if (!is.null(season)) " AND season = ?season" else "",
+            " UNION ALL",
+            " SELECT match_id, away_squad_id AS squad_id, away_squad_name AS squad_name,",
+            " season, round_number, local_start_time,",
+            " CAST(away_score AS numeric) FROM matches",
+            " WHERE away_score IS NOT NULL",
+            if (!is.null(season)) " AND season = ?season" else "",
+            " ORDER BY total_value DESC LIMIT 10"
+          ),
+          if (!is.null(season)) list(season = as.integer(season)) else list()
+        )
+      }, error = function(e) data.frame())
+    }
+  } else {
+    if (identical(subject_type, "player")) {
+      if (has_player_match_stats(conn)) {
+        tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
+              " pms.season, pms.round_number, pms.match_id, matches.local_start_time,",
+              " pms.match_value AS total_value FROM player_match_stats AS pms",
+              " INNER JOIN players ON players.player_id = pms.player_id",
+              " INNER JOIN matches ON matches.match_id = pms.match_id",
+              " WHERE pms.stat = ?stat",
+              if (!is.null(season)) " AND pms.season = ?season" else "",
+              " ORDER BY pms.match_value DESC LIMIT 10"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      } else {
+        tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT player_id, players.canonical_name AS player_name, stats.squad_name,",
+              " stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
+              " ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+              " FROM player_period_stats AS stats",
+              " INNER JOIN players ON players.player_id = stats.player_id",
+              " INNER JOIN matches ON matches.match_id = stats.match_id",
+              " WHERE stats.stat = ?stat",
+              if (!is.null(season)) " AND stats.season = ?season" else "",
+              " GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+              " ORDER BY total_value DESC LIMIT 10"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      }
+    } else {
+      if (has_team_match_stats(conn)) {
+        tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT tms.squad_id, tms.squad_name,",
+              " tms.season, tms.round_number, tms.match_id, matches.local_start_time,",
+              " tms.match_value AS total_value FROM team_match_stats AS tms",
+              " INNER JOIN matches ON matches.match_id = tms.match_id",
+              " WHERE tms.stat = ?stat",
+              if (!is.null(season)) " AND tms.season = ?season" else "",
+              " ORDER BY tms.match_value DESC LIMIT 10"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      } else {
+        tryCatch({
+          query_rows(
+            conn,
+            paste0(
+              "SELECT squad_id, stats.squad_name,",
+              " stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
+              " ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+              " FROM team_period_stats AS stats",
+              " INNER JOIN matches ON matches.match_id = stats.match_id",
+              " WHERE stats.stat = ?stat",
+              if (!is.null(season)) " AND stats.season = ?season" else "",
+              " GROUP BY stats.squad_id, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+              " ORDER BY total_value DESC LIMIT 10"
+            ),
+            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+          )
+        }, error = function(e) data.frame())
+      }
+    }
+  }
+
+  context_list <- if (nrow(context_rows)) {
+    lapply(seq_len(nrow(context_rows)), function(i) {
+      row <- context_rows[i, ]
+      value <- suppressWarnings(as.numeric(row$total_value[[1]]))
+      rank <- tryCatch({
+        compute_archive_rank(conn, subject_type, stat, ranking = "highest", total_value = value)
+      }, error = function(e) NA_integer_)
+
+      if (identical(subject_type, "player")) {
+        list(
+          rank = rank,
+          value = value,
+          date = normalize_record_value(row$local_start_time[[1]]),
+          season = suppressWarnings(as.integer(row$season[[1]])),
+          player = normalize_record_value(row$player_name[[1]])
+        )
+      } else {
+        list(
+          rank = rank,
+          value = value,
+          date = normalize_record_value(row$local_start_time[[1]]),
+          season = suppressWarnings(as.integer(row$season[[1]])),
+          team = normalize_record_value(row$squad_name[[1]])
+        )
+      }
+    })
+  } else {
+    list()
+  }
+
+  list(
+    status = "supported",
+    intent_type = "record",
+    stat = stat,
+    stat_label = stat_label,
+    scope = scope,
+    record = record_entry,
+    context = context_list
+  )
+}
+
 format_query_number <- function(value) {
   if (is.null(value) || !is.finite(as.numeric(value))) {
     return(as.character(value))
@@ -5472,4 +5815,660 @@ query_league_composition_debut_bands <- function(conn, seasons = NULL) {
 
   rows <- query_rows(conn, query, params)
   rows_to_records(rows)
+}
+
+pluralize_stat_name <- function(stat_key) {
+  label <- query_stat_label(stat_key)
+  label_lower <- tolower(label)
+  
+  if (endsWith(label_lower, "s") || endsWith(label_lower, "ss")) {
+    label_lower
+  } else if (endsWith(label_lower, "y")) {
+    sub("y$", "ies", label_lower)
+  } else {
+    paste0(label_lower, "s")
+  }
+}
+
+format_yoy_change_label <- function(stat_key, change_value) {
+  label <- query_stat_label(stat_key)
+  label_lower <- tolower(label)
+  
+  suffix <- if (endsWith(label_lower, "s") || endsWith(label_lower, "ss")) {
+    label_lower
+  } else if (endsWith(label_lower, "y")) {
+    sub("y$", "ies", label_lower)
+  } else {
+    paste0(label_lower, "s")
+  }
+  
+  sign <- if (change_value > 0) "+" else ""
+  paste0(sign, round(change_value, 0L), " ", suffix)
+}
+
+build_trend_query <- function(subject, stat, seasons = NULL, conn) {
+  if (is.null(subject) || !nzchar(as.character(subject))) {
+    return(query_error_payload(
+      "unsupported",
+      subject,
+      "Subject is required for trend queries."
+    ))
+  }
+  
+  if (is.null(stat) || !nzchar(as.character(stat))) {
+    return(query_error_payload(
+      "unsupported",
+      stat,
+      "Stat is required for trend queries."
+    ))
+  }
+  
+  resolved_subject <- resolve_query_subject(conn, subject)
+  if (is.list(resolved_subject) && !is.null(resolved_subject$status) && 
+      !identical(resolved_subject$status, "supported")) {
+    return(resolved_subject)
+  }
+  
+  subject_type <- resolved_subject$subject_type %||% NULL
+  if (is.null(subject_type)) {
+    return(query_error_payload(
+      "unsupported",
+      subject,
+      "Could not determine if subject is a player or team."
+    ))
+  }
+  
+  if (identical(subject_type, "player")) {
+    subject_id <- resolved_subject$player_id
+    subject_name <- resolved_subject$player_name
+  } else if (identical(subject_type, "team")) {
+    subject_id <- resolved_subject$team_id
+    subject_name <- resolved_subject$team_name
+  } else {
+    return(query_error_payload(
+      "unsupported",
+      subject,
+      "Subject type must be either player or team."
+    ))
+  }
+  
+  if (!stat %in% c(DEFAULT_PLAYER_STATS, DEFAULT_TEAM_STATS)) {
+    return(query_error_payload(
+      "unsupported",
+      stat,
+      paste0("Stat '", stat, "' is not supported for trend queries.")
+    ))
+  }
+  
+  requested_seasons <- requested_or_available_seasons(conn, seasons)
+  requested_seasons <- sort(as.integer(requested_seasons))
+  
+  if (!length(requested_seasons)) {
+    return(query_error_payload(
+      "unsupported",
+      subject,
+      "No seasons available for trend data."
+    ))
+  }
+  
+  results <- list()
+  previous_total <- NULL
+  
+  for (season in requested_seasons) {
+    if (identical(subject_type, "player")) {
+      season_data <- query_rows(
+        conn,
+        paste0(
+          "SELECT ",
+          "  SUM(CASE WHEN pms.", stat, " IS NOT NULL THEN pms.", stat, " ELSE 0 END) AS total, ",
+          "  COUNT(DISTINCT pms.match_id) AS games ",
+          "FROM player_match_stats pms ",
+          "WHERE pms.player_id = ?player_id AND pms.season = ?season"
+        ),
+        list(player_id = subject_id, season = season)
+      )
+    } else {
+      season_data <- query_rows(
+        conn,
+        paste0(
+          "SELECT ",
+          "  SUM(CASE WHEN tps.", stat, " IS NOT NULL THEN tps.", stat, " ELSE 0 END) AS total, ",
+          "  COUNT(DISTINCT tps.match_id) AS games ",
+          "FROM team_period_stats tps ",
+          "WHERE tps.squad_id = ?team_id AND tps.season = ?season"
+        ),
+        list(team_id = subject_id, season = season)
+      )
+    }
+    
+    total <- if (nrow(season_data)) as.numeric(season_data$total[[1]]) %||% 0 else 0
+    games <- if (nrow(season_data)) as.numeric(season_data$games[[1]]) %||% 0 else 0
+    average <- if (games > 0) round(total / games, 2) else 0
+    
+    result <- list(
+      season = as.integer(season),
+      total = total,
+      games = games,
+      average = average
+    )
+    
+    if (!is.null(previous_total) && previous_total > 0) {
+      yoy_change <- total - previous_total
+      yoy_change_pct <- round((yoy_change / previous_total) * 100, 1)
+      yoy_change_label <- format_yoy_change_label(stat, yoy_change)
+      
+      result$yoy_change <- yoy_change_pct
+      result$yoy_change_label <- yoy_change_label
+    }
+    
+    results[[length(results) + 1]] <- result
+    previous_total <- total
+  }
+  
+  list(
+    status = jsonlite::unbox("supported"),
+    intent_type = jsonlite::unbox("trend"),
+    subject = jsonlite::unbox(subject_name),
+    subject_type = jsonlite::unbox(subject_type),
+    stat = jsonlite::unbox(stat),
+    stat_label = jsonlite::unbox(query_stat_label(stat)),
+    seasons = requested_seasons,
+    results = results
+  )
+}
+
+# ============================================================================
+# Combination Query Builder
+# ============================================================================
+
+# Build a multi-filter query combining multiple stats with AND/OR logic.
+# Each filter specifies a stat, comparison operator, and threshold.
+# Returns results sorted by combined value (goals + gains DESC) with limit of 100.
+# 
+# filters: list of filter objects, each with:
+#   - stat: "goals", "gain", "intercept", "turnover", "penalty", "rebound", etc.
+#   - operator: ">=", "<=", ">", "<", "="
+#   - threshold: numeric threshold value
+# logical_operator: "AND" or "OR" to join filter conditions
+# season: optional season filter (integer or NULL for all seasons)
+# conn: database connection
+build_combination_query <- function(filters, logical_operator = "AND", season = NULL, conn) {
+  # Validate inputs
+  if (!is.list(filters) || length(filters) == 0L) {
+    return(list(
+      status = jsonlite::unbox("error"),
+      error = jsonlite::unbox("At least one filter is required")
+    ))
+  }
+
+  if (!tolower(logical_operator) %in% c("and", "or")) {
+    return(list(
+      status = jsonlite::unbox("error"),
+      error = jsonlite::unbox("Logical operator must be 'AND' or 'OR'")
+    ))
+  }
+
+  logical_operator <- toupper(logical_operator)
+
+  # Validate each filter
+  for (i in seq_along(filters)) {
+    f <- filters[[i]]
+    if (!is.list(f) || is.null(f$stat) || is.null(f$operator) || is.null(f$threshold)) {
+      return(list(
+        status = jsonlite::unbox("error"),
+        error = jsonlite::unbox(sprintf("Filter %d must have stat, operator, and threshold", i))
+      ))
+    }
+
+    # Validate operator
+    if (!f$operator %in% c(">=", "<=", ">", "<", "=")) {
+      return(list(
+        status = jsonlite::unbox("error"),
+        error = jsonlite::unbox(sprintf("Filter %d has invalid operator: %s", i, f$operator))
+      ))
+    }
+
+    # Coerce threshold to numeric
+    if (!is.numeric(f$threshold)) {
+      tryCatch({
+        filters[[i]]$threshold <- as.numeric(f$threshold)
+      }, error = function(e) {
+        return(list(
+          status = jsonlite::unbox("error"),
+          error = jsonlite::unbox(sprintf("Filter %d threshold must be numeric", i))
+        ))
+      })
+    }
+  }
+
+  # Build WHERE clause conditions for each filter
+  where_conditions <- character(length(filters))
+  params <- list()
+
+  for (i in seq_along(filters)) {
+    f <- filters[[i]]
+    stat_key <- tolower(f$stat)
+
+    # Build stat expression (handle "goals" as goal1 + 2*goal2)
+    if (identical(stat_key, "goals")) {
+      stat_expr <- "(pms1.match_value + 2 * COALESCE(pms2.match_value, 0))"
+    } else {
+      stat_expr <- "pms.match_value"
+    }
+
+    # Build condition
+    param_name <- sprintf("threshold_%d", i)
+    where_conditions[[i]] <- sprintf("%s %s ?%s", stat_expr, f$operator, param_name)
+    params[[param_name]] <- f$threshold
+  }
+
+  where_clause <- paste(where_conditions, collapse = sprintf(" %s ", logical_operator))
+
+  # Build the main query
+  if (identical(tolower(filters[[1]]$stat), "goals")) {
+    # Special handling for goals (goal1 + goal2)
+    query <- paste(
+      "SELECT pms1.player_id, players.canonical_name AS player_name, pms1.squad_name,",
+      paste0(opponent_name_sql("pms1.squad_id"), " AS opponent,"),
+      "pms1.season, pms1.match_id, matches.local_start_time,",
+      "(COALESCE(pms1.match_value, 0) + 2 * COALESCE(pms2.match_value, 0)) AS goals,",
+      "COALESCE(pms3.match_value, 0) AS gain",
+      "FROM player_match_stats AS pms1",
+      "LEFT JOIN player_match_stats AS pms2",
+      "  ON pms1.player_id = pms2.player_id AND pms1.match_id = pms2.match_id AND pms2.stat = 'goal2'",
+      "LEFT JOIN player_match_stats AS pms3",
+      "  ON pms1.player_id = pms3.player_id AND pms1.match_id = pms3.match_id AND pms3.stat = 'gain'",
+      "INNER JOIN players ON players.player_id = pms1.player_id",
+      "INNER JOIN matches ON matches.match_id = pms1.match_id",
+      "WHERE pms1.stat = 'goal1' AND", where_clause
+    )
+  } else {
+    # General query for non-goals stats
+    query <- paste(
+      "SELECT pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
+      paste0(opponent_name_sql("pms.squad_id"), " AS opponent,"),
+      "pms.season, pms.match_id, matches.local_start_time,",
+      "pms.match_value AS total_value",
+      "FROM player_match_stats AS pms",
+      "INNER JOIN players ON players.player_id = pms.player_id",
+      "INNER JOIN matches ON matches.match_id = pms.match_id",
+      "WHERE", where_clause
+    )
+  }
+
+  # Add season filter if provided
+  if (!is.null(season)) {
+    season_value <- as.integer(season)
+    query <- paste0(query, " AND pms.season = ?season")
+    params$season <- season_value
+  }
+
+  # Sort by combined score (goals + gains DESC) and limit results
+  if (identical(tolower(filters[[1]]$stat), "goals")) {
+    query <- paste0(
+      query,
+      " ORDER BY (COALESCE(pms1.match_value, 0) + 2 * COALESCE(pms2.match_value, 0) + COALESCE(pms3.match_value, 0)) DESC",
+      ", pms1.season DESC, matches.local_start_time DESC",
+      " LIMIT 100"
+    )
+  } else {
+    query <- paste0(
+      query,
+      " ORDER BY pms.match_value DESC, pms.season DESC",
+      " LIMIT 100"
+    )
+  }
+
+  # Execute query
+  tryCatch({
+    rows <- query_rows(conn, query, params)
+
+    # Transform results
+    results <- if (nrow(rows) > 0) {
+      lapply(seq_len(nrow(rows)), function(i) {
+        result <- list(
+          player = rows$player_name[[i]],
+          team = rows$squad_name[[i]],
+          opponent = rows$opponent[[i]],
+          season = rows$season[[i]],
+          date = as.character(rows$local_start_time[[i]])
+        )
+        
+        # Add stat values from query results (goals, gain, etc.)
+        if ("goals" %in% names(rows)) {
+          result$goals <- rows$goals[[i]]
+        }
+        if ("gain" %in% names(rows)) {
+          result$gain <- rows$gain[[i]]
+        }
+        if ("total_value" %in% names(rows)) {
+          result$value <- rows$total_value[[i]]
+        }
+        
+        result
+      })
+    } else {
+      list()
+    }
+
+    list(
+      status = jsonlite::unbox("supported"),
+      intent_type = jsonlite::unbox("combination"),
+      filters = filters,
+      logical_operator = jsonlite::unbox(logical_operator),
+      season = if (is.null(season)) NULL else jsonlite::unbox(as.integer(season)),
+      total_matches = jsonlite::unbox(nrow(rows)),
+      results = results
+    )
+  }, error = function(e) {
+    list(
+      status = jsonlite::unbox("error"),
+      error = jsonlite::unbox(sprintf("Query execution failed: %s", conditionMessage(e)))
+    )
+  })
+}
+
+# Builds a comparison query for side-by-side aggregates on 2 subjects (teams/players)
+# for a single stat and season.
+build_comparison_query <- function(subjects, stat, season, conn) {
+  tryCatch(
+    {
+      # 1. Validate inputs: exactly 2 subjects required
+      if (!is.character(subjects) || length(subjects) != 2L) {
+        return(list(
+          status = "error",
+          error = "Exactly 2 subjects required for comparison",
+          intent_type = "comparison"
+        ))
+      }
+
+      # 2. Validate season
+      season_int <- as.integer(season)
+      if (is.na(season_int) || season_int < 2008L || season_int > 2100L) {
+        return(list(
+          status = "error",
+          error = "Invalid season",
+          intent_type = "comparison"
+        ))
+      }
+
+      # 3. Resolve stat key (map label to DB column)
+      stat_key <- resolve_stat_key(stat)
+      if (is.null(stat_key)) {
+        return(list(
+          status = "error",
+          error = "Stat not found",
+          intent_type = "comparison"
+        ))
+      }
+
+      # Get stat label
+      stat_label <- QUERY_STAT_DEFINITIONS[[stat_key]]$label %||% stat_key
+
+      # 4. Determine if subjects are teams or players and fetch aggregates
+      results <- list()
+      total_by_subject <- list()
+
+      for (i in seq_along(subjects)) {
+        subject_name <- subjects[[i]]
+
+        # Try to resolve as team first
+        team_result <- resolve_query_team(conn, subject_name)
+        if (!is.null(team_result) && team_result$status == "supported") {
+          # Subject is a team
+          team_id <- team_result$squad_id
+          team_name <- team_result$squad_name
+
+          # Fetch team aggregates for the season
+          agg <- fetch_team_season_aggregate(conn, team_id, stat_key, season_int)
+          if (is.null(agg)) {
+            return(list(
+              status = "error",
+              error = paste("No data found for", team_name, "in season", season_int),
+              intent_type = "comparison"
+            ))
+          }
+
+          # Fetch round-by-round breakdown
+          rounds <- fetch_team_round_breakdown(conn, team_id, stat_key, season_int)
+
+          results[[i]] <- list(
+            subject = team_name,
+            subject_type = "team",
+            total = agg$total,
+            games = agg$games,
+            average_per_game = if (agg$games > 0) round(agg$total / agg$games, 2) else 0,
+            rounds = rounds
+          )
+
+          total_by_subject[[team_name]] <- agg$total
+        } else {
+          # Try to resolve as player
+          player_result <- resolve_query_player(conn, subject_name)
+          if (!is.null(player_result) && player_result$status == "supported") {
+            # Subject is a player
+            player_id <- player_result$player_id
+            player_name <- player_result$player_name
+
+            # Fetch player aggregates for the season
+            agg <- fetch_player_season_aggregate(conn, player_id, stat_key, season_int)
+            if (is.null(agg)) {
+              return(list(
+                status = "error",
+                error = paste("No data found for", player_name, "in season", season_int),
+                intent_type = "comparison"
+              ))
+            }
+
+            # Fetch round-by-round breakdown
+            rounds <- fetch_player_round_breakdown(conn, player_id, stat_key, season_int)
+
+            results[[i]] <- list(
+              subject = player_name,
+              subject_type = "player",
+              total = agg$total,
+              games = agg$games,
+              average_per_game = if (agg$games > 0) round(agg$total / agg$games, 2) else 0,
+              rounds = rounds
+            )
+
+            total_by_subject[[player_name]] <- agg$total
+          } else {
+            return(list(
+              status = "error",
+              error = paste("Could not resolve subject:", subject_name),
+              intent_type = "comparison"
+            ))
+          }
+        }
+      }
+
+      # 5. Calculate comparison metrics
+      total1 <- total_by_subject[[1]]
+      total2 <- total_by_subject[[2]]
+      leader_idx <- if (total1 >= total2) 1L else 2L
+      leader_name <- results[[leader_idx]]$subject
+      loser_total <- if (total1 >= total2) total2 else total1
+      difference <- abs(total1 - total2)
+      percentage_ahead <- if (loser_total > 0) round((difference / loser_total) * 100, 1) else 0
+
+      # 6. Return structured response
+      list(
+        status = "supported",
+        intent_type = "comparison",
+        subjects = subjects,
+        stat = stat_key,
+        stat_label = stat_label,
+        season = season_int,
+        results = results,
+        comparison = list(
+          leader = leader_name,
+          difference = difference,
+          percentage_ahead = percentage_ahead
+        )
+      )
+    },
+    error = function(e) {
+      list(
+        status = "error",
+        error = paste("Query failed:", conditionMessage(e)),
+        intent_type = "comparison"
+      )
+    }
+  )
+}
+
+# Resolves a stat key from various input formats (label, alias, or key)
+resolve_stat_key <- function(stat_input) {
+  if (stat_input %in% names(QUERY_STAT_DEFINITIONS)) {
+    return(stat_input)
+  }
+
+  # Try to match via aliases
+  for (stat_name in names(QUERY_STAT_DEFINITIONS)) {
+    aliases <- QUERY_STAT_DEFINITIONS[[stat_name]]$aliases %||% character()
+    if (tolower(stat_input) %in% tolower(aliases)) {
+      return(stat_name)
+    }
+  }
+
+  NULL
+}
+
+# Fetches team aggregates for a season and stat
+fetch_team_season_aggregate <- function(conn, team_id, stat_key, season) {
+  query <- paste(
+    "SELECT",
+    "  SUM(CAST(?stat AS NUMERIC)) AS total,",
+    "  COUNT(DISTINCT round_number) AS games",
+    "FROM team_period_stats",
+    "WHERE squad_id = ?team_id",
+    "  AND season = ?season"
+  )
+
+  params <- list(stat = stat_key, team_id = team_id, season = season)
+  result <- query_rows(conn, query, params)
+
+  if (!nrow(result) || is.na(result$total[[1]])) {
+    return(NULL)
+  }
+
+  list(
+    total = as.numeric(result$total[[1]]),
+    games = as.integer(result$games[[1]])
+  )
+}
+
+# Fetches player aggregates for a season and stat (handles points specially)
+fetch_player_season_aggregate <- function(conn, player_id, stat_key, season) {
+  if (stat_key == "points") {
+    # Special case: points = goal1 + 2 * goal2
+    query <- paste(
+      "SELECT",
+      "  SUM(CASE WHEN pms1.stat = 'goal1' THEN pms1.match_value ELSE 0 END +",
+      "      2 * (SELECT COALESCE(SUM(CASE WHEN pms2.stat = 'goal2' THEN pms2.match_value ELSE 0 END), 0)",
+      "           FROM player_match_stats pms2",
+      "           WHERE pms2.player_id = pms1.player_id AND pms2.match_id = pms1.match_id)) AS total,",
+      "  COUNT(DISTINCT pms1.match_id) AS games",
+      "FROM player_match_stats pms1",
+      "WHERE pms1.player_id = ?player_id",
+      "  AND pms1.season = ?season",
+      "  AND pms1.stat = 'goal1'"
+    )
+  } else {
+    query <- paste(
+      "SELECT",
+      "  SUM(COALESCE(match_value, 0)) AS total,",
+      "  COUNT(DISTINCT match_id) AS games",
+      "FROM player_match_stats",
+      "WHERE player_id = ?player_id",
+      "  AND season = ?season",
+      "  AND stat = ?stat"
+    )
+  }
+
+  params <- list(player_id = player_id, season = season, stat = stat_key)
+  result <- query_rows(conn, query, params)
+
+  if (!nrow(result) || is.na(result$total[[1]])) {
+    return(NULL)
+  }
+
+  list(
+    total = as.numeric(result$total[[1]]),
+    games = as.integer(result$games[[1]])
+  )
+}
+
+# Fetches round-by-round breakdown for a team
+fetch_team_round_breakdown <- function(conn, team_id, stat_key, season) {
+  query <- paste(
+    "SELECT",
+    "  round_number,",
+    "  CAST(?stat AS NUMERIC) AS value",
+    "FROM team_period_stats",
+    "WHERE squad_id = ?team_id",
+    "  AND season = ?season",
+    "ORDER BY round_number ASC"
+  )
+
+  params <- list(stat = stat_key, team_id = team_id, season = season)
+  rows <- query_rows(conn, query, params)
+
+  if (!nrow(rows)) {
+    return(list())
+  }
+
+  lapply(seq_len(nrow(rows)), function(i) {
+    list(
+      round = as.integer(rows$round_number[[i]]),
+      value = as.numeric(rows$value[[i]])
+    )
+  })
+}
+
+# Fetches round-by-round breakdown for a player
+fetch_player_round_breakdown <- function(conn, player_id, stat_key, season) {
+  if (stat_key == "points") {
+    # Special case: points = goal1 + 2 * goal2
+    query <- paste(
+      "SELECT",
+      "  pms1.round_number,",
+      "  COALESCE(pms1.match_value, 0) +",
+      "  2 * COALESCE((SELECT SUM(pms2.match_value) FROM player_match_stats pms2",
+      "               WHERE pms2.player_id = pms1.player_id",
+      "               AND pms2.match_id = pms1.match_id",
+      "               AND pms2.stat = 'goal2'), 0) AS value",
+      "FROM player_match_stats pms1",
+      "WHERE pms1.player_id = ?player_id",
+      "  AND pms1.season = ?season",
+      "  AND pms1.stat = 'goal1'",
+      "ORDER BY pms1.round_number ASC"
+    )
+  } else {
+    query <- paste(
+      "SELECT",
+      "  round_number,",
+      "  COALESCE(match_value, 0) AS value",
+      "FROM player_match_stats",
+      "WHERE player_id = ?player_id",
+      "  AND season = ?season",
+      "  AND stat = ?stat",
+      "ORDER BY round_number ASC"
+    )
+  }
+
+  params <- list(player_id = player_id, season = season, stat = stat_key)
+  rows <- query_rows(conn, query, params)
+
+  if (!nrow(rows)) {
+    return(list())
+  }
+
+  lapply(seq_len(nrow(rows)), function(i) {
+    list(
+      round = as.integer(rows$round_number[[i]]),
+      value = as.numeric(rows$value[[i]])
+    )
+  })
 }
