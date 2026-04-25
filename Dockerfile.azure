@@ -18,19 +18,14 @@ WORKDIR /app
 # Copy all source code  
 COPY . /app
 
-# Install plumber and all dependencies needed directly
+# Install all R packages from renv.lock
 # This bypasses renv complexity and ensures packages are in the standard R library
-RUN set -x && \
-    R --no-restore --no-save -q -e " \
-  cat('Setting repos...\\n'); \
+RUN R --no-restore --no-save -q -e " \
   options(repos = c(PPM = 'https://packagemanager.posit.co/cran/__linux__/noble/latest')); \
-  cat('Packages to install:', paste(c('plumber', 'DBI', 'RPostgres', 'jsonlite', 'httr2', 'glue', 'rlang', 'lubridate', 'dplyr', 'tidyr'), collapse=', '), '\\n'); \
-  packages <- c('plumber', 'DBI', 'RPostgres', 'jsonlite', 'httr2', 'glue', 'rlang', 'lubridate', 'dplyr', 'tidyr'); \
+  packages <- c('askpass','bit','bit64','blob','cli','cpp11','crayon','curl','DBI','dplyr','fastmap','generics','glue','hms','httpuv','httr','jsonlite','later','lifecycle','lubridate','magrittr','mime','openssl','otel','pillar','pkgconfig','plumber','promises','purrr','R6','Rcpp','renv','rlang','RPostgres','sodium','stringi','stringr','superNetballR','swagger','sys','tibble','tidyr','tidyselect','timechange','utf8','vctrs','webutils','withr'); \
   install.packages(packages, Ncpus = parallel::detectCores()); \
-  cat('Installation complete\\n'); \
-  cat('Checking packages:\\n'); \
-  for (pkg in packages) { cat(pkg, ':', require(pkg, character.only=TRUE, quietly=TRUE), '\\n') }
-" && echo "R package installation done"
+  cat('Package installation complete\\n')
+"
 
 # Runtime stage — copy only what's needed
 FROM rocker/r-ver:4.5.2
