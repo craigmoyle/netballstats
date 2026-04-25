@@ -231,5 +231,195 @@
         </section>
       </section>
     </main>
+
+    <dialog id="query-builder-modal" class="query-builder-modal" aria-labelledby="builder-modal-title">
+      <div class="builder-modal__container">
+        <div class="builder-modal__header">
+          <h2 id="builder-modal-title">Build your query</h2>
+          <button type="button" class="builder-modal__close" aria-label="Close builder modal">
+            <span aria-hidden="true">×</span>
+          </button>
+        </div>
+
+        <form id="builder-form" class="builder-form" novalidate>
+          
+          <!-- Step 1: Shape Selection -->
+          <fieldset id="builder-step-shape" class="builder-step" data-step="1" aria-labelledby="builder-step-shape-legend">
+            <legend id="builder-step-shape-legend">
+              <span class="builder-step__number">1</span>
+              <span class="builder-step__title">Pick a query shape</span>
+            </legend>
+            <div class="builder-step__content">
+              <div class="builder-shape-grid">
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="comparison" required>
+                  <span class="builder-shape-option__label">Comparison</span>
+                  <span class="builder-shape-option__desc">Compare stats across subjects</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="combination" required>
+                  <span class="builder-shape-option__label">Combination</span>
+                  <span class="builder-shape-option__desc">AND/OR multiple conditions</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="trend" required>
+                  <span class="builder-shape-option__label">Trend</span>
+                  <span class="builder-shape-option__desc">Track performance over time</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="record" required>
+                  <span class="builder-shape-option__label">Record</span>
+                  <span class="builder-shape-option__desc">All-time highest/lowest</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="count" required>
+                  <span class="builder-shape-option__label">Count</span>
+                  <span class="builder-shape-option__desc">How many times occurred</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="highest" required>
+                  <span class="builder-shape-option__label">Highest</span>
+                  <span class="builder-shape-option__desc">Peak performance</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="lowest" required>
+                  <span class="builder-shape-option__label">Lowest</span>
+                  <span class="builder-shape-option__desc">Minimum performance</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="list" required>
+                  <span class="builder-shape-option__label">List</span>
+                  <span class="builder-shape-option__desc">Get matching items</span>
+                </label>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Step 2: Subject Selection -->
+          <fieldset id="builder-step-subjects" class="builder-step" data-step="2" aria-labelledby="builder-step-subjects-legend" hidden>
+            <legend id="builder-step-subjects-legend">
+              <span class="builder-step__number">2</span>
+              <span class="builder-step__title">Pick subject(s)</span>
+            </legend>
+            <div class="builder-step__content">
+              <div class="builder-subject-search">
+                <input type="text" id="builder-subject-search" class="builder-search-input" placeholder="Search players or teams…" aria-label="Search subjects">
+                <div id="builder-subject-list" class="builder-subject-list" role="group" aria-label="Subject selection"></div>
+              </div>
+              <button type="button" id="builder-add-subject" class="button button--secondary builder-step__action" hidden>
+                + Add another subject
+              </button>
+            </div>
+          </fieldset>
+
+          <!-- Step 3: Stat Selection -->
+          <fieldset id="builder-step-stat" class="builder-step" data-step="3" aria-labelledby="builder-step-stat-legend" hidden>
+            <legend id="builder-step-stat-legend">
+              <span class="builder-step__number">3</span>
+              <span class="builder-step__title">Pick a stat</span>
+            </legend>
+            <div class="builder-step__content">
+              <div class="builder-stat-search">
+                <input type="text" id="builder-stat-search" class="builder-search-input" placeholder="Search stats…" aria-label="Search statistics">
+                <div id="builder-stat-list" class="builder-stat-list" role="group" aria-label="Stat selection"></div>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Step 4: Filters (Optional) -->
+          <fieldset id="builder-step-filters" class="builder-step" data-step="4" aria-labelledby="builder-step-filters-legend" hidden>
+            <legend id="builder-step-filters-legend">
+              <span class="builder-step__number">4</span>
+              <span class="builder-step__title">Add filters (optional)</span>
+            </legend>
+            <div class="builder-step__content">
+              <div class="builder-filters">
+                <label class="builder-filter-checkbox">
+                  <input type="checkbox" name="filter-opponent" value="opponent">
+                  <span>Filter by opponent</span>
+                </label>
+                <div id="builder-filter-opponent" class="builder-filter-input" hidden>
+                  <input type="text" class="builder-search-input" placeholder="Search opponent…" aria-label="Opponent name">
+                </div>
+
+                <label class="builder-filter-checkbox">
+                  <input type="checkbox" name="filter-location" value="location">
+                  <span>Filter by location</span>
+                </label>
+                <div id="builder-filter-location" class="builder-filter-input" hidden>
+                  <select class="builder-search-input" aria-label="Location">
+                    <option value="">Select location…</option>
+                    <option value="home">Home</option>
+                    <option value="away">Away</option>
+                  </select>
+                </div>
+
+                <label class="builder-filter-checkbox">
+                  <input type="checkbox" name="filter-games" value="games">
+                  <span>Filter by game count</span>
+                </label>
+                <div id="builder-filter-games" class="builder-filter-input" hidden>
+                  <input type="number" min="1" placeholder="Minimum games" class="builder-search-input" aria-label="Minimum games">
+                </div>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Step 5: Timeframe -->
+          <fieldset id="builder-step-timeframe" class="builder-step" data-step="5" aria-labelledby="builder-step-timeframe-legend" hidden>
+            <legend id="builder-step-timeframe-legend">
+              <span class="builder-step__number">5</span>
+              <span class="builder-step__title">Pick a timeframe</span>
+            </legend>
+            <div class="builder-step__content">
+              <div class="builder-timeframe-options">
+                <label class="builder-timeframe-option">
+                  <input type="radio" name="timeframe" value="single" required>
+                  <span class="builder-timeframe-option__label">Single season</span>
+                </label>
+                <div id="builder-timeframe-single" class="builder-timeframe-input" hidden>
+                  <select id="builder-season-single" class="builder-search-input" aria-label="Select season">
+                    <option value="">Loading seasons…</option>
+                  </select>
+                </div>
+
+                <label class="builder-timeframe-option">
+                  <input type="radio" name="timeframe" value="range" required>
+                  <span class="builder-timeframe-option__label">Season range</span>
+                </label>
+                <div id="builder-timeframe-range" class="builder-timeframe-input" hidden>
+                  <div class="builder-timeframe-range-inputs">
+                    <select id="builder-season-from" class="builder-search-input" aria-label="From season">
+                      <option value="">From season…</option>
+                    </select>
+                    <select id="builder-season-to" class="builder-search-input" aria-label="To season">
+                      <option value="">To season…</option>
+                    </select>
+                  </div>
+                </div>
+
+                <label class="builder-timeframe-option">
+                  <input type="radio" name="timeframe" value="alltime" required>
+                  <span class="builder-timeframe-option__label">All-time</span>
+                </label>
+              </div>
+            </div>
+          </fieldset>
+
+          <div class="builder-modal__footer">
+            <button type="button" id="builder-prev" class="button button--ghost" aria-label="Go to previous step" hidden>
+              ← Back
+            </button>
+            <div class="builder-modal__spacer"></div>
+            <button type="button" id="builder-next" class="button button--secondary" aria-label="Go to next step">
+              Next →
+            </button>
+            <button type="submit" id="builder-submit" class="button button--primary" hidden>
+              Run query
+            </button>
+          </div>
+        </form>
+      </div>
+    </dialog>
   </body>
 </html>
