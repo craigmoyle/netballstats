@@ -3234,13 +3234,100 @@ caption.table-caption {
   align-content: start;
 }
 
-.round-preview-card__meta {
-  margin: 0;
-  padding-left: 1rem;
-  color: var(--muted);
+.round-preview-card__context {
   display: grid;
-  gap: 0.35rem;
+  gap: 0.3rem;
+}
+
+.round-preview-card__venue,
+.round-preview-card__h2h {
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
   font-size: var(--type-sm);
+  color: var(--muted);
+}
+
+.card-label {
+  font-size: var(--type-xs, 0.72rem);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent-cool);
+  flex-shrink: 0;
+}
+
+.round-preview-card__form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.form-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.form-row__label {
+  font-size: var(--type-sm);
+  color: var(--text);
+  min-width: 10ch;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.form-row__right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.form-chips {
+  display: flex;
+  gap: 0.18rem;
+  flex-shrink: 0;
+}
+
+.form-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 3px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  font-family: var(--body-font);
+  letter-spacing: 0.02em;
+  flex-shrink: 0;
+}
+
+.form-chip--w {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent);
+}
+
+.form-chip--l {
+  background: color-mix(in srgb, var(--muted) 14%, transparent);
+  color: var(--muted);
+}
+
+.form-chip--d {
+  background: color-mix(in srgb, var(--accent-cool) 14%, transparent);
+  color: var(--accent-cool);
+}
+
+.form-streak {
+  font-size: var(--type-xs, 0.72rem);
+  color: var(--muted);
+  opacity: 0.85;
+  min-width: 0;
 }
 
 .round-preview-card__fact {
@@ -3262,7 +3349,8 @@ caption.table-caption {
 
 .round-preview-card__watch-list {
   margin: 0;
-  padding: 0.65rem 0 0 1rem;
+  padding: 0.65rem 0 0;
+  list-style: none;
   display: grid;
   gap: 0.35rem;
   font-size: var(--type-sm);
