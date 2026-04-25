@@ -6350,6 +6350,466 @@ build_comparison_query <- function(subjects, stat, season, conn) {
   )
 }
 
+# Attempts to parse a natural language query with confidence scoring
+# Returns a list with status, shape, confidence score, and extracted components
+attempt_complex_parse <- function(question) {
+  if (is.null(question) || !nzchar(trimws(question))) {
+    return(list(
+      status = "error",
+      confidence = 0,
+      shape = NA_character_,
+      parsed = list(),
+      error_message = "Empty question provided"
+    ))
+  }
+
+  question_lower <- tolower(trimws(question))
+
+  # Initialize result structure
+  result <- list(
+    status = "error",
+    confidence = 0,
+    shape = NA_character_,
+    parsed = list(),
+    error_message = ""
+  )
+
+  # Try to detect shape and extract components
+  # Order matters: check more specific patterns first
+  
+  # Pattern 1: Record patterns (all-time, highest, lowest, ranking)
+  if (grepl("\\b(all.?time|ever|ranking|record)\\b", question_lower)) {
+    record_parse <- detect_record_pattern(question_lower)
+    if (!is.null(record_parse) && record_parse$confidence > 0) {
+      result$shape <- "record"
+      result$parsed <- record_parse$parsed
+      result$confidence <- record_parse$confidence
+      result$status <- "success"
+      return(result)
+    }
+  }
+
+  # Pattern 2: Comparison patterns (vs, versus, compared to)
+  if (grepl("\\b(vs\\.?|versus|compared?\\s+to)\\b", question_lower)) {
+    comp_parse <- detect_comparison_pattern(question_lower)
+    if (!is.null(comp_parse) && comp_parse$confidence > 0) {
+      result$shape <- "comparison"
+      result$parsed <- comp_parse$parsed
+      result$confidence <- comp_parse$confidence
+      result$status <- "success"
+      return(result)
+    }
+  }
+
+  # Pattern 3: Trend patterns (across, by season, over seasons)
+  if (grepl("\\b(across|over|by\\s+season|throughout)\\b", question_lower)) {
+    trend_parse <- detect_trend_pattern(question_lower)
+    if (!is.null(trend_parse) && trend_parse$confidence > 0) {
+      result$shape <- "trend"
+      result$parsed <- trend_parse$parsed
+      result$confidence <- trend_parse$confidence
+      result$status <- "success"
+      return(result)
+    }
+  }
+
+  # Pattern 4: Combination patterns (and, or with multiple conditions)
+  if (grepl("\\b(and|or)\\b", question_lower)) {
+    comb_parse <- detect_combination_pattern(question_lower)
+    if (!is.null(comb_parse) && comb_parse$confidence > 0) {
+      result$shape <- "combination"
+      result$parsed <- comb_parse$parsed
+      result$confidence <- comb_parse$confidence
+      result$status <- "success"
+      return(result)
+    }
+  }
+
+  result$error_message <- "Could not parse query into a recognized pattern"
+  result
+}
+
+detect_record_pattern <- function(question_lower) {
+  confidence <- 0
+  parsed <- list()
+
+  # Extract stat from patterns like "highest [stat]", "lowest [stat]", etc.
+  stat_match <- extract_stat_from_text(question_lower)
+  if (!is.null(stat_match)) {
+    parsed$stat <- stat_match
+    confidence <- confidence + 0.35
+  } else {
+    return(NULL)
+  }
+
+  # Extract operator if present
+  if (grepl("\\bhighest\\b", question_lower)) {
+    parsed$operator <- "highest"
+    confidence <- confidence + 0.25
+  } else if (grepl("\\blowest\\b", question_lower)) {
+    parsed$operator <- "lowest"
+    confidence <- confidence + 0.25
+  } else if (grepl("\\bmost\\b", question_lower)) {
+    parsed$operator <- "highest"
+    confidence <- confidence + 0.25
+  } else if (grepl("\\bfewest\\b", question_lower)) {
+    parsed$operator <- "lowest"
+    confidence <- confidence + 0.25
+  }
+
+  # Subject is optional for record queries (defaults to "all")
+  subject_match <- extract_subject_from_text(question_lower)
+  if (!is.null(subject_match)) {
+    parsed$subjects <- list(subject_match)
+    confidence <- confidence + 0.20
+  }
+
+  # Scope
+  parsed$scope <- if (grepl("\\b(all.?time|ever)\\b", question_lower)) "all_time" else "season"
+  if (parsed$scope == "all_time") {
+    confidence <- confidence + 0.15
+  }
+
+  # Extract seasons if present (but not for all-time)
+  if (parsed$scope != "all_time") {
+    seasons <- extract_seasons(question_lower)
+    if (length(seasons) > 0) {
+      parsed$seasons <- seasons
+      confidence <- confidence + 0.05
+    }
+  }
+
+  # Ensure we have at least a stat
+  if (confidence < 0.35) {
+    return(NULL)
+  }
+
+  list(confidence = min(confidence, 1.0), parsed = parsed)
+}
+
+detect_comparison_pattern <- function(question_lower) {
+  confidence <- 0
+  parsed <- list()
+
+  # Extract two subjects (teams/players)
+  subjects <- extract_comparison_subjects(question_lower)
+  if (is.null(subjects) || length(subjects) < 2) {
+    return(NULL)
+  }
+  parsed$subjects <- subjects[1:2]
+  confidence <- confidence + 0.40
+
+  # Extract stat
+  stat_match <- extract_stat_from_text(question_lower)
+  if (!is.null(stat_match)) {
+    parsed$stat <- stat_match
+    confidence <- confidence + 0.35
+  } else {
+    # If stat isn't explicit, lower confidence but don't fail
+    confidence <- confidence + 0.20
+  }
+
+  # Extract season(s) if present
+  seasons <- extract_seasons(question_lower)
+  if (length(seasons) > 0) {
+    parsed$seasons <- seasons
+    confidence <- confidence + 0.10
+  }
+
+  # Check for ambiguities
+  if (grepl("\\b(or|either)\\b", question_lower)) {
+    confidence <- confidence - 0.15
+  }
+
+  list(confidence = min(max(confidence, 0), 1.0), parsed = parsed)
+}
+
+detect_trend_pattern <- function(question_lower) {
+  confidence <- 0
+  parsed <- list()
+
+  # Extract single subject
+  subject_match <- extract_subject_from_text(question_lower)
+  if (!is.null(subject_match)) {
+    parsed$subject <- subject_match
+    confidence <- confidence + 0.40
+  } else {
+    return(NULL)
+  }
+
+  # Extract stat
+  stat_match <- extract_stat_from_text(question_lower)
+  if (!is.null(stat_match)) {
+    parsed$stat <- stat_match
+    confidence <- confidence + 0.35
+  } else {
+    confidence <- confidence + 0.20
+  }
+
+  # Extract seasons (required for trend)
+  seasons <- extract_seasons(question_lower)
+  if (length(seasons) > 0) {
+    parsed$seasons <- seasons
+    confidence <- confidence + 0.15
+  } else {
+    # If no explicit seasons, imply recent seasons (lower confidence)
+    confidence <- confidence + 0.05
+  }
+
+  list(confidence = min(max(confidence, 0), 1.0), parsed = parsed)
+}
+
+detect_combination_pattern <- function(question_lower) {
+  confidence <- 0
+  parsed <- list()
+
+  # Extract filters (conditions with operators)
+  filters <- extract_filters(question_lower)
+  if (is.null(filters) || length(filters) == 0) {
+    return(NULL)
+  }
+  parsed$filters <- filters
+  confidence <- confidence + 0.45
+
+  # Extract logical operator (AND/OR)
+  logical_op <- if (grepl("\\band\\b", question_lower)) "AND" else "OR"
+  parsed$logical_operator <- logical_op
+  confidence <- confidence + 0.20
+
+  # Extract season(s) if present
+  seasons <- extract_seasons(question_lower)
+  if (length(seasons) > 0) {
+    parsed$seasons <- seasons
+    confidence <- confidence + 0.15
+  }
+
+  # Check for ambiguities (mixed operators)
+  and_count <- length(gregexpr("\\band\\b", question_lower)[[1]])
+  or_count <- length(gregexpr("\\bor\\b", question_lower)[[1]])
+  if (and_count > 0 && or_count > 0) {
+    confidence <- confidence - 0.20
+  }
+
+  list(confidence = min(max(confidence, 0), 1.0), parsed = parsed)
+}
+
+extract_subject_from_text <- function(question_lower) {
+  # Known team names
+  teams <- c(
+    "vixens", "swifts", "fever", "firebirds",
+    "giants", "lightning", "tacticians", "magpies"
+  )
+
+  # Try to match team names
+  for (team in teams) {
+    if (grepl(paste0("\\b", team, "\\b"), question_lower)) {
+      return(team)
+    }
+  }
+
+  # Try to extract player names (capitalized words not preceded by common words)
+  # This is a heuristic; proper implementation would use a player database
+  words <- strsplit(question_lower, "\\s+")[[1]]
+  for (i in seq_along(words)) {
+    word <- words[[i]]
+    # Skip common words and stat keywords
+    if (!grepl("^(the|a|an|how|what|which|is|has|scored|goals|assists|in|on|against)$", word) &&
+        !grepl("[0-9]", word) &&
+        nchar(word) > 2) {
+      # This might be a player name
+      # In a real implementation, check against player database
+      return(word)
+    }
+  }
+
+  NULL
+}
+
+extract_comparison_subjects <- function(question_lower) {
+  subjects <- character()
+
+  teams <- c(
+    "vixens", "swifts", "fever", "firebirds",
+    "giants", "lightning", "tacticians", "magpies"
+  )
+
+  for (team in teams) {
+    if (grepl(paste0("\\b", team, "\\b"), question_lower)) {
+      subjects <- c(subjects, team)
+    }
+  }
+
+  # Return at most 2 subjects
+  if (length(subjects) >= 2) {
+    return(subjects[1:2])
+  }
+
+  NULL
+}
+
+extract_stat_from_text <- function(question_lower) {
+  # Try to match stat aliases from QUERY_STAT_DEFINITIONS
+  for (stat_name in names(QUERY_STAT_DEFINITIONS)) {
+    aliases <- QUERY_STAT_DEFINITIONS[[stat_name]]$aliases %||% character()
+    for (alias in aliases) {
+      if (grepl(paste0("\\b", tolower(alias), "\\b"), question_lower)) {
+        return(stat_name)
+      }
+    }
+  }
+
+  # Also check the key itself
+  for (stat_name in names(QUERY_STAT_DEFINITIONS)) {
+    if (grepl(paste0("\\b", stat_name, "\\b"), question_lower)) {
+      return(stat_name)
+    }
+  }
+
+  NULL
+}
+
+extract_seasons <- function(question_lower) {
+  seasons <- integer()
+
+  # Try to match year patterns: 2023, 2024, etc.
+  year_pattern <- "\\b(20[0-9]{2})\\b"
+  year_matches <- gregexpr(year_pattern, question_lower)
+  if (year_matches[[1]][1] > 0) {
+    years <- as.integer(regmatches(question_lower, year_matches)[[1]])
+    years <- years[years >= 2008 & years <= 2100]
+    seasons <- sort(unique(years))
+  }
+
+  # Try to match year ranges: "2023-2025" or "2023 to 2025"
+  # Simpler approach without lookahead
+  if (grepl("[0-9]{4}\\s*(?:to|through|-|–)\\s*[0-9]{4}", question_lower, perl = TRUE) ||
+      grepl("[0-9]{4}\\s*-\\s*[0-9]{4}", question_lower)) {
+    # Extract all year patterns
+    all_years_pattern <- "[0-9]{4}"
+    all_years_matches <- gregexpr(all_years_pattern, question_lower)
+    if (all_years_matches[[1]][1] > 0) {
+      all_years <- as.integer(regmatches(question_lower, all_years_matches)[[1]])
+      all_years <- all_years[all_years >= 2008 & all_years <= 2100]
+      if (length(all_years) >= 2) {
+        # Generate range from min to max
+        range_start <- min(all_years)
+        range_end <- max(all_years)
+        if (range_end > range_start) {
+          seasons <- sort(unique(c(seasons, seq(range_start, range_end))))
+        } else {
+          seasons <- sort(unique(c(seasons, all_years)))
+        }
+      } else {
+        seasons <- sort(unique(c(seasons, all_years)))
+      }
+    }
+  }
+
+  # Try to match comma-separated years
+  if (grepl("\\b20[0-9]{2}\\s*,.*\\b20[0-9]{2}", question_lower)) {
+    year_pattern <- "\\b(20[0-9]{2})\\b"
+    year_matches <- gregexpr(year_pattern, question_lower)
+    if (year_matches[[1]][1] > 0) {
+      years <- as.integer(regmatches(question_lower, year_matches)[[1]])
+      years <- years[years >= 2008 & years <= 2100]
+      seasons <- sort(unique(c(seasons, years)))
+    }
+  }
+
+  seasons
+}
+
+extract_filters <- function(question_lower) {
+  filters <- list()
+
+  # Look for patterns like "50+ goals", "40 or more assists", "less than 5 turnovers"
+  # This is a simplified approach; more sophisticated parsing would use NLP
+  
+  comparison_operators <- c(
+    ">=|greater than or equal|at least|or more",
+    ">|greater than|more than",
+    "<=|less than or equal|at most",
+    "<|less than|fewer than",
+    "=|equals|equal to|exactly"
+  )
+
+  stat_keywords <- names(QUERY_STAT_DEFINITIONS)
+
+  # Try to find stat + operator + number patterns
+  for (stat_name in stat_keywords) {
+    aliases <- QUERY_STAT_DEFINITIONS[[stat_name]]$aliases %||% character()
+    all_names <- c(stat_name, aliases)
+
+    for (name in all_names) {
+      # Match patterns like "goals > 50", "5+ gains", etc.
+      pattern <- paste0("\\b(", name, ")\\s*([><=]+|greater|less|at least|or more)\\s*([0-9]+)")
+      if (grepl(pattern, question_lower, ignore.case = TRUE)) {
+        matches <- gregexpr(pattern, question_lower, ignore.case = TRUE)
+        if (matches[[1]][1] > 0) {
+          matched_text <- regmatches(question_lower, matches)[[1]]
+          for (match in matched_text) {
+            # Parse the match
+            parts <- strsplit(match, "\\s+")[[1]]
+            stat_part <- tolower(parts[1])
+            op_part <- tolower(parts[2])
+            threshold_part <- as.integer(tail(parts, 1))
+
+            # Normalize operator
+            if (grepl("^(>=|greater than or equal|at least|or more)", op_part)) {
+              op <- ">="
+            } else if (grepl("^(>|greater|more than)", op_part)) {
+              op <- ">"
+            } else if (grepl("^(<=|less than or equal|at most)", op_part)) {
+              op <- "<="
+            } else if (grepl("^(<|less|fewer)", op_part)) {
+              op <- "<"
+            } else if (grepl("^(=|equals|exactly)", op_part)) {
+              op <- "="
+            } else {
+              next
+            }
+
+            # Resolve stat key
+            resolved_stat <- resolve_stat_key(stat_part)
+            if (!is.null(resolved_stat)) {
+              filters[[length(filters) + 1]] <- list(
+                stat = resolved_stat,
+                operator = op,
+                threshold = threshold_part
+              )
+            }
+          }
+        }
+      }
+
+      # Also try reverse: "50 goals", "5 gains", etc.
+      pattern2 <- paste0("\\b([0-9]+)\\s*(\\+)?\\s*(", name, ")\\b")
+      if (grepl(pattern2, question_lower, ignore.case = TRUE)) {
+        matches2 <- gregexpr(pattern2, question_lower, ignore.case = TRUE)
+        if (matches2[[1]][1] > 0) {
+          matched_text2 <- regmatches(question_lower, matches2)[[1]]
+          for (match in matched_text2) {
+            # Extract threshold and determine operator
+            threshold <- as.integer(regmatches(match, gregexpr("[0-9]+", match))[[1]][1])
+            op <- if (grepl("\\+", match)) ">=" else "="
+
+            resolved_stat <- resolve_stat_key(name)
+            if (!is.null(resolved_stat)) {
+              filters[[length(filters) + 1]] <- list(
+                stat = resolved_stat,
+                operator = op,
+                threshold = threshold
+              )
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (length(filters) > 0) filters else NULL
+}
+
 # Resolves a stat key from various input formats (label, alias, or key)
 resolve_stat_key <- function(stat_input) {
   if (stat_input %in% names(QUERY_STAT_DEFINITIONS)) {

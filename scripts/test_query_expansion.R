@@ -743,6 +743,221 @@ test_combination_query_invalid_stat_key <- function() {
   )
 }
 
+test_parser_comparison_simple <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("Vixens vs Swifts goal assists")
+      stopifnot(
+        result$status == "success",
+        result$shape == "comparison",
+        result$confidence > 0.7,
+        !is.null(result$parsed$subjects),
+        length(result$parsed$subjects) >= 2,
+        !is.null(result$parsed$stat)
+      )
+      cat("✓ Parser: comparison (simple) test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: comparison (simple) test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_comparison_with_season <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("Vixens vs Swifts goal assists in 2025")
+      stopifnot(
+        result$status == "success",
+        result$shape == "comparison",
+        result$confidence > 0.8,
+        !is.null(result$parsed$seasons),
+        length(result$parsed$seasons) > 0,
+        2025 %in% result$parsed$seasons
+      )
+      cat("✓ Parser: comparison (with season) test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: comparison (with season) test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_trend_basic <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("Grace Nweke goal assists across 2023, 2024, 2025")
+      stopifnot(
+        result$status == "success",
+        result$shape == "trend",
+        result$confidence > 0.8,
+        !is.null(result$parsed$subject),
+        !is.null(result$parsed$stat),
+        !is.null(result$parsed$seasons),
+        length(result$parsed$seasons) >= 2
+      )
+      cat("✓ Parser: trend (basic) test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: trend (basic) test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_record_alltime <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("Highest single-game intercepts all time")
+      stopifnot(
+        result$status == "success",
+        result$shape == "record",
+        result$confidence > 0.8,
+        !is.null(result$parsed$stat),
+        !is.null(result$parsed$scope),
+        result$parsed$scope == "all_time"
+      )
+      cat("✓ Parser: record (all-time) test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: record (all-time) test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_combination_and <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("players with 40+ goals AND 5+ gains in 2024")
+      stopifnot(
+        result$status == "success",
+        result$shape == "combination",
+        result$confidence > 0.6,
+        !is.null(result$parsed$filters),
+        length(result$parsed$filters) >= 1,
+        !is.null(result$parsed$logical_operator),
+        result$parsed$logical_operator == "AND"
+      )
+      cat("✓ Parser: combination (AND) test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: combination (AND) test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_empty_input <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("")
+      stopifnot(
+        result$status == "error",
+        result$confidence == 0,
+        is.na(result$shape),
+        !is.null(result$error_message)
+      )
+      cat("✓ Parser: empty input test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: empty input test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_null_input <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse(NULL)
+      stopifnot(
+        result$status == "error",
+        result$confidence == 0,
+        is.na(result$shape)
+      )
+      cat("✓ Parser: null input test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: null input test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_confidence_scaling <- function() {
+  tryCatch(
+    {
+      # Full confidence query
+      result_full <- attempt_complex_parse("Vixens vs Swifts goal assists in 2025")
+      # Partial confidence query
+      result_partial <- attempt_complex_parse("Vixens vs Swifts")
+      
+      stopifnot(
+        result_full$confidence > 0.8,
+        result_partial$confidence >= 0.5,
+        result_full$confidence >= result_partial$confidence
+      )
+      cat("✓ Parser: confidence scaling test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: confidence scaling test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_stat_resolution <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("Fever's goals across 2023-2025")
+      stopifnot(
+        result$status == "success",
+        !is.null(result$parsed$stat),
+        result$parsed$stat == "goals"
+      )
+      cat("✓ Parser: stat resolution test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: stat resolution test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_parser_season_range <- function() {
+  tryCatch(
+    {
+      result <- attempt_complex_parse("intercepts across 2023-2025")
+      stopifnot(
+        result$status == "success",
+        !is.null(result$parsed$seasons),
+        length(result$parsed$seasons) >= 3,
+        2023 %in% result$parsed$seasons,
+        2024 %in% result$parsed$seasons,
+        2025 %in% result$parsed$seasons
+      )
+      cat("✓ Parser: season range test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Parser: season range test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
 run_tests <- function() {
   cat("Running query expansion tests...\n\n")
 
@@ -769,6 +984,18 @@ run_tests <- function() {
     success <- test_combination_query_non_goal_stat() && success
     success <- test_combination_query_invalid_stat_key() && success
   }
+
+  cat("\n--- Parser Enhancement Tests ---\n")
+  success <- test_parser_comparison_simple() && success
+  success <- test_parser_comparison_with_season() && success
+  success <- test_parser_trend_basic() && success
+  success <- test_parser_record_alltime() && success
+  success <- test_parser_combination_and() && success
+  success <- test_parser_empty_input() && success
+  success <- test_parser_null_input() && success
+  success <- test_parser_confidence_scaling() && success
+  success <- test_parser_stat_resolution() && success
+  success <- test_parser_season_range() && success
 
   if (success) {
     cat("\n✓ All tests passed\n")
