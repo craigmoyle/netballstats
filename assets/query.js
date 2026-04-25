@@ -29,6 +29,11 @@ const QUERY_STATUS_LABELS = {
   lowest: "Lowest",
   list: "List"
 };
+const PARSER_CONFIDENCE_COPY = {
+  HIGH: "High confidence",
+  MEDIUM: "Medium confidence",
+  LOW: "Template recommended"
+};
 const DEFAULT_QUERY_STATE = {
   title: "Supported question shapes",
   description: "Keep the wording literal and stick to match totals the parser can trace end to end.",
@@ -126,7 +131,7 @@ const elements = {
 elements.submitButton = elements.queryForm.querySelector('[type="submit"]');
 
 const exampleButtons = Array.from(elements.exampleStrip.querySelectorAll("[data-example]"));
-const templateButtons = Array.from((elements.queryTemplateStrip?.querySelectorAll("[data-template]")) || []);
+const templateButtons = Array.from((elements.queryTemplateStrip?.querySelectorAll("[data-template], [data-template-id]")) || []);
 const submitButtonDefaultLabel = elements.submitButton?.textContent || "Run question";
 
 // Builder modal elements
@@ -418,8 +423,8 @@ function updateQuestionWorkflowState(value = "") {
   const hasText = Boolean(trimmed);
   const hasPlaceholders = containsTemplatePlaceholders(value);
 
-  setStepState(elements.queryStepShape, hasText ? "ready" : "active");
-  setStepState(elements.queryStepCompose, hasText && !hasPlaceholders ? "ready" : "active");
+  setStepState(elements.queryStepCompose, hasText ? "ready" : "active");
+  setStepState(elements.queryStepShape, hasPlaceholders ? "ready" : "active");
   setStepState(elements.queryStepRun, hasText && !hasPlaceholders ? "active" : "pending");
 
   if (!elements.queryRunwayHint) {
@@ -427,7 +432,7 @@ function updateQuestionWorkflowState(value = "") {
   }
 
   if (!hasText) {
-    elements.queryRunwayHint.textContent = "Choose a template or write one literal question before you run it.";
+    elements.queryRunwayHint.textContent = "Write a question or choose a template before you run it.";
     return;
   }
 
@@ -455,7 +460,10 @@ function updateQuestionComposerState(value = "") {
   });
 
   templateButtons.forEach((button) => {
-    const isActive = button.getAttribute("data-template") === value;
+    const templateId = button.getAttribute("data-template-id");
+    const templateValue = button.getAttribute("data-template")
+      || (templateId && QUERY_TEMPLATES[templateId] ? QUERY_TEMPLATES[templateId].query : "");
+    const isActive = templateValue === value;
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
 
@@ -478,9 +486,9 @@ function applyQuestionText(question, { focus = true } = {}) {
 function setIdleState() {
   hideErrorBanner();
   setTableSchema("player");
-  setSummaryCards("--", "--", "--", "Choose a shape");
-  elements.answerHeadline.textContent = "Choose a template or ask a literal question.";
-  elements.answerMeta.textContent = "The answer card and evidence table will update together once the wording is specific enough for the parser.";
+  setSummaryCards("--", "--", "--", "Write a question");
+  elements.answerHeadline.textContent = "Write a question to see the answer.";
+  elements.answerMeta.textContent = "The parser will check the wording before the answer card and evidence table update together.";
   elements.interpretationGrid.replaceChildren();
   renderDefaultQueryState();
   if (elements.queryHelp) {
@@ -622,6 +630,28 @@ function renderUnsupported(result) {
   clearTable("Use a supported question shape to see matching rows.");
 }
 
+function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK_EXAMPLES } = {}) {
+  const guidance = message || "The parser could not match the main parts of that question.";
+  hideErrorBanner();
+  showErrorBanner(guidance);
+  setTableSchema("player");
+  setSummaryCards("--", "--", "--", PARSER_CONFIDENCE_COPY[confidence] || "Parser help");
+  elements.answerHeadline.textContent = "Tighten the wording or use a template.";
+  elements.answerMeta.textContent = "Keep it literal: subject first, stat second, then the count, list, highest, or lowest cue.";
+  elements.interpretationGrid.replaceChildren();
+  renderQueryState({
+    title: confidence === "LOW" ? "Try a supported template" : "Tighten the wording",
+    description: guidance,
+    items: Array.isArray(examples) && examples.length ? examples : FALLBACK_EXAMPLES
+  });
+  if (elements.queryHelp) {
+    elements.queryHelp.hidden = false;
+    elements.queryHelp.open = true;
+  }
+  elements.tableMeta.textContent = "";
+  clearTable("Pick a template or rewrite the question to continue.");
+}
+
 function renderResult(result) {
   hideErrorBanner();
 
@@ -716,13 +746,13 @@ async function tryParseQuestion(question) {
     });
 
     if (!response.ok) {
-      return { success: false, error: "Parser request failed" };
+      return { success: false, error: "Parser request failed", confidence: "LOW" };
     }
 
     const data = await response.json();
     return data;
   } catch (error) {
-    return { success: false, error: error.message || "Parse request error" };
+    return { success: false, error: error.message || "Parse request error", confidence: "LOW" };
   }
 }
 
@@ -760,11 +790,36 @@ async function runQuestion(question, source = "manual") {
   });
 
   try {
-    // Try to parse the question to provide UX feedback
     const parseResult = await tryParseQuestion(trimmed);
-    let parseInfo = {};
-    if (parseResult.success && parseResult.parsed) {
-      parseInfo = parseResult.parsed;
+
+    if (!parseResult.success) {
+      renderParserGuidance({
+        message: parseResult.error || "The parser could not match that wording.",
+        confidence: parseResult.confidence || "LOW"
+      });
+      updateUrl(trimmed);
+      trackEvent("ask_stats_completed", {
+        source,
+        outcome: "parse_failed",
+        parser_confidence: parseResult.confidence || "LOW"
+      });
+      showStatus("Use a template or tighten the wording.", "error", { kicker: "Parser help" });
+      return;
+    }
+
+    if (parseResult.confidence === "LOW") {
+      renderParserGuidance({
+        message: "The parser found some pieces, but not enough to run that question safely yet.",
+        confidence: "LOW"
+      });
+      updateUrl(trimmed);
+      trackEvent("ask_stats_completed", {
+        source,
+        outcome: "parse_low_confidence",
+        parser_confidence: "LOW"
+      });
+      showStatus("Use a template or tighten the wording.", "error", { kicker: "Template recommended" });
+      return;
     }
 
     const result = await fetchJson("/query", { question: trimmed, limit: 12 });
@@ -776,6 +831,7 @@ async function runQuestion(question, source = "manual") {
       question_type: result.summary?.question_type || result.parsed?.intent_type || "unknown",
       stat: result.parsed?.stat || result.summary?.stat_label || "unknown",
       subject_type: result.parsed?.subject_type || "unknown",
+      parser_confidence: parseResult.confidence || "unknown",
       has_opponent_filter: Boolean(result.parsed?.opponent_name),
       season_count_bucket: Array.isArray(result.parsed?.seasons)
         ? bucketCount(result.parsed.seasons.length, [0, 1, 2, 3, 5])
@@ -784,11 +840,16 @@ async function runQuestion(question, source = "manual") {
     });
     showStatus(
       result.status === "supported"
-        ? "Answer ready."
+        ? (parseResult.confidence === "MEDIUM"
+          ? "Answer ready. Double-check the wording if the match set looks off."
+          : "Answer ready.")
         : (result.status === "parse_help_needed" ? "I need clarification." : "That wording is not supported yet."),
       result.status === "supported" ? "success" : "error",
       result.status === "supported"
-        ? { kicker: "Ready", autoHideMs: 2200 }
+        ? {
+          kicker: parseResult.confidence === "MEDIUM" ? "Medium confidence" : "Ready",
+          autoHideMs: parseResult.confidence === "MEDIUM" ? 3200 : 2200
+        }
         : { kicker: result.status === "parse_help_needed" ? "Need help" : "Parser limit" }
     );
   } catch (error) {

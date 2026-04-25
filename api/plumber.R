@@ -1847,21 +1847,21 @@ function(req, res) {
       ))
     }
 
-    # Call the parser
-    parse_result <- parse_natural_language_question(question_text)
+    parse_result <- ask_the_stats_parse(question_text)
 
     if (identical(parse_result$success, TRUE)) {
-      # Successful parse: return parsed fields as boxed scalars
       return(list(
         success = jsonlite::unbox(TRUE),
+        confidence = jsonlite::unbox(parse_result$confidence %||% "LOW"),
+        confidence_score = jsonlite::unbox(parse_result$confidence_score %||% 0),
         parsed = record_to_scalars(parse_result$parsed)
       ))
     } else {
-      # Parse failed: return error
       res$status <- 200L  # 200 because it's a valid request, just no match
       return(list(
         success = jsonlite::unbox(FALSE),
-        error = jsonlite::unbox(parse_result$error)
+        error = jsonlite::unbox(parse_result$error),
+        confidence = jsonlite::unbox(parse_result$confidence %||% "LOW")
       ))
     }
   }, error = function(error) {
