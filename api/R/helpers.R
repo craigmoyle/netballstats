@@ -6010,36 +6010,51 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
 
   logical_operator <- toupper(logical_operator)
 
-  # Validate each filter
-  for (i in seq_along(filters)) {
-    f <- filters[[i]]
-    if (!is.list(f) || is.null(f$stat) || is.null(f$operator) || is.null(f$threshold)) {
-      return(list(
-        status = jsonlite::unbox("error"),
-        error = jsonlite::unbox(sprintf("Filter %d must have stat, operator, and threshold", i))
-      ))
-    }
+  # Validate each filter structure, operator, stat key, and coerce threshold to numeric before loop.
+  # Use lapply to prevent edge cases where tryCatch inside a loop closure doesn't halt function execution.
+  tryCatch({
+    normalized_filters <- lapply(seq_along(filters), function(i) {
+      f <- filters[[i]]
+      
+      # Validate filter structure
+      if (!is.list(f) || is.null(f$stat) || is.null(f$operator) || is.null(f$threshold)) {
+        stop(sprintf("Filter %d must have stat, operator, and threshold", i))
+      }
 
-    # Validate operator
-    if (!f$operator %in% c(">=", "<=", ">", "<", "=")) {
-      return(list(
-        status = jsonlite::unbox("error"),
-        error = jsonlite::unbox(sprintf("Filter %d has invalid operator: %s", i, f$operator))
-      ))
-    }
+      # Validate operator
+      if (!f$operator %in% c(">=", "<=", ">", "<", "=")) {
+        stop(sprintf("Filter %d has invalid operator: %s", i, f$operator))
+      }
 
-    # Coerce threshold to numeric
-    if (!is.numeric(f$threshold)) {
-      tryCatch({
-        filters[[i]]$threshold <- as.numeric(f$threshold)
-      }, error = function(e) {
-        return(list(
-          status = jsonlite::unbox("error"),
-          error = jsonlite::unbox(sprintf("Filter %d threshold must be numeric", i))
-        ))
-      })
-    }
-  }
+      # Validate stat key (case-insensitive lookup, handle "goals" special case)
+      stat_key <- tolower(f$stat)
+      if (!identical(stat_key, "goals")) {
+        resolved_stat <- resolve_stat_key(stat_key)
+        if (is.null(resolved_stat)) {
+          stop(sprintf("Filter %d: stat '%s' not recognized", i, f$stat))
+        }
+        stat_key <- resolved_stat
+      }
+
+      # Coerce threshold to numeric
+      threshold_numeric <- suppressWarnings(as.numeric(f$threshold))
+      if (is.na(threshold_numeric)) {
+        stop(sprintf("Filter %d threshold must be numeric (got '%s')", i, f$threshold))
+      }
+
+      list(
+        stat = stat_key,
+        operator = f$operator,
+        threshold = threshold_numeric
+      )
+    })
+    filters <- normalized_filters
+  }, error = function(e) {
+    return(list(
+      status = jsonlite::unbox("error"),
+      error = jsonlite::unbox(conditionMessage(e))
+    ))
+  })
 
   # Build WHERE clause conditions for each filter
   where_conditions <- character(length(filters))
@@ -6096,14 +6111,20 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
     )
   }
 
-  # Add season filter if provided
+  # Add season filter if provided with validation (bounds check: 2008–2100)
   if (!is.null(season)) {
     season_value <- as.integer(season)
+    if (is.na(season_value) || season_value < 2008L || season_value > 2100L) {
+      return(list(
+        status = jsonlite::unbox("error"),
+        error = jsonlite::unbox(sprintf("Season must be between 2008 and 2100 (got %s)", season))
+      ))
+    }
     query <- paste0(query, " AND pms.season = ?season")
     params$season <- season_value
   }
 
-  # Sort by combined score (goals + gains DESC) and limit results
+  # Limit to 100 results for performance and consistency with other query builders
   if (identical(tolower(filters[[1]]$stat), "goals")) {
     query <- paste0(
       query,
@@ -6151,10 +6172,21 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
       list()
     }
 
+    # Build filter list with labels for response
+    filter_specs <- lapply(seq_along(filters), function(i) {
+      f <- filters[[i]]
+      list(
+        stat = f$stat,
+        stat_label = jsonlite::unbox(query_stat_label(f$stat)),
+        operator = jsonlite::unbox(f$operator),
+        threshold = jsonlite::unbox(f$threshold)
+      )
+    })
+
     list(
       status = jsonlite::unbox("supported"),
       intent_type = jsonlite::unbox("combination"),
-      filters = filters,
+      filters = filter_specs,
       logical_operator = jsonlite::unbox(logical_operator),
       season = if (is.null(season)) NULL else jsonlite::unbox(as.integer(season)),
       total_matches = jsonlite::unbox(nrow(rows)),
@@ -6339,11 +6371,12 @@ resolve_stat_key <- function(stat_input) {
 fetch_team_season_aggregate <- function(conn, team_id, stat_key, season) {
   query <- paste(
     "SELECT",
-    "  SUM(CAST(?stat AS NUMERIC)) AS total,",
+    "  SUM(CAST(value_number AS NUMERIC)) AS total,",
     "  COUNT(DISTINCT round_number) AS games",
     "FROM team_period_stats",
     "WHERE squad_id = ?team_id",
-    "  AND season = ?season"
+    "  AND season = ?season",
+    "  AND stat = ?stat"
   )
 
   params <- list(stat = stat_key, team_id = team_id, season = season)
@@ -6405,12 +6438,13 @@ fetch_team_round_breakdown <- function(conn, team_id, stat_key, season) {
   query <- paste(
     "SELECT",
     "  stats.round_number,",
-    "  CAST(?stat AS NUMERIC) AS value,",
+    "  CAST(stats.value_number AS NUMERIC) AS value,",
     paste0("  ", opponent_name_sql("stats.squad_id"), " AS opponent"),
     "FROM team_period_stats stats",
     "INNER JOIN matches ON matches.match_id = stats.match_id",
     "WHERE stats.squad_id = ?team_id",
     "  AND stats.season = ?season",
+    "  AND stats.stat = ?stat",
     "ORDER BY stats.round_number ASC"
   )
 
