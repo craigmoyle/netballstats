@@ -1932,6 +1932,64 @@ assert_true(identical(scalar_value(count_query$status), 'supported') ||
   'Expected count query to work')
 check_step('/query GET: count query backward compatible')
 
+# Task 6: Array bounds safety tests
+cat("\nTesting Task 6: Array bounds safety (empty array handling)...\n")
+
+cat("Checking /query POST comparison with empty subjects array...\n")
+empty_subjects <- request_json_post(base_url, '/query', list(
+  builder_source = TRUE,
+  shape = 'comparison',
+  subjects = c(),
+  stat = 'goals',
+  seasons = c(2024)
+), expected_status = 200L)
+assert_true(identical(scalar_value(empty_subjects$status), 'error'),
+  'Expected empty subjects to return error, not crash')
+assert_contains(scalar_value(empty_subjects$error), 'Comparison requires',
+  'Expected error message about comparison requirements')
+check_step('/query POST: comparison with empty subjects returns error safely')
+
+cat("Checking /query POST comparison with empty seasons array...\n")
+empty_seasons <- request_json_post(base_url, '/query', list(
+  builder_source = TRUE,
+  shape = 'comparison',
+  subjects = c('Collingwood', 'Melbourne'),
+  stat = 'goals',
+  seasons = c()
+), expected_status = 200L)
+assert_true(identical(scalar_value(empty_seasons$status), 'error'),
+  'Expected empty seasons to return error, not crash')
+assert_contains(scalar_value(empty_seasons$error), 'Comparison requires',
+  'Expected error message about comparison requirements')
+check_step('/query POST: comparison with empty seasons returns error safely')
+
+cat("Checking /query POST trend with empty seasons array...\n")
+trend_empty_seasons <- request_json_post(base_url, '/query', list(
+  builder_source = TRUE,
+  shape = 'trend',
+  subject = 'Collingwood',
+  stat = 'goals',
+  seasons = c()
+), expected_status = 200L)
+assert_true(!is.null(trend_empty_seasons$status),
+  'Expected trend with empty seasons to handle gracefully (NULL passed)')
+# Trend allows NULL seasons, so this should succeed or give builder error, not crash
+check_step('/query POST: trend with empty seasons handles gracefully')
+
+cat("Checking /query POST record with empty seasons array...\n")
+record_empty_seasons <- request_json_post(base_url, '/query', list(
+  builder_source = TRUE,
+  shape = 'record',
+  stat = 'goals',
+  seasons = c()
+), expected_status = 200L)
+assert_true(!is.null(record_empty_seasons$status),
+  'Expected record with empty seasons to handle gracefully (NULL passed)')
+# Record allows NULL seasons, so this should succeed or give builder error, not crash
+check_step('/query POST: record with empty seasons handles gracefully')
+
+cat('All Task 6 array bounds safety tests passed.\n')
+
 cat('All Task 6 builder routing tests passed.\n')
 
 cat('All API regression checks passed.\n')

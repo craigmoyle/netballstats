@@ -1564,10 +1564,11 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
 
       # Route to appropriate builder
       if (identical(shape, "comparison")) {
-        if (is.na(subjects[[1]]) || is.na(stat) || is.na(seasons[[1]])) {
+        if (length(subjects) < 2 || length(subjects) == 0 || is.na(subjects[[1]]) || 
+            is.na(stat) || length(seasons) == 0 || is.na(seasons[[1]])) {
           return(list(
             status = jsonlite::unbox("error"),
-            error = jsonlite::unbox("Comparison requires subjects, stat, and season")
+            error = jsonlite::unbox("Comparison requires subjects (2 items), stat, and season")
           ))
         }
         builder_result <- build_comparison_query(
@@ -1587,7 +1588,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
         builder_result <- build_trend_query(
           subject = as.character(subject),
           stat = as.character(stat),
-          seasons = if (is.na(seasons[[1]])) NULL else as.integer(seasons),
+          seasons = if (length(seasons) == 0 || is.na(seasons[[1]])) NULL else as.integer(seasons),
           conn = conn
         )
         return(builder_result)
@@ -1601,7 +1602,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
         builder_result <- build_record_query(
           stat = as.character(stat),
           subject_type = if (is.na(subject)) "player" else "team",
-          season = if (is.na(seasons[[1]])) NULL else as.integer(seasons[[1]]),
+          season = if (length(seasons) == 0 || is.na(seasons[[1]])) NULL else as.integer(seasons[[1]]),
           conn = conn
         )
         return(builder_result)
@@ -1615,7 +1616,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
         builder_result <- build_combination_query(
           filters = filters,
           logical_operator = logical_operator %||% "AND",
-          season = if (is.na(seasons[[1]])) NULL else as.integer(seasons[[1]]),
+          season = if (length(seasons) == 0 || is.na(seasons[[1]])) NULL else as.integer(seasons[[1]]),
           conn = conn
         )
         return(builder_result)
