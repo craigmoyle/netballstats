@@ -1527,11 +1527,11 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
   subject_type <- match.arg(subject_type)
 
   if (is.null(stat) || !nzchar(stat)) {
-    return(list(status = "unsupported", error = "Stat is required."))
+    return(list(status = jsonlite::unbox("unsupported"), error = jsonlite::unbox("Stat is required.")))
   }
 
   if (!stat %in% DEFAULT_PLAYER_STATS && !stat %in% DEFAULT_TEAM_STATS) {
-    return(list(status = "unsupported", error = paste("Stat", stat, "is not recognized.")))
+    return(list(status = jsonlite::unbox("unsupported"), error = jsonlite::unbox(paste("Stat", stat, "is not recognized."))))
   }
 
   stat_label <- query_stat_label(stat)
@@ -1665,11 +1665,11 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
 
   if (!nrow(record_row)) {
     return(list(
-      status = "supported",
-      intent_type = "record",
-      stat = stat,
-      stat_label = stat_label,
-      scope = scope,
+      status = jsonlite::unbox("supported"),
+      intent_type = jsonlite::unbox("record"),
+      stat = jsonlite::unbox(stat),
+      stat_label = jsonlite::unbox(stat_label),
+      scope = jsonlite::unbox(scope),
       record = NULL,
       context = list()
     ))
@@ -1856,11 +1856,11 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
   }
 
   list(
-    status = "supported",
-    intent_type = "record",
-    stat = stat,
-    stat_label = stat_label,
-    scope = scope,
+    status = jsonlite::unbox("supported"),
+    intent_type = jsonlite::unbox("record"),
+    stat = jsonlite::unbox(stat),
+    stat_label = jsonlite::unbox(stat_label),
+    scope = jsonlite::unbox(scope),
     record = record_entry,
     context = context_list
   )
@@ -6309,9 +6309,9 @@ build_comparison_query <- function(subjects, stat, season, conn) {
       # 1. Validate inputs: exactly 2 subjects required
       if (!is.character(subjects) || length(subjects) != 2L) {
         return(list(
-          status = "error",
-          error = "Exactly 2 subjects required for comparison",
-          intent_type = "comparison"
+          status = jsonlite::unbox("error"),
+          error = jsonlite::unbox("Exactly 2 subjects required for comparison"),
+          intent_type = jsonlite::unbox("comparison")
         ))
       }
 
@@ -6319,9 +6319,9 @@ build_comparison_query <- function(subjects, stat, season, conn) {
       season_int <- as.integer(season)
       if (is.na(season_int) || season_int < 2008L || season_int > 2100L) {
         return(list(
-          status = "error",
-          error = "Invalid season",
-          intent_type = "comparison"
+          status = jsonlite::unbox("error"),
+          error = jsonlite::unbox("Invalid season"),
+          intent_type = jsonlite::unbox("comparison")
         ))
       }
 
@@ -6329,9 +6329,9 @@ build_comparison_query <- function(subjects, stat, season, conn) {
       stat_key <- resolve_stat_key(stat)
       if (is.null(stat_key)) {
         return(list(
-          status = "error",
-          error = "Stat not found",
-          intent_type = "comparison"
+          status = jsonlite::unbox("error"),
+          error = jsonlite::unbox("Stat not found"),
+          intent_type = jsonlite::unbox("comparison")
         ))
       }
 
@@ -6356,9 +6356,9 @@ build_comparison_query <- function(subjects, stat, season, conn) {
           agg <- fetch_team_season_aggregate(conn, team_id, stat_key, season_int)
           if (is.null(agg)) {
             return(list(
-              status = "error",
-              error = paste("No data found for", team_name, "in season", season_int),
-              intent_type = "comparison"
+              status = jsonlite::unbox("error"),
+              error = jsonlite::unbox(paste("No data found for", team_name, "in season", season_int)),
+              intent_type = jsonlite::unbox("comparison")
             ))
           }
 
@@ -6387,9 +6387,9 @@ build_comparison_query <- function(subjects, stat, season, conn) {
             agg <- fetch_player_season_aggregate(conn, player_id, stat_key, season_int)
             if (is.null(agg)) {
               return(list(
-                status = "error",
-                error = paste("No data found for", player_name, "in season", season_int),
-                intent_type = "comparison"
+                status = jsonlite::unbox("error"),
+                error = jsonlite::unbox(paste("No data found for", player_name, "in season", season_int)),
+                intent_type = jsonlite::unbox("comparison")
               ))
             }
 
@@ -6408,9 +6408,9 @@ build_comparison_query <- function(subjects, stat, season, conn) {
             total_by_subject[[player_name]] <- agg$total
           } else {
             return(list(
-              status = "error",
-              error = paste("Could not resolve subject:", subject_name),
-              intent_type = "comparison"
+              status = jsonlite::unbox("error"),
+              error = jsonlite::unbox(paste("Could not resolve subject:", subject_name)),
+              intent_type = jsonlite::unbox("comparison")
             ))
           }
         }
@@ -6427,25 +6427,25 @@ build_comparison_query <- function(subjects, stat, season, conn) {
 
       # 6. Return structured response
       list(
-        status = "supported",
-        intent_type = "comparison",
+        status = jsonlite::unbox("supported"),
+        intent_type = jsonlite::unbox("comparison"),
         subjects = subjects,
-        stat = stat_key,
-        stat_label = stat_label,
-        season = season_int,
+        stat = jsonlite::unbox(stat_key),
+        stat_label = jsonlite::unbox(stat_label),
+        season = jsonlite::unbox(season_int),
         results = results,
         comparison = list(
-          leader = leader_name,
-          difference = difference,
-          percentage_ahead = percentage_ahead
+          leader = jsonlite::unbox(leader_name),
+          difference = jsonlite::unbox(difference),
+          percentage_ahead = jsonlite::unbox(percentage_ahead)
         )
       )
     },
     error = function(e) {
       list(
-        status = "error",
-        error = paste("Query failed:", conditionMessage(e)),
-        intent_type = "comparison"
+        status = jsonlite::unbox("error"),
+        error = jsonlite::unbox(paste("Query failed:", conditionMessage(e))),
+        intent_type = jsonlite::unbox("comparison")
       )
     }
   )
