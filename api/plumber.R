@@ -1557,6 +1557,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 #* @param seasons Integer array (POST only) - season list
 #* @param filters List (POST only) - for combination
 #* @param logical_operator Character (POST only) - "AND" | "OR"
+#* @serializer unboxedJSONNullNA
 function(req, res, question = "", limit = "12", builder_source = FALSE, shape = NA,
          subjects = NA, subject = NA, stat = NA, seasons = NA, filters = NA,
          logical_operator = NA) {
@@ -1601,6 +1602,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
     # If builder_source=true, skip parsing and go straight to builder
     if (isTRUE(builder_source)) {
       if (is.na(shape)) {
+        res$status <- 400L
         return(list(
           status = jsonlite::unbox("error"),
           error = jsonlite::unbox("Shape is required for builder submission")
@@ -1611,6 +1613,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
       if (identical(shape, "comparison")) {
         if (length(subjects) < 2 || length(subjects) == 0 || is.na(subjects[[1]]) ||
             is.na(stat) || length(seasons) == 0 || is.na(seasons[[1]])) {
+          res$status <- 400L
           return(list(
             status = jsonlite::unbox("error"),
             error = jsonlite::unbox("Comparison requires subjects (2 items), stat, and season")
@@ -1625,6 +1628,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
         return(builder_result)
       } else if (identical(shape, "trend")) {
         if (is.na(subject) || is.na(stat)) {
+          res$status <- 400L
           return(list(
             status = jsonlite::unbox("error"),
             error = jsonlite::unbox("Trend requires subject and stat")
@@ -1639,6 +1643,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
         return(builder_result)
       } else if (identical(shape, "record")) {
         if (is.na(stat)) {
+          res$status <- 400L
           return(list(
             status = jsonlite::unbox("error"),
             error = jsonlite::unbox("Record requires stat")
@@ -1653,6 +1658,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
         return(builder_result)
       } else if (identical(shape, "combination")) {
         if (!is.list(filters) || length(filters) == 0) {
+          res$status <- 400L
           return(list(
             status = jsonlite::unbox("error"),
             error = jsonlite::unbox("Combination requires filters")
@@ -1666,6 +1672,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
         )
         return(builder_result)
       } else {
+        res$status <- 400L
         return(list(
           status = jsonlite::unbox("error"),
           error = jsonlite::unbox(paste0("Unknown shape: ", shape))
