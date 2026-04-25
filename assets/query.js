@@ -96,6 +96,58 @@ const exampleButtons = Array.from(elements.exampleStrip.querySelectorAll("[data-
 const templateButtons = Array.from((elements.queryTemplateStrip?.querySelectorAll("[data-template]")) || []);
 const submitButtonDefaultLabel = elements.submitButton?.textContent || "Run question";
 
+// Builder modal elements
+const builderElements = {
+  modal: document.getElementById("query-builder-modal"),
+  form: document.getElementById("builder-form"),
+  closeBtn: document.querySelector(".builder-modal__close"),
+  nextBtn: document.getElementById("builder-next"),
+  prevBtn: document.getElementById("builder-prev"),
+  submitBtn: document.getElementById("builder-submit"),
+  addSubjectBtn: document.getElementById("builder-add-subject"),
+  
+  // Step elements
+  stepShape: document.getElementById("builder-step-shape"),
+  stepSubjects: document.getElementById("builder-step-subjects"),
+  stepStat: document.getElementById("builder-step-stat"),
+  stepFilters: document.getElementById("builder-step-filters"),
+  stepTimeframe: document.getElementById("builder-step-timeframe"),
+  
+  // Subject selection
+  subjectSearch: document.getElementById("builder-subject-search"),
+  subjectList: document.getElementById("builder-subject-list"),
+  
+  // Stat selection
+  statSearch: document.getElementById("builder-stat-search"),
+  statList: document.getElementById("builder-stat-list"),
+  
+  // Filters
+  filterOpponent: document.getElementById("builder-filter-opponent"),
+  filterLocation: document.getElementById("builder-filter-location"),
+  filterGames: document.getElementById("builder-filter-games"),
+  
+  // Timeframe
+  timeframeSingle: document.getElementById("builder-timeframe-single"),
+  timeframeRange: document.getElementById("builder-timeframe-range"),
+  seasonSingle: document.getElementById("builder-season-single"),
+  seasonFrom: document.getElementById("builder-season-from"),
+  seasonTo: document.getElementById("builder-season-to")
+};
+
+// Builder state
+let builderState = {
+  currentStep: 1,
+  shape: null,
+  subjects: [],
+  stat: null,
+  filters: {},
+  timeframe: null,
+  seasonSingle: null,
+  seasonRange: null,
+  availableSeasons: [],
+  availableSubjects: []
+};
+
 if (elements.apiBase) {
   elements.apiBase.textContent = API_BASE_URL;
 }
@@ -702,6 +754,465 @@ async function runQuestion(question, source = "manual") {
   }
 }
 
+// ============================================================================
+// Builder Modal Functions
+// ============================================================================
+
+function resetBuilderState() {
+  builderState = {
+    currentStep: 1,
+    shape: null,
+    subjects: [],
+    stat: null,
+    filters: {},
+    timeframe: null,
+    seasonSingle: null,
+    seasonRange: null,
+    availableSeasons: [],
+    availableSubjects: []
+  };
+}
+
+function showBuilderStep(stepNum) {
+  const steps = [
+    builderElements.stepShape,
+    builderElements.stepSubjects,
+    builderElements.stepStat,
+    builderElements.stepFilters,
+    builderElements.stepTimeframe
+  ];
+
+  steps.forEach((step, idx) => {
+    if (step) {
+      step.hidden = idx !== stepNum - 1;
+    }
+  });
+
+  builderState.currentStep = stepNum;
+  updateBuilderFooter();
+}
+
+function updateBuilderFooter() {
+  const isFirstStep = builderState.currentStep === 1;
+  const isLastStep = builderState.currentStep === 5;
+
+  if (builderElements.prevBtn) {
+    builderElements.prevBtn.hidden = isFirstStep;
+  }
+  if (builderElements.nextBtn) {
+    builderElements.nextBtn.hidden = isLastStep;
+  }
+  if (builderElements.submitBtn) {
+    builderElements.submitBtn.hidden = !isLastStep;
+  }
+}
+
+function validateBuilderStep(stepNum) {
+  switch (stepNum) {
+    case 1: // Shape
+      return !!builderState.shape;
+    case 2: // Subjects
+      return builderState.subjects && builderState.subjects.length > 0;
+    case 3: // Stat
+      return !!builderState.stat;
+    case 4: // Filters (optional)
+      return true;
+    case 5: // Timeframe
+      if (!builderState.timeframe) return false;
+      if (builderState.timeframe === "single") {
+        return !!builderState.seasonSingle;
+      } else if (builderState.timeframe === "range") {
+        return !!(builderState.seasonRange && builderState.seasonRange.from && builderState.seasonRange.to);
+      }
+      return true;
+    default:
+      return false;
+  }
+}
+
+function nextBuilderStep() {
+  if (!validateBuilderStep(builderState.currentStep)) {
+    return;
+  }
+  if (builderState.currentStep < 5) {
+    showBuilderStep(builderState.currentStep + 1);
+  }
+}
+
+function prevBuilderStep() {
+  if (builderState.currentStep > 1) {
+    showBuilderStep(builderState.currentStep - 1);
+  }
+}
+
+function getStatsList() {
+  const stats = window.NetballStatsUI?.STAT_LABEL_OVERRIDES || {};
+  return Object.keys(stats);
+}
+
+function renderBuilderShapeOptions() {
+  const shapes = ["comparison", "combination", "trend", "record", "count", "highest", "lowest", "list"];
+  const radios = builderElements.stepShape.querySelectorAll('input[name="shape"]');
+  
+  radios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      builderState.shape = radio.value;
+      
+      // For comparison, allow multi-select; others single
+      const isComparison = builderState.shape === "comparison";
+      if (builderElements.addSubjectBtn) {
+        builderElements.addSubjectBtn.hidden = !isComparison;
+      }
+      
+      nextBuilderStep();
+    });
+  });
+}
+
+function renderBuilderSubjectOptions() {
+  if (!builderElements.subjectList) return;
+
+  const subjects = builderState.availableSubjects || [];
+  const filtered = (builderElements.subjectSearch?.value || "").toLowerCase();
+  const matched = filtered
+    ? subjects.filter(s => s.toLowerCase().includes(filtered))
+    : subjects;
+
+  builderElements.subjectList.replaceChildren();
+
+  matched.forEach((subject) => {
+    const isMulti = builderState.shape === "comparison";
+    const label = document.createElement("label");
+    label.className = "builder-subject-option";
+    
+    const input = document.createElement("input");
+    input.type = isMulti ? "checkbox" : "radio";
+    input.name = isMulti ? "subjects" : "subject-single";
+    input.value = subject;
+    
+    input.addEventListener("change", () => {
+      if (isMulti) {
+        if (input.checked) {
+          if (!builderState.subjects.includes(subject)) {
+            builderState.subjects.push(subject);
+          }
+        } else {
+          builderState.subjects = builderState.subjects.filter(s => s !== subject);
+        }
+      } else {
+        builderState.subjects = [subject];
+      }
+    });
+
+    const span = document.createElement("span");
+    span.textContent = subject;
+
+    label.appendChild(input);
+    label.appendChild(span);
+    builderElements.subjectList.appendChild(label);
+  });
+}
+
+function renderBuilderStatOptions() {
+  if (!builderElements.statList) return;
+
+  const stats = getStatsList();
+  const filtered = (builderElements.statSearch?.value || "").toLowerCase();
+  const matched = filtered
+    ? stats.filter(s => s.toLowerCase().includes(filtered) || formatStatLabel(s).toLowerCase().includes(filtered))
+    : stats;
+
+  builderElements.statList.replaceChildren();
+
+  matched.forEach((stat) => {
+    const label = document.createElement("label");
+    label.className = "builder-stat-option";
+    
+    const input = document.createElement("input");
+    input.type = "radio";
+    input.name = "stat";
+    input.value = stat;
+    
+    input.addEventListener("change", () => {
+      builderState.stat = stat;
+    });
+
+    const span = document.createElement("span");
+    span.textContent = formatStatLabel(stat);
+
+    label.appendChild(input);
+    label.appendChild(span);
+    builderElements.statList.appendChild(label);
+  });
+}
+
+function setupBuilderFilterListeners() {
+  const filterCheckboxes = builderElements.form.querySelectorAll('[name^="filter-"]');
+  
+  filterCheckboxes.forEach((checkbox) => {
+    checkbox.addEventListener("change", () => {
+      const filterType = checkbox.value;
+      
+      if (checkbox.checked) {
+        const filterInput = document.getElementById(`builder-filter-${filterType}`);
+        if (filterInput) filterInput.hidden = false;
+      } else {
+        const filterInput = document.getElementById(`builder-filter-${filterType}`);
+        if (filterInput) {
+          filterInput.hidden = true;
+          // Clear value
+          const input = filterInput.querySelector("input, select");
+          if (input) input.value = "";
+        }
+        delete builderState.filters[filterType];
+      }
+    });
+  });
+}
+
+function setupBuilderTimeframeListeners() {
+  const timeframeRadios = builderElements.form.querySelectorAll('[name="timeframe"]');
+  
+  timeframeRadios.forEach((radio) => {
+    radio.addEventListener("change", () => {
+      builderState.timeframe = radio.value;
+
+      if (builderElements.timeframeSingle) {
+        builderElements.timeframeSingle.hidden = radio.value !== "single";
+      }
+      if (builderElements.timeframeRange) {
+        builderElements.timeframeRange.hidden = radio.value !== "range";
+      }
+    });
+  });
+
+  // Season single select
+  if (builderElements.seasonSingle) {
+    builderElements.seasonSingle.addEventListener("change", () => {
+      builderState.seasonSingle = builderElements.seasonSingle.value ? parseInt(builderElements.seasonSingle.value, 10) : null;
+    });
+  }
+
+  // Season range selects
+  if (builderElements.seasonFrom) {
+    builderElements.seasonFrom.addEventListener("change", () => {
+      if (!builderState.seasonRange) builderState.seasonRange = {};
+      builderState.seasonRange.from = builderElements.seasonFrom.value ? parseInt(builderElements.seasonFrom.value, 10) : null;
+    });
+  }
+  if (builderElements.seasonTo) {
+    builderElements.seasonTo.addEventListener("change", () => {
+      if (!builderState.seasonRange) builderState.seasonRange = {};
+      builderState.seasonRange.to = builderElements.seasonTo.value ? parseInt(builderElements.seasonTo.value, 10) : null;
+    });
+  }
+}
+
+function populateBuilderSeasonSelects() {
+  const seasons = builderState.availableSeasons.sort((a, b) => b - a); // Descending
+
+  [builderElements.seasonSingle, builderElements.seasonFrom, builderElements.seasonTo].forEach((select) => {
+    if (!select) return;
+    const currentValue = select.value;
+    select.replaceChildren();
+
+    if (select === builderElements.seasonSingle) {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = "Select season…";
+      select.appendChild(option);
+    } else {
+      const option = document.createElement("option");
+      option.value = "";
+      option.textContent = select.id.includes("from") ? "From season…" : "To season…";
+      select.appendChild(option);
+    }
+
+    seasons.forEach((season) => {
+      const option = document.createElement("option");
+      option.value = season;
+      option.textContent = season;
+      select.appendChild(option);
+    });
+
+    if (currentValue) select.value = currentValue;
+  });
+}
+
+async function submitBuilderQuery() {
+  const isValid = validateBuilderStep(5);
+  if (!isValid) return;
+
+  const formData = {
+    shape: builderState.shape,
+    subjects: builderState.subjects,
+    stat: builderState.stat,
+    filters: builderState.filters,
+    timeframe: builderState.timeframe
+  };
+
+  if (builderState.timeframe === "single") {
+    formData.seasons = builderState.seasonSingle ? [builderState.seasonSingle] : [];
+  } else if (builderState.timeframe === "range") {
+    const from = builderState.seasonRange?.from || 0;
+    const to = builderState.seasonRange?.to || 0;
+    formData.seasons = [];
+    for (let i = from; i <= to; i++) {
+      formData.seasons.push(i);
+    }
+  } else {
+    formData.seasons = builderState.availableSeasons;
+  }
+
+  try {
+    showLoadingStatus(QUERY_LOADING_MESSAGES, "Building query");
+
+    // Convert builder query to natural language or construct API payload
+    // For now, post builder_source flag
+    const result = await fetchJson("/query", {
+      builder_source: true,
+      builder_query: formData,
+      limit: 12
+    });
+
+    renderResult(result);
+    closeBuilderModal();
+  } catch (error) {
+    renderUnsupported({
+      status: "error",
+      reason: error.message || "Builder query failed"
+    });
+    showStatus(error.message || "Builder query failed.", "error");
+  }
+}
+
+function closeBuilderModal() {
+  if (builderElements.modal) {
+    builderElements.modal.close();
+  }
+}
+
+function openBuilderModalUI(prefill = {}) {
+  if (!builderElements.modal) return;
+
+  resetBuilderState();
+
+  // Prefill if provided
+  if (prefill.shape) {
+    builderState.shape = prefill.shape;
+    const shapeRadio = builderElements.stepShape.querySelector(`input[value="${prefill.shape}"]`);
+    if (shapeRadio) shapeRadio.checked = true;
+  }
+
+  if (prefill.subjects && Array.isArray(prefill.subjects)) {
+    builderState.subjects = [...prefill.subjects];
+  }
+
+  if (prefill.stat) {
+    builderState.stat = prefill.stat;
+  }
+
+  if (prefill.seasons && Array.isArray(prefill.seasons)) {
+    if (prefill.seasons.length === 1) {
+      builderState.timeframe = "single";
+      builderState.seasonSingle = prefill.seasons[0];
+    } else {
+      builderState.timeframe = "range";
+      builderState.seasonRange = {
+        from: Math.min(...prefill.seasons),
+        to: Math.max(...prefill.seasons)
+      };
+    }
+  }
+
+  showBuilderStep(1);
+  builderElements.modal.showModal();
+}
+
+function setupBuilderEventListeners() {
+  if (!builderElements.modal) return;
+
+  // Close button
+  if (builderElements.closeBtn) {
+    builderElements.closeBtn.addEventListener("click", closeBuilderModal);
+  }
+
+  // Navigation buttons
+  if (builderElements.nextBtn) {
+    builderElements.nextBtn.addEventListener("click", nextBuilderStep);
+  }
+  if (builderElements.prevBtn) {
+    builderElements.prevBtn.addEventListener("click", prevBuilderStep);
+  }
+
+  // Form submission
+  if (builderElements.form) {
+    builderElements.form.addEventListener("submit", (e) => {
+      e.preventDefault();
+      void submitBuilderQuery();
+    });
+  }
+
+  // Add subject button for comparison
+  if (builderElements.addSubjectBtn) {
+    builderElements.addSubjectBtn.addEventListener("click", () => {
+      // Focus subject search to add another
+      if (builderElements.subjectSearch) {
+        builderElements.subjectSearch.focus();
+      }
+    });
+  }
+
+  // Subject search
+  if (builderElements.subjectSearch) {
+    builderElements.subjectSearch.addEventListener("input", renderBuilderSubjectOptions);
+  }
+
+  // Stat search
+  if (builderElements.statSearch) {
+    builderElements.statSearch.addEventListener("input", renderBuilderStatOptions);
+  }
+
+  // Shape options
+  renderBuilderShapeOptions();
+
+  // Filters
+  setupBuilderFilterListeners();
+
+  // Timeframe
+  setupBuilderTimeframeListeners();
+
+  // Listen for custom event from error banner
+  window.addEventListener("open-builder-modal", (event) => {
+    const prefill = event.detail?.prefill || {};
+    openBuilderModalUI(prefill);
+  });
+
+  // Close modal on Escape
+  builderElements.modal.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      closeBuilderModal();
+    }
+  });
+}
+
+async function loadBuilderMetadata() {
+  try {
+    const meta = await fetchJson("/meta");
+    if (meta.seasons && Array.isArray(meta.seasons)) {
+      builderState.availableSeasons = meta.seasons;
+      populateBuilderSeasonSelects();
+    }
+    if (meta.players && Array.isArray(meta.players)) {
+      builderState.availableSubjects = meta.players;
+    } else if (meta.subjects && Array.isArray(meta.subjects)) {
+      builderState.availableSubjects = meta.subjects;
+    }
+  } catch (error) {
+    console.error("Failed to load builder metadata:", error);
+  }
+}
+
 async function init() {
   setIdleState();
 
@@ -712,6 +1223,10 @@ async function init() {
   } catch (error) {
     elements.querySeasonSummary.textContent = "Metadata unavailable. The parser may still work.";
   }
+
+  // Initialize builder modal
+  await loadBuilderMetadata();
+  setupBuilderEventListeners();
 
   const params = new URLSearchParams(window.location.search);
   const initialQuestion = params.get("q");
