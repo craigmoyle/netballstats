@@ -36,6 +36,14 @@ parse_natural_language_question <- function(question_text, conn = NULL) {
   parsed$operator <- operator_result$operator
   parsed$threshold <- operator_result$threshold
 
+  # Step 1b: For count_threshold operator, also try to extract numeric threshold
+  if (parsed$operator == "count_threshold") {
+    threshold_value <- extract_threshold(text)
+    if (!is.null(threshold_value)) {
+      parsed$threshold <- threshold_value
+    }
+  }
+
   if (is.null(parsed$operator)) {
     return(list(
       success = FALSE,
@@ -47,6 +55,11 @@ parse_natural_language_question <- function(question_text, conn = NULL) {
   # Step 2: Extract stat
   stat_result <- extract_stat(text)
   parsed$stat <- stat_result$stat
+
+  # For head_to_head comparisons without an explicit stat, default to "goals"
+  if (is.null(parsed$stat) && parsed$operator == "head_to_head") {
+    parsed$stat <- "goals"
+  }
 
   if (is.null(parsed$stat)) {
     return(list(
@@ -86,6 +99,11 @@ parse_natural_language_question <- function(question_text, conn = NULL) {
 
 # Detect operator type from question text
 extract_operator <- function(text) {
+  # "which players|which teams|list players|list teams" → list (check FIRST, before "record")
+  if (grepl("\\b(which|list)\\s+(players|teams|young players)\\b", text)) {
+    return(list(operator = "list", threshold = NULL))
+  }
+
   # "how many times" → count_threshold
   if (grepl("\\bhow\\s+many\\s+times?\\b", text)) {
     return(list(operator = "count_threshold", threshold = NULL))
@@ -101,14 +119,14 @@ extract_operator <- function(text) {
     return(list(operator = "highest", threshold = NULL))
   }
 
+  # "record" implies highest (e.g., "career record", "season record", "record?")
+  if (grepl("\\brecord\\b", text)) {
+    return(list(operator = "highest", threshold = NULL))
+  }
+
   # "lowest" → lowest
   if (grepl("\\blowest\\b", text)) {
     return(list(operator = "lowest", threshold = NULL))
-  }
-
-  # "which players|which teams|list players|list teams" → list
-  if (grepl("\\b(which|list)\\s+(players|teams|young players)\\b", text)) {
-    return(list(operator = "list", threshold = NULL))
   }
 
   # "vs|versus|compared to|against.*vs" → head_to_head or comparison
@@ -122,32 +140,67 @@ extract_operator <- function(text) {
     return(list(operator = "count_threshold", threshold = NULL))
   }
 
-  # Fall back if no clear pattern detected
-  list(operator = NULL, threshold = NULL)
+  # "at least", "at most", "more than", "fewer than" → count_threshold
+  # (threshold-based questions like "at least 10 goal assists")
+  if (grepl("\\b(at\\s+least|at\\s+most|more\\s+than|fewer\\s+than)\\b", text)) {
+    return(list(operator = "count_threshold", threshold = NULL))
+  }
+
+  # If no clear operator found but text contains a stat, default to "highest"
+  # (e.g., "Team X stat?" or "Player Y stat per game?" → highest)
+  return(list(operator = "highest", threshold = NULL))
 }
 
 # Extract threshold number from text like "50 goals or more", "5+", "[threshold]+"
 extract_threshold <- function(text) {
-  # Look for "N or more", "N or greater", "N+"
-  threshold_patterns <- list(
-    "\\b(\\d+)\\s+(?:or\\s+)?(?:or\\s+)?(?:more|greater)" = 1,
-    "\\b(\\d+)\\+" = 1,
-    "at\\s+least\\s+(\\d+)" = 1,
-    "more\\s+than\\s+(\\d+)" = 1,
-    "fewer\\s+than\\s+(\\d+)" = 1,
-    "at\\s+most\\s+(\\d+)" = 1
-  )
+  # Pattern 1: "N [word(s)] or more", "N [word(s)] or greater" (e.g., "50 goals or more")
+  m <- regexpr("\\b(\\d+)(?:\\s+\\w+)*\\s+or\\s+(more|greater)", text, perl = TRUE)
+  if (m > 0) {
+    match_str <- substr(text, m, m + attr(m, "match.length") - 1)
+    # Extract just the leading number
+    num_match <- regexpr("^\\d+", match_str)
+    num_str <- substr(match_str, num_match, num_match + attr(num_match, "match.length") - 1)
+    if (nzchar(num_str)) return(as.integer(num_str))
+  }
 
-  for (pattern in names(threshold_patterns)) {
-    matches <- regmatches(text, gregexpr(pattern, text))
-    if (length(matches[[1]]) > 0) {
-      # Extract the number from the matched group
-      nums <- gregexpr("\\d+", matches[[1]][[1]])
-      num_str <- substr(matches[[1]][[1]], nums[[1]][1], nums[[1]][1] + attr(nums[[1]], "match.length")[1] - 1)
-      if (nzchar(num_str)) {
-        return(as.integer(num_str))
-      }
-    }
+  # Pattern 2: "N+" (e.g., "5+")
+  m <- regexpr("\\b(\\d+)\\+", text)
+  if (m > 0) {
+    match_str <- substr(text, m, m + attr(m, "match.length") - 1)
+    num_str <- gsub("\\+", "", match_str)
+    if (nzchar(num_str)) return(as.integer(num_str))
+  }
+
+  # Pattern 3: "at least N"
+  m <- regexpr("at\\s+least\\s+(\\d+)", text)
+  if (m > 0) {
+    match_str <- substr(text, m, m + attr(m, "match.length") - 1)
+    num_str <- sub(".*\\s+", "", match_str)
+    if (nzchar(num_str)) return(as.integer(num_str))
+  }
+
+  # Pattern 4: "more than N"
+  m <- regexpr("more\\s+than\\s+(\\d+)", text)
+  if (m > 0) {
+    match_str <- substr(text, m, m + attr(m, "match.length") - 1)
+    num_str <- sub(".*\\s+", "", match_str)
+    if (nzchar(num_str)) return(as.integer(num_str))
+  }
+
+  # Pattern 5: "fewer than N"
+  m <- regexpr("fewer\\s+than\\s+(\\d+)", text)
+  if (m > 0) {
+    match_str <- substr(text, m, m + attr(m, "match.length") - 1)
+    num_str <- sub(".*\\s+", "", match_str)
+    if (nzchar(num_str)) return(as.integer(num_str))
+  }
+
+  # Pattern 6: "at most N"
+  m <- regexpr("at\\s+most\\s+(\\d+)", text)
+  if (m > 0) {
+    match_str <- substr(text, m, m + attr(m, "match.length") - 1)
+    num_str <- sub(".*\\s+", "", match_str)
+    if (nzchar(num_str)) return(as.integer(num_str))
   }
 
   NULL
@@ -157,7 +210,7 @@ extract_threshold <- function(text) {
 extract_stat <- function(text) {
   # Define stat mappings: lowercase aliases → canonical stat key
   stat_mappings <- list(
-    goals = c("goals", "scored", "score", "goal total", "goal totals"),
+    goals = c("goals", "scored", "score", "scoring", "goal total", "goal totals"),
     goalAttempts = c("goal attempts", "attempts", "shot attempts", "shots"),
     goalAssists = c("assists", "assist", "goal assists", "goal assist", "ga"),
     feeds = c("feeds", "feed", "feeds into circle"),
@@ -213,14 +266,40 @@ extract_subject <- function(text) {
     }
   }
 
-  # Known Super Netball teams (for matching)
+  # Core 8 Super Netball teams (2024/2025 season)
+  # Note: Full team name resolution (aliases, abbreviations) happens in backend helpers.R (resolve_query_team)
   team_names <- c(
-    "adelaide thunderbirds", "brisbane lions", "collingwood magpies",
-    "suncorp vixens", "perth wildcats", "melbourne vixens",
+    "adelaide thunderbirds", "collingwood magpies", "gws giants",
+    "melbourne vixens", "nsw swifts", "queensland firebirds",
+    "sunshine coast lightning", "west coast fever",
     "vixens", "swifts", "firebirds", "magpies", "fever",
-    "thunderbirds", "lions"
+    "thunderbirds", "giants", "lightning"
   )
   teams_pattern <- paste0("\\b(", paste(gsub(" ", "\\\\s+", team_names), collapse = "|"), ")\\b")
+
+  # Try matching "by a [subject]" (e.g., "by a team", "by a player")
+  # Convert singular nouns to plural for consistency
+  by_pattern <- "\\bby\\s+a\\s+([a-z]+)\\b"
+  by_match <- regmatches(text, regexec(by_pattern, text))
+  if (length(by_match[[1]]) > 1) {
+    subject <- trimws(by_match[[1]][2])
+    if (nzchar(subject)) {
+      # Convert singular to plural for generic subjects
+      if (subject == "team") subject <- "teams"
+      if (subject == "player") subject <- "players"
+      return(list(subject = subject))
+    }
+  }
+
+  # Try matching "did [subject] have [stat]" (e.g., "did Caitlin Bassett have 5+ intercepts")
+  did_pattern <- "\\bdid\\s+(.+?)\\s+have\\b"
+  did_match <- regmatches(text, regexec(did_pattern, text))
+  if (length(did_match[[1]]) > 1) {
+    subject <- trimws(did_match[[1]][2])
+    if (nzchar(subject)) {
+      return(list(subject = subject))
+    }
+  }
 
   # Try matching "has [subject] scored/recorded/made/etc"
   # Use non-greedy match to capture up to the first action verb
@@ -261,17 +340,40 @@ extract_subject <- function(text) {
     }
   }
 
+  # Try to extract a player name from the start (e.g., "Liz Watson ga record?", "Paige Van Der Schaaf feeds record?")
+  # Pattern: multiple words followed by stat keyword
+  # Include both abbreviated stats (ga, int, gpt, uto) and full stat names (feeds, goals, intercepts, etc.)
+  # Skip if it starts with reserved words like "how", "which", "what", etc.
+  name_pattern <- "^([a-z]+(?:\\s+[a-z]+)+)\\s+(?:feeds|goals|intercepts|assists|penalties|gains|deflections|rebounds|pickups|disposals|possessions|points|ga|int|gpt|uto)"
+  name_match <- regmatches(text, regexec(name_pattern, text))
+  if (length(name_match[[1]]) > 1) {
+    subject <- trimws(name_match[[1]][2])
+    # Reject if subject starts with reserved words
+    if (nzchar(subject) && !grepl("^\\b(how|which|what|who|when|where|why|is|are|was|were)\\b", subject)) {
+      return(list(subject = subject))
+    }
+  }
+
+  # Default fallback: threshold-only questions default to "players"
+  # (e.g., "At least 10 goal assists in a match?" → query players)
+  if (grepl("\\b(at\\s+least|at\\s+most|more\\s+than|fewer\\s+than)\\b", text)) {
+    return(list(subject = "players"))
+  }
+
   # If no clear subject found, return NULL
   list(subject = NULL)
 }
 
 # Extract opponent team name
 extract_opponent <- function(text) {
-  # Known Super Netball teams
+  # Core 8 Super Netball teams (2024/2025 season)
+  # Note: Full team name resolution (aliases, abbreviations) happens in backend helpers.R (resolve_query_team)
   team_names <- c(
+    "adelaide thunderbirds", "collingwood magpies", "gws giants",
+    "melbourne vixens", "nsw swifts", "queensland firebirds",
+    "sunshine coast lightning", "west coast fever",
     "vixens", "swifts", "firebirds", "magpies", "fever",
-    "suncorp vixens", "perth wildcats", "melbourne vixens",
-    "adelaide thunderbirds", "brisbane lions", "collingwood magpies"
+    "thunderbirds", "giants", "lightning"
   )
 
   # Look for "against [team]", "vs [team]", "versus [team]"
@@ -282,8 +384,8 @@ extract_opponent <- function(text) {
       return(list(opponent_name = team))
     }
 
-    # vs pattern
-    vs_pattern <- paste0("\\bvs(?:\\.|\\s+)\\s+(?:the\\s+)?", gsub(" ", "\\\\s+", team), "\\b")
+    # vs pattern: "vs [team]" (with optional period after vs)
+    vs_pattern <- paste0("\\bvs\\.?\\s+(?:the\\s+)?", gsub(" ", "\\\\s+", team), "\\b")
     if (grepl(vs_pattern, text)) {
       return(list(opponent_name = team))
     }

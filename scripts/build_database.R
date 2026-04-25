@@ -1405,7 +1405,7 @@ if (!sample_mode) {
   tryCatch({
     message("Bootstrapping future season fixtures from netball.com.au...")
     conn <- open_database_connection()
-    
+
     current_season <- as.integer(format(Sys.Date(), "%Y"))
     now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
     future_matches <- DBI::dbGetQuery(
@@ -1421,29 +1421,29 @@ if (!sample_mode) {
       ",
       params = list(current_season, now_utc)
     )
-    
+
     if (future_matches$cnt[[1]] == 0) {
       message("  No future season matches found. Attempting to fetch from netball.com.au API...")
       resp <- httr::GET("https://api.netball.com.au/v1/matches",
         query = list(competitionId = 291, season = current_season),
         httr::timeout(20)
       )
-      
+
       if (httr::status_code(resp) == 200) {
         data <- jsonlite::fromJSON(httr::content(resp, "text"), simplifyVector = FALSE)
         matches_raw <- data$data
         message(sprintf("  Fetched %d total matches from API", length(matches_raw)))
-        
+
         # Filter to upcoming
         upcoming <- Filter(function(m) m$utcStartTime > now_utc, matches_raw)
         message(sprintf("  Found %d upcoming matches after filtering by time", length(upcoming)))
-        
+
         if (length(upcoming) > 0) {
           inserts_done <- 0
           for (m in upcoming) {
             home_name <- normalize_fixture_team_name(m$homeSquadName)
             away_name <- normalize_fixture_team_name(m$awaySquadName)
-            
+
             tryCatch({
               home_squad_id <- if (!is.null(m$homeSquadId)) as.integer(m$homeSquadId) else 0L
               away_squad_id <- if (!is.null(m$awaySquadId)) as.integer(m$awaySquadId) else 0L
@@ -1451,7 +1451,7 @@ if (!sample_mode) {
               game_number <- normalize_fixture_match_number(m$matchNumber)
               venue_id <- if (!is.null(m$venueId)) as.integer(m$venueId) else NA_integer_
               match_id <- if (!is.null(m$matchId)) as.integer(m$matchId) else NA_integer_
-              
+
               DBI::dbExecute(conn, "
                 INSERT INTO matches (
                   match_id, season, competition_phase, competition_id, round_number, game_number,
@@ -1484,14 +1484,14 @@ if (!sample_mode) {
               warning(sprintf("Failed to insert fixture %s: %s", m$matchId, conditionMessage(e)))
             })
           }
-          
+
           message(sprintf("  ✓ Bootstrapped %d future season fixtures", inserts_done))
         }
       } else {
         message(sprintf("  ⚠ netball.com.au API returned %d", httr::status_code(resp)))
       }
     }
-    
+
     DBI::dbDisconnect(conn)
   }, error = function(e) {
     warning(sprintf("Bootstrap fixtures failed (non-blocking): %s", conditionMessage(e)))

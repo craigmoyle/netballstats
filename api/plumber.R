@@ -1513,8 +1513,8 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", s
 #* @param seasons Integer array (POST only) - season list
 #* @param filters List (POST only) - for combination
 #* @param logical_operator Character (POST only) - "AND" | "OR"
-function(req, res, question = "", limit = "12", builder_source = FALSE, shape = NA, 
-         subjects = NA, subject = NA, stat = NA, seasons = NA, filters = NA, 
+function(req, res, question = "", limit = "12", builder_source = FALSE, shape = NA,
+         subjects = NA, subject = NA, stat = NA, seasons = NA, filters = NA,
          logical_operator = NA) {
   conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
@@ -1535,7 +1535,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
             error = jsonlite::unbox("Invalid JSON in request body")
           ))
         })
-        if (is.list(body_data) && !is.null(body_data$status) && 
+        if (is.list(body_data) && !is.null(body_data$status) &&
             identical(body_data$status, "error")) {
           return(body_data)
         }
@@ -1565,7 +1565,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
 
       # Route to appropriate builder
       if (identical(shape, "comparison")) {
-        if (length(subjects) < 2 || length(subjects) == 0 || is.na(subjects[[1]]) || 
+        if (length(subjects) < 2 || length(subjects) == 0 || is.na(subjects[[1]]) ||
             is.na(stat) || length(seasons) == 0 || is.na(seasons[[1]])) {
           return(list(
             status = jsonlite::unbox("error"),
@@ -1632,7 +1632,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
     # Attempt complex parse for question-based queries
     if (nzchar(question)) {
       parse_result <- attempt_complex_parse(question)
-      
+
       # High confidence parse: route to builder directly
       if (identical(parse_result$status, "success")) {
         if (identical(parse_result$shape, "comparison")) {
@@ -1669,7 +1669,7 @@ function(req, res, question = "", limit = "12", builder_source = FALSE, shape = 
           return(builder_result)
         }
       }
-      
+
       # Medium confidence parse: return parse_help_needed with builder hints
       if (identical(parse_result$status, "parse_help_needed")) {
         return(list(

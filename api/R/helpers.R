@@ -165,6 +165,11 @@ open_db <- function() {
 # existing connection has been closed by an idle timeout or DB failover.
 .persistent_conn <- NULL
 
+# Get or re-establish persistent database connection
+# Maintains a single persistent connection object (.persistent_conn) to avoid connection overhead
+# Validates connection is still valid before returning; reconnects if needed (handles DB failover/idle timeout)
+# @return Valid DBI database connection object
+# @note Uses global .persistent_conn variable for connection pooling
 get_db_conn <- function() {
   if (!is.null(.persistent_conn) && DBI::dbIsValid(.persistent_conn)) {
     return(.persistent_conn)
@@ -430,10 +435,22 @@ normalize_player_search_name <- function(value) {
   normalized
 }
 
+# Safe SQL interpolation helper using DBI::sqlInterpolate for parameterized queries
+# This prevents SQL injection by separating SQL structure from parameters
+# @param conn Database connection object
+# @param query SQL query template with ? placeholders for parameters
+# @param params Named list of parameter values (default: empty list)
+# @return Interpolated SQL string with parameters safely embedded
 sql_interpolate_safe <- function(conn, query, params = list()) {
   do.call(DBI::sqlInterpolate, c(list(conn, query), params))
 }
 
+# Execute a SQL query and return results as a data.frame
+# Always uses parameterized queries via sql_interpolate_safe() to prevent SQL injection
+# @param conn Database connection object
+# @param query SQL query template with ? placeholders
+# @param params Named list of parameter values (default: empty list)
+# @return Data frame with query results (empty data.frame if no rows)
 query_rows <- function(conn, query, params = list()) {
   DBI::dbGetQuery(conn, sql_interpolate_safe(conn, query, params))
 }
@@ -468,6 +485,16 @@ row_to_record <- function(rows, index) {
 # NOTE: rows_to_records is defined in plumber.R (with jsonlite::unbox support)
 # and overrides this file at runtime. Do not add a second definition here.
 
+# Build parameterized IN clause safely for integer values
+# Generates placeholders for a list of integer values and adds them to the params list
+# This ensures SQL safety for dynamic IN clauses without string concatenation
+# Example: column_name="season", values=c(2022, 2023, 2024) generates "season IN (?season_1, ?season_2, ?season_3)"
+# @param query Current SQL query string to append to
+# @param params Current params list (will be updated with new values)
+# @param column_name Database column name for the IN clause
+# @param values Integer vector of values to filter on (NULL/empty returns unchanged query)
+# @param prefix String prefix for parameter names (e.g., "season" → "season_1", "season_2", etc)
+# @return List with updated query and params
 append_integer_in_filter <- function(query, params, column_name, values, prefix) {
   if (is.null(values) || !length(values)) {
     return(list(query = query, params = params))
@@ -1099,6 +1126,21 @@ resolve_query_subject <- function(conn, phrase) {
   )
 }
 
+# Parse and resolve a natural language stats question into structured query parameters
+# Extracts intent type (count/highest/lowest/list), subject (player/team), stat, and filters
+# Validates all parameters are present and consistent before returning
+# @param conn Database connection for subject/opponent/team resolution
+# @param question Raw question text (e.g., "Which players scored 50+ goals in 2023?")
+# @param limit Maximum rows to return (default: 12)
+# @return List with status="supported" or "unsupported", plus extracted parameters:
+#   - intent_type: "count", "highest", "lowest", or "list"
+#   - subject_type: "player" or "team"
+#   - stat: Stat key (e.g., "goals", "intercepts")
+#   - comparison: Threshold comparison operator (">=", "<=", "==", etc) or NULL
+#   - threshold: Threshold value or NULL
+#   - player_id, player_name, team_id, team_name: Subject resolution (one pair filled)
+#   - opponent_id, opponent_name: Opponent if filtered
+#   - seasons: Integer vector of seasons or NULL
 parse_query_intent <- function(conn, question, limit = 12L) {
   parsed_question <- parse_query_question(question)
   normalized_text <- normalize_query_phrase(parsed_question, keep_spaces = TRUE)
@@ -2874,6 +2916,19 @@ points_record_badges <- function(conn, subject_type = c("team", "player"), ranki
   unique(badges)
 }
 
+# Compute all-time rank for a statistical value
+# Uses standard competition ranking (COUNT(*) + 1): tied entries share same rank, next rank skips
+# Handles special case of "points" stat which is synthetic (goal1 + 2*goal2)
+# Wraps in tryCatch to gracefully handle rank query failures without crashing caller
+# @param conn Database connection
+# @param subject_type "team" or "player"
+# @param stat Stat key (e.g., "goals", "intercepts", "points" for synthetic points)
+# @param ranking "highest" (COUNT > value) or "lowest" (COUNT < value)
+# @param total_value The value to rank against (e.g., 50 if ranking 50 goals)
+# @return Integer rank (1st highest, 2nd highest, etc) or NA_integer_ if:
+#   - total_value is NULL/NA
+#   - query fails (returns NA, doesn't throw)
+#   - player_match_stats table missing
 compute_archive_rank <- function(conn, subject_type = c("team", "player"), stat, ranking = "highest", total_value) {
   subject_type <- match.arg(subject_type)
 
@@ -5843,7 +5898,7 @@ query_league_composition_debut_bands <- function(conn, seasons = NULL) {
 pluralize_stat_name <- function(stat_key) {
   label <- query_stat_label(stat_key)
   label_lower <- tolower(label)
-  
+
   if (endsWith(label_lower, "s") || endsWith(label_lower, "ss")) {
     label_lower
   } else if (endsWith(label_lower, "y")) {
@@ -5856,7 +5911,7 @@ pluralize_stat_name <- function(stat_key) {
 format_yoy_change_label <- function(stat_key, change_value) {
   label <- query_stat_label(stat_key)
   label_lower <- tolower(label)
-  
+
   suffix <- if (endsWith(label_lower, "s") || endsWith(label_lower, "ss")) {
     label_lower
   } else if (endsWith(label_lower, "y")) {
@@ -5864,7 +5919,7 @@ format_yoy_change_label <- function(stat_key, change_value) {
   } else {
     paste0(label_lower, "s")
   }
-  
+
   sign <- if (change_value > 0) "+" else ""
   paste0(sign, round(change_value, 0L), " ", suffix)
 }
@@ -5877,7 +5932,7 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
       "Subject is required for trend queries."
     ))
   }
-  
+
   if (is.null(stat) || !nzchar(as.character(stat))) {
     return(query_error_payload(
       "unsupported",
@@ -5885,13 +5940,13 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
       "Stat is required for trend queries."
     ))
   }
-  
+
   resolved_subject <- resolve_query_subject(conn, subject)
-  if (is.list(resolved_subject) && !is.null(resolved_subject$status) && 
+  if (is.list(resolved_subject) && !is.null(resolved_subject$status) &&
       !identical(resolved_subject$status, "supported")) {
     return(resolved_subject)
   }
-  
+
   subject_type <- resolved_subject$subject_type %||% NULL
   if (is.null(subject_type)) {
     return(query_error_payload(
@@ -5900,7 +5955,7 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
       "Could not determine if subject is a player or team."
     ))
   }
-  
+
   if (identical(subject_type, "player")) {
     subject_id <- resolved_subject$player_id
     subject_name <- resolved_subject$player_name
@@ -5914,7 +5969,7 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
       "Subject type must be either player or team."
     ))
   }
-  
+
   if (!stat %in% c(DEFAULT_PLAYER_STATS, DEFAULT_TEAM_STATS)) {
     return(query_error_payload(
       "unsupported",
@@ -5922,10 +5977,10 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
       paste0("Stat '", stat, "' is not supported for trend queries.")
     ))
   }
-  
+
   requested_seasons <- requested_or_available_seasons(conn, seasons)
   requested_seasons <- sort(as.integer(requested_seasons))
-  
+
   if (!length(requested_seasons)) {
     return(query_error_payload(
       "unsupported",
@@ -5933,10 +5988,10 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
       "No seasons available for trend data."
     ))
   }
-  
+
   results <- list()
   previous_total <- NULL
-  
+
   for (season in requested_seasons) {
     if (identical(subject_type, "player")) {
       season_data <- query_rows(
@@ -5963,31 +6018,31 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
         list(team_id = subject_id, stat = stat, season = season)
       )
     }
-    
+
     total <- if (nrow(season_data)) as.numeric(season_data$total[[1]]) %||% 0 else 0
     games <- if (nrow(season_data)) as.numeric(season_data$games[[1]]) %||% 0 else 0
     average <- if (games > 0) round(total / games, 2) else 0
-    
+
     result <- list(
       season = as.integer(season),
       total = total,
       games = games,
       average = average
     )
-    
+
     if (!is.null(previous_total) && previous_total > 0) {
       yoy_change <- total - previous_total
       yoy_change_pct <- round((yoy_change / previous_total) * 100, 1)
       yoy_change_label <- format_yoy_change_label(stat, yoy_change)
-      
+
       result$yoy_change <- yoy_change_pct
       result$yoy_change_label <- yoy_change_label
     }
-    
+
     results[[length(results) + 1]] <- result
     previous_total <- total
   }
-  
+
   list(
     status = jsonlite::unbox("supported"),
     intent_type = jsonlite::unbox("trend"),
@@ -6007,7 +6062,7 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
 # Build a multi-filter query combining multiple stats with AND/OR logic.
 # Each filter specifies a stat, comparison operator, and threshold.
 # Returns results sorted by combined value (goals + gains DESC) with limit of 100.
-# 
+#
 # filters: list of filter objects, each with:
 #   - stat: "goals", "gain", "intercept", "turnover", "penalty", "rebound", etc.
 #   - operator: ">=", "<=", ">", "<", "="
@@ -6038,7 +6093,7 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
   tryCatch({
     normalized_filters <- lapply(seq_along(filters), function(i) {
       f <- filters[[i]]
-      
+
       # Validate filter structure
       if (!is.list(f) || is.null(f$stat) || is.null(f$operator) || is.null(f$threshold)) {
         stop(sprintf("Filter %d must have stat, operator, and threshold", i))
@@ -6177,7 +6232,7 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
           season = rows$season[[i]],
           date = as.character(rows$local_start_time[[i]])
         )
-        
+
         # Add stat values from query results (goals, gain, etc.)
         if ("goals" %in% names(rows)) {
           result$goals <- rows$goals[[i]]
@@ -6188,7 +6243,7 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
         if ("total_value" %in% names(rows)) {
           result$value <- rows$total_value[[i]]
         }
-        
+
         result
       })
     } else {
@@ -6399,7 +6454,7 @@ attempt_complex_parse <- function(question) {
 
   # Try to detect shape and extract components
   # Order matters: check more specific patterns first
-  
+
   # Pattern 1: Record patterns (all-time, highest, lowest, ranking)
   if (grepl("\\b(all.?time|ever|ranking|record)\\b", question_lower)) {
     record_parse <- detect_record_pattern(question_lower)
@@ -6407,7 +6462,7 @@ attempt_complex_parse <- function(question) {
       result$shape <- "record"
       result$parsed <- record_parse$parsed
       result$confidence <- record_parse$confidence
-      
+
       # Determine status based on confidence tier
       if (result$confidence >= 0.85) {
         result$status <- "success"
@@ -6429,7 +6484,7 @@ attempt_complex_parse <- function(question) {
       result$shape <- "comparison"
       result$parsed <- comp_parse$parsed
       result$confidence <- comp_parse$confidence
-      
+
       # Determine status based on confidence tier
       if (result$confidence >= 0.85) {
         result$status <- "success"
@@ -6451,7 +6506,7 @@ attempt_complex_parse <- function(question) {
       result$shape <- "trend"
       result$parsed <- trend_parse$parsed
       result$confidence <- trend_parse$confidence
-      
+
       # Determine status based on confidence tier
       if (result$confidence >= 0.85) {
         result$status <- "success"
@@ -6473,7 +6528,7 @@ attempt_complex_parse <- function(question) {
       result$shape <- "combination"
       result$parsed <- comb_parse$parsed
       result$confidence <- comb_parse$confidence
-      
+
       # Determine status based on confidence tier
       if (result$confidence >= 0.85) {
         result$status <- "success"
@@ -6846,7 +6901,7 @@ extract_filters <- function(question_lower) {
 
   # Look for patterns like "50+ goals", "40 or more assists", "less than 5 turnovers"
   # This is a simplified approach; more sophisticated parsing would use NLP
-  
+
   comparison_operators <- c(
     ">=|greater than or equal|at least|or more",
     ">|greater than|more than",
