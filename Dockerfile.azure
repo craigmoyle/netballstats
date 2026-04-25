@@ -66,6 +66,6 @@ EXPOSE 8000
 
 USER netballstats
 
-# Start plumber directly, bypassing .Rprofile activation issues
-# renv libraries are in RENV_PATHS_LIBRARY, skip .Rprofile by using R --vanilla
-CMD ["R", "--vanilla", "-q", "-e", "pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
+# Start plumber with explicit renv library path configuration
+# Use -s to skip .Rprofile but still load site library
+CMD ["R", "-s", "-q", "-e", ".libPaths(c('/opt/renv/library/R-4.5/x86_64-pc-linux-gnu', .libPaths())); pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
