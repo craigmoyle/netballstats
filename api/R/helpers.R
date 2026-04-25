@@ -1682,24 +1682,24 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
 
   record_entry <- if (identical(subject_type, "player")) {
     list(
-      player = normalize_record_value(record_row$player_name[[1]]),
-      team = normalize_record_value(record_row$squad_name[[1]]),
-      value = record_value,
-      date = normalize_record_value(record_row$local_start_time[[1]]),
-      opponent = normalize_record_value(record_row$opponent[[1]]),
-      round = suppressWarnings(as.integer(record_row$round_number[[1]])),
-      season = suppressWarnings(as.integer(record_row$season[[1]])),
-      all_time_rank = record_all_time_rank
+      player = jsonlite::unbox(normalize_record_value(record_row$player_name[[1]])),
+      team = jsonlite::unbox(normalize_record_value(record_row$squad_name[[1]])),
+      value = jsonlite::unbox(record_value),
+      date = jsonlite::unbox(normalize_record_value(record_row$local_start_time[[1]])),
+      opponent = jsonlite::unbox(normalize_record_value(record_row$opponent[[1]])),
+      round = jsonlite::unbox(suppressWarnings(as.integer(record_row$round_number[[1]]))),
+      season = jsonlite::unbox(suppressWarnings(as.integer(record_row$season[[1]]))),
+      all_time_rank = jsonlite::unbox(record_all_time_rank)
     )
   } else {
     list(
-      team = normalize_record_value(record_row$squad_name[[1]]),
-      value = record_value,
-      date = normalize_record_value(record_row$local_start_time[[1]]),
-      opponent = normalize_record_value(record_row$opponent[[1]]),
-      round = suppressWarnings(as.integer(record_row$round_number[[1]])),
-      season = suppressWarnings(as.integer(record_row$season[[1]])),
-      all_time_rank = record_all_time_rank
+      team = jsonlite::unbox(normalize_record_value(record_row$squad_name[[1]])),
+      value = jsonlite::unbox(record_value),
+      date = jsonlite::unbox(normalize_record_value(record_row$local_start_time[[1]])),
+      opponent = jsonlite::unbox(normalize_record_value(record_row$opponent[[1]])),
+      round = jsonlite::unbox(suppressWarnings(as.integer(record_row$round_number[[1]]))),
+      season = jsonlite::unbox(suppressWarnings(as.integer(record_row$season[[1]]))),
+      all_time_rank = jsonlite::unbox(record_all_time_rank)
     )
   }
 
@@ -6047,10 +6047,10 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
     average <- if (games > 0) round(total / games, 2) else 0
 
     result <- list(
-      season = as.integer(season),
-      total = total,
-      games = games,
-      average = average
+      season = jsonlite::unbox(as.integer(season)),
+      total = jsonlite::unbox(total),
+      games = jsonlite::unbox(games),
+      average = jsonlite::unbox(average)
     )
 
     if (!is.null(previous_total) && previous_total > 0) {
@@ -6058,8 +6058,8 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
       yoy_change_pct <- round((yoy_change / previous_total) * 100, 1)
       yoy_change_label <- format_yoy_change_label(stat, yoy_change)
 
-      result$yoy_change <- yoy_change_pct
-      result$yoy_change_label <- yoy_change_label
+      result$yoy_change <- jsonlite::unbox(yoy_change_pct)
+      result$yoy_change_label <- jsonlite::unbox(yoy_change_label)
     }
 
     results[[length(results) + 1]] <- result
@@ -6249,22 +6249,22 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
     results <- if (nrow(rows) > 0) {
       lapply(seq_len(nrow(rows)), function(i) {
         result <- list(
-          player = rows$player_name[[i]],
-          team = rows$squad_name[[i]],
-          opponent = rows$opponent[[i]],
-          season = rows$season[[i]],
-          date = as.character(rows$local_start_time[[i]])
+          player = jsonlite::unbox(rows$player_name[[i]]),
+          team = jsonlite::unbox(rows$squad_name[[i]]),
+          opponent = jsonlite::unbox(rows$opponent[[i]]),
+          season = jsonlite::unbox(rows$season[[i]]),
+          date = jsonlite::unbox(as.character(rows$local_start_time[[i]]))
         )
 
         # Add stat values from query results (goals, gain, etc.)
         if ("goals" %in% names(rows)) {
-          result$goals <- rows$goals[[i]]
+          result$goals <- jsonlite::unbox(rows$goals[[i]])
         }
         if ("gain" %in% names(rows)) {
-          result$gain <- rows$gain[[i]]
+          result$gain <- jsonlite::unbox(rows$gain[[i]])
         }
         if ("total_value" %in% names(rows)) {
-          result$value <- rows$total_value[[i]]
+          result$value <- jsonlite::unbox(rows$total_value[[i]])
         }
 
         result
@@ -6366,11 +6366,11 @@ build_comparison_query <- function(subjects, stat, season, conn) {
           rounds <- fetch_team_round_breakdown(conn, team_id, stat_key, season_int)
 
           results[[i]] <- list(
-            subject = team_name,
-            subject_type = "team",
-            total = agg$total,
-            games = agg$games,
-            average_per_game = if (agg$games > 0) round(agg$total / agg$games, 2) else 0,
+            subject = jsonlite::unbox(team_name),
+            subject_type = jsonlite::unbox("team"),
+            total = jsonlite::unbox(agg$total),
+            games = jsonlite::unbox(agg$games),
+            average_per_game = jsonlite::unbox(if (agg$games > 0) round(agg$total / agg$games, 2) else 0),
             rounds = rounds
           )
 
@@ -6397,11 +6397,11 @@ build_comparison_query <- function(subjects, stat, season, conn) {
             rounds <- fetch_player_round_breakdown(conn, player_id, stat_key, season_int)
 
             results[[i]] <- list(
-              subject = player_name,
-              subject_type = "player",
-              total = agg$total,
-              games = agg$games,
-              average_per_game = if (agg$games > 0) round(agg$total / agg$games, 2) else 0,
+              subject = jsonlite::unbox(player_name),
+              subject_type = jsonlite::unbox("player"),
+              total = jsonlite::unbox(agg$total),
+              games = jsonlite::unbox(agg$games),
+              average_per_game = jsonlite::unbox(if (agg$games > 0) round(agg$total / agg$games, 2) else 0),
               rounds = rounds
             )
 
