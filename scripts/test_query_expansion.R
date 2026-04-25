@@ -204,7 +204,9 @@ test_combination_query <- function() {
         length(result$filters) == 2,
         result$logical_operator == "AND",
         result$season == 2024,
-        result$total_matches >= 0
+        result$total_matches >= 0,
+        !is.null(result$filters[[1]]$stat_label),
+        !is.null(result$filters[[2]]$stat_label)
       )
 
       if (length(result$results) > 0) {
@@ -225,6 +227,522 @@ test_combination_query <- function() {
   )
 }
 
+test_combination_query_empty_filters <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping empty filters test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("At least one filter", result$error)
+      )
+      cat("✓ Empty filters test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Empty filters test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_operator <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid operator test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = "~~", threshold = 40)
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("invalid operator", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid operator test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid operator test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_non_numeric_threshold <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping non-numeric threshold test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=", threshold = "not-a-number")
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("numeric", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Non-numeric threshold test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Non-numeric threshold test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_missing_field <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping missing field test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=")
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("stat.*operator.*threshold", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Missing field test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Missing field test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_logical_operator <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid logical operator test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=", threshold = 40)
+        ),
+        logical_operator = "XOR",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("Logical operator", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid logical operator test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid logical operator test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_season <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid season test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=", threshold = 40)
+        ),
+        logical_operator = "AND",
+        season = 2000,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("2008 and 2100", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid season test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid season test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_non_goal_stat <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping non-goal stat test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "gain", operator = ">=", threshold = 5),
+          list(stat = "intercepts", operator = ">=", threshold = 2)
+        ),
+        logical_operator = "AND",
+        season = 2024,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "supported",
+        result$intent_type == "combination",
+        length(result$filters) == 2,
+        !is.null(result$filters[[1]]$stat_label),
+        !is.null(result$filters[[2]]$stat_label)
+      )
+      cat("✓ Non-goal stat test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Non-goal stat test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_stat_key <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid stat key test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "nonexistent_stat", operator = ">=", threshold = 5)
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("not recognized", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid stat key test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid stat key test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_empty_filters <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping empty filters test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("At least one filter", result$error)
+      )
+      cat("✓ Empty filters test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Empty filters test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_operator <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid operator test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = "~~", threshold = 40)
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("invalid operator", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid operator test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid operator test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_non_numeric_threshold <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping non-numeric threshold test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=", threshold = "not-a-number")
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("numeric", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Non-numeric threshold test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Non-numeric threshold test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_missing_field <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping missing field test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=")  # Missing threshold
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("stat.*operator.*threshold", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Missing field test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Missing field test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_logical_operator <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid logical operator test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=", threshold = 40)
+        ),
+        logical_operator = "XOR",  # Invalid operator
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("Logical operator", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid logical operator test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid logical operator test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_season <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid season test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "goals", operator = ">=", threshold = 40)
+        ),
+        logical_operator = "AND",
+        season = 2000,  # Before 2008
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("2008 and 2100", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid season test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid season test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_non_goal_stat <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping non-goal stat test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "gain", operator = ">=", threshold = 5),
+          list(stat = "intercepts", operator = ">=", threshold = 2)
+        ),
+        logical_operator = "AND",
+        season = 2024,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "supported",
+        result$intent_type == "combination",
+        length(result$filters) == 2,
+        !is.null(result$filters[[1]]$stat_label),
+        !is.null(result$filters[[2]]$stat_label)
+      )
+      cat("✓ Non-goal stat test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Non-goal stat test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
+test_combination_query_invalid_stat_key <- function() {
+  if (is.null(test_conn)) {
+    cat("⊘ Skipping invalid stat key test (no connection)\n")
+    return(TRUE)
+  }
+
+  tryCatch(
+    {
+      result <- build_combination_query(
+        filters = list(
+          list(stat = "nonexistent_stat", operator = ">=", threshold = 5)
+        ),
+        logical_operator = "AND",
+        season = NULL,
+        conn = test_conn
+      )
+
+      stopifnot(
+        !is.null(result),
+        result$status == "error",
+        grepl("not recognized", result$error, ignore.case = TRUE)
+      )
+      cat("✓ Invalid stat key test passed\n")
+      TRUE
+    },
+    error = function(e) {
+      cat("✗ Invalid stat key test failed:", conditionMessage(e), "\n")
+      FALSE
+    }
+  )
+}
+
 run_tests <- function() {
   cat("Running query expansion tests...\n\n")
 
@@ -240,6 +758,16 @@ run_tests <- function() {
     success <- test_trend_query() && success
     success <- test_record_query() && success
     success <- test_combination_query() && success
+    
+    # Edge case tests for combination query
+    success <- test_combination_query_empty_filters() && success
+    success <- test_combination_query_invalid_operator() && success
+    success <- test_combination_query_non_numeric_threshold() && success
+    success <- test_combination_query_missing_field() && success
+    success <- test_combination_query_invalid_logical_operator() && success
+    success <- test_combination_query_invalid_season() && success
+    success <- test_combination_query_non_goal_stat() && success
+    success <- test_combination_query_invalid_stat_key() && success
   }
 
   if (success) {
