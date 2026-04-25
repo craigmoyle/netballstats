@@ -3352,10 +3352,29 @@ caption.table-caption {
   padding: 0.65rem 0 0;
   list-style: none;
   display: grid;
-  gap: 0.35rem;
+  gap: 0.6rem;
   font-size: var(--type-sm);
   color: var(--muted);
   border-top: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
+}
+
+.round-preview-card__watch-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.card-label--watch {
+  display: inline-block;
+  margin-bottom: 0.1rem;
+}
+
+.round-preview-card__watch-facts {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 0.2rem;
 }
 
 @media (max-width: 560px) {

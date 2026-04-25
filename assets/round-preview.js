@@ -225,21 +225,44 @@
         }
       }
 
-      // Player watch: team-labelled notes
+      // Player watch: one team heading per group, facts listed beneath
       if (playerWatch.length) {
         const watchList = document.createElement("ul");
         watchList.className = "round-preview-card__watch-list";
+
+        // Group consecutive notes by team
+        const groups = [];
         playerWatch.forEach((note) => {
           if (!note || !note.summary) return;
-          const item = document.createElement("li");
-          if (note.team) {
-            item.appendChild(cardLabel(note.team));
-            item.appendChild(document.createTextNode(" " + note.summary));
+          const team = note.team || null;
+          const last = groups[groups.length - 1];
+          if (last && last.team === team) {
+            last.notes.push(note.summary);
           } else {
-            item.textContent = note.summary;
+            groups.push({ team, notes: [note.summary] });
           }
+        });
+
+        groups.forEach(({ team, notes }) => {
+          const item = document.createElement("li");
+          item.className = "round-preview-card__watch-group";
+          if (team) {
+            const heading = document.createElement("span");
+            heading.className = "card-label card-label--watch";
+            heading.textContent = team;
+            item.appendChild(heading);
+          }
+          const factList = document.createElement("ul");
+          factList.className = "round-preview-card__watch-facts";
+          notes.forEach((text) => {
+            const fact = document.createElement("li");
+            fact.textContent = text;
+            factList.appendChild(fact);
+          });
+          item.appendChild(factList);
           watchList.appendChild(item);
         });
+
         if (watchList.children.length) {
           details.appendChild(watchList);
         }
