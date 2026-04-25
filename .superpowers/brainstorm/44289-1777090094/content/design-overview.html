@@ -1,0 +1,45 @@
+<h2>Hybrid Dual-Track Query System Design</h2>
+<p class="subtitle">Simple queries: pure freeform. Complex queries: freeform + optional builder fallback.</p>
+
+<div style="margin-top: 2rem; font-family: monospace; background: #f9f9f9; padding: 2rem; border-radius: 8px; font-size: 0.85rem; line-height: 1.8; color: #333;">
+
+<div style="margin-bottom: 2.5rem; border-left: 3px solid #8b5e3c; padding-left: 1.5rem;">
+<strong style="color: #8b5e3c;">SIMPLE QUERIES (Keep as-is)</strong>
+<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+User types → Smart parser → Direct answer<br/>
+Examples: "How many times has Grace scored 50+?", "What's Liz's highest goal assists?"<br/>
+No builder needed; parse directly to results
+</div>
+</div>
+
+<div style="margin-bottom: 2.5rem; border-left: 3px solid #4a7c59; padding-left: 1.5rem;">
+<strong style="color: #4a7c59;">COMPLEX QUERIES (New)</strong>
+<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+User types → Attempt smart parse → Success? Yes → Direct answer<br/>
+                                      ↓ No<br/>
+                           Show error + suggestion<br/>
+                           Offer "Use builder" button<br/>
+                           ↓ (User clicks)<br/>
+                           Multi-step builder opens<br/>
+                           Pre-populates parsed hints<br/>
+                           User refines → Submit<br/>
+</div>
+</div>
+
+<div style="margin-bottom: 2.5rem; border-left: 3px solid #666; padding-left: 1.5rem;">
+<strong style="color: #666;">FOUR NEW QUERY SHAPES</strong>
+<div style="margin-top: 0.5rem; font-size: 0.9rem; color: #666;">
+1. <strong>Comparison:</strong> "Vixens vs Swifts, goal assists in 2025"<br/>
+2. <strong>Complex Combination:</strong> "Players with 40+ goals AND 5+ gains in 2024"<br/>
+3. <strong>Multi-Season Trend:</strong> "Grace Nweke goal assists across 2023, 2024, 2025"<br/>
+4. <strong>All-Time Record:</strong> "Highest single-game intercepts, all time + ranking"
+</div>
+</div>
+
+</div>
+
+<div style="margin-top: 3rem; padding: 1.5rem; background: #e8f5e9; border-radius: 8px; border-left: 4px solid #4a7c59;">
+<p style="margin: 0; color: #2e7d32;">
+<strong>Design principle:</strong> Users trying simple queries never see the builder. Users attempting complex queries get a clear error + escape hatch. Power users can compose anything step-by-step.
+</p>
+</div>
