@@ -1514,6 +1514,15 @@ build_fast_team_match_query <- function(stat, seasons = NULL, team_id = NULL, op
   list(query = query, params = params)
 }
 
+# Build query for all-time or seasonal record (highest value) for a stat
+# Handles special case of synthetic "points" stat (goal1 + 2*goal2) for both player and team
+# Returns structured response with status, record holder info, rank, and historical context
+# Large function (343 lines) handles multiple stat types, subject types, and scoping
+# @param stat Stat key (e.g., "goals", "intercepts", "points")
+# @param subject_type "player" or "team"
+# @param season Integer season year for seasonal record, NULL for all-time
+# @param conn Database connection
+# @return List with status "supported"/"unsupported" + record details (player_id, player_name, total_value, rank, etc)
 build_record_query <- function(stat, subject_type = c("player", "team"), season = NULL, conn) {
   subject_type <- match.arg(subject_type)
 
@@ -2255,6 +2264,20 @@ sort_player_series_rows <- function(rows, metric = "total", ranking = "highest")
   rows[order(rows$season, -rows[[order_column]], rows$player_name, na.last = TRUE), , drop = FALSE]
 }
 
+# Fetch highest/lowest game-level player stats with optimized query path
+# Uses fast path (player_match_stats) when available; falls back to match_player_aggregation
+# Efficiently filters by stat, seasons, team, round, phase via parameterized queries
+# Respects ranking direction for sort order (highest/lowest)
+# @param conn Database connection
+# @param seasons Integer vector of seasons to filter or NULL (all seasons)
+# @param team_id Squad ID to filter by or NULL (all teams)
+# @param round Round number to filter or NULL (all rounds)
+# @param competition_phase Phase name to filter or NULL (all phases)
+# @param stat Stat key (default: "points"); cannot be synthetic "points" if using match aggregation fallback
+# @param search Player name search filter (partial match on canonical_name, default: "")
+# @param ranking "highest" or "lowest" (affects ORDER BY direction)
+# @param limit Max rows (default: 10, hard cap: 1000)
+# @return Data frame with player_id, player_name, squad_name, opponent, season, round_number, match_id, local_start_time, stat, total_value
 fetch_player_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, competition_phase = NULL, stat = "points", search = "", ranking = "highest", limit = 10L) {
   # Single query over all requested seasons; avoids one round-trip per season.
   # When seasons is NULL (no filter), omit the IN clause so the planner can do
