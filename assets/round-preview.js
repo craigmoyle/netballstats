@@ -82,7 +82,7 @@
     const ordered = [...(results || [])].reverse();
     ordered.forEach((r) => {
       const chip = document.createElement("span");
-      chip.className = `form-chip form-chip--${(r || "d").toLowerCase()}`;
+      chip.className = `form-chip form-chip--${String(r || "d").toLowerCase()}`;
       chip.textContent = r || "?";
       chip.setAttribute("aria-label", r === "W" ? "Win" : r === "L" ? "Loss" : "Draw");
       chips.appendChild(chip);
