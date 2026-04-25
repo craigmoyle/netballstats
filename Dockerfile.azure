@@ -32,12 +32,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # Install all R packages
-RUN R --no-restore --no-save -q << 'EOF'
-options(repos = c(PPM = 'https://packagemanager.posit.co/cran/__linux__/noble/latest'))
-packages <- c('askpass','bit','bit64','blob','cli','cpp11','crayon','curl','DBI','dplyr','fastmap','generics','glue','hms','httpuv','httr','jsonlite','later','lifecycle','lubridate','magrittr','mime','openssl','otel','pillar','pkgconfig','plumber','promises','purrr','R6','Rcpp','renv','rlang','RPostgres','sodium','stringi','stringr','superNetballR','swagger','sys','tibble','tidyr','tidyselect','timechange','utf8','vctrs','webutils','withr')
-install.packages(packages, Ncpus = parallel::detectCores())
-cat('Package installation complete\n')
-EOF
+RUN R --no-restore --no-save -q -e 'options(repos=c(PPM="https://packagemanager.posit.co/cran/__linux__/noble/latest"));packages=c("askpass","bit","bit64","blob","cli","cpp11","crayon","curl","DBI","dplyr","fastmap","generics","glue","hms","httpuv","httr","jsonlite","later","lifecycle","lubridate","magrittr","mime","openssl","otel","pillar","pkgconfig","plumber","promises","purrr","R6","Rcpp","renv","rlang","RPostgres","sodium","stringi","stringr","superNetballR","swagger","sys","tibble","tidyr","tidyselect","timechange","utf8","vctrs","webutils","withr");install.packages(packages,Ncpus=parallel::detectCores());cat("Package installation complete\n")'
 
 # Copy only application code
 COPY --from=build /app /app
