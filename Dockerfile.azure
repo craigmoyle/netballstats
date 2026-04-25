@@ -23,9 +23,9 @@ COPY renv.lock renv/settings.json ./
 COPY renv/ ./renv/
 
 # Install renv and restore dependencies (cached if renv.lock unchanged)
-# We use --vanilla to skip loading system or user .Rprofile files
+# Use --no-restore --no-save to skip startup files, and -s to run in silent mode
 RUN mkdir -p /opt/renv/cache /opt/renv/library && \
-    R --vanilla -q -e " \
+    R --no-restore --no-save -q -e " \
   options(repos = c(PPM = 'https://packagemanager.posit.co/cran/__linux__/noble/latest')); \
   install.packages('renv'); \
   renv::consent(provided = TRUE); \
@@ -76,4 +76,4 @@ USER netballstats
 # Set R_PROFILE_USER to empty to skip .Rprofile completely
 ENV R_PROFILE_USER=
 
-CMD ["Rscript", "-e", ".libPaths(c('/opt/renv/library/R-4.5', .libPaths())); pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
+CMD ["Rscript", "--no-restore", "--no-save", "-e", ".libPaths(c('/opt/renv/library/R-4.5', .libPaths())); pr <- plumber::plumb('api/plumber.R'); pr$run(host = Sys.getenv('NETBALL_STATS_HOST', '0.0.0.0'), port = as.integer(Sys.getenv('PORT', Sys.getenv('NETBALL_STATS_PORT', '8000'))))"]
