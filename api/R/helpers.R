@@ -3346,18 +3346,15 @@ fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", r
     conn,
     paste(
       "SELECT match_id, season, COALESCE(competition_phase, '') AS competition_phase, round_number, game_number, local_start_time, venue_name,",
-      "home_squad_id, home_squad_name, away_squad_id, away_squad_name",
+      "home_squad_id, home_squad_name, away_squad_id, away_squad_name, home_score, away_score",
       "FROM matches",
-      "WHERE (home_score IS NULL OR away_score IS NULL)",
-      "AND utc_start_time IS NOT NULL",
-      "AND utc_start_time <= ?now",
+      "WHERE utc_start_time IS NOT NULL",
       "AND season = ?season",
       "AND COALESCE(competition_phase, '') = ?competition_phase",
       "AND round_number = ?round_number",
       "ORDER BY local_start_time ASC, game_number ASC, match_id ASC"
     ),
     list(
-      now = now_utc,
       season = as.integer(season),
       competition_phase = as.character(competition_phase %||% ""),
       round_number = as.integer(round_number)
@@ -7260,3 +7257,43 @@ fetch_player_round_breakdown <- function(conn, player_id, stat_key, season) {
   })
 }
 
+
+ask_the_stats_parse <- function(question_text) {
+  # Parse natural language question and score confidence
+  source("api/R/parse_question.R", local = TRUE)
+  
+  result <- parse_natural_language_question(question_text)
+  
+  if (!result$success) {
+    return(list(
+      success = FALSE,
+      error = result$error,
+      confidence = NULL,
+      parsed = NULL
+    ))
+  }
+  
+  # Score confidence based on what was extracted
+  parsed <- result$parsed
+  confidence_score <- 0
+  
+  # Check what fields were successfully extracted
+  if (!is.null(parsed$subject) && nzchar(as.character(parsed$subject))) confidence_score <- confidence_score + 35
+  if (!is.null(parsed$stat) && nzchar(as.character(parsed$stat))) confidence_score <- confidence_score + 35
+  if (!is.null(parsed$operator) && nzchar(as.character(parsed$operator))) confidence_score <- confidence_score + 30
+  
+  # Bonus for optional fields
+  if (!is.null(parsed$opponent_name) && nzchar(as.character(parsed$opponent_name))) confidence_score <- confidence_score + 5
+  if (!is.null(parsed$season) && as.integer(parsed$season) > 0) confidence_score <- confidence_score + 5
+  if (!is.null(parsed$threshold)) confidence_score <- confidence_score + 5
+  
+  confidence_tier <- if (confidence_score >= 85) "HIGH" else if (confidence_score >= 65) "MEDIUM" else "LOW"
+  
+  list(
+    success = TRUE,
+    error = NULL,
+    confidence = confidence_tier,
+    confidence_score = confidence_score,
+    parsed = parsed
+  )
+}

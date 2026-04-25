@@ -2205,6 +2205,37 @@ function(season = "", seasons = "", res) {
   })
 }
 
+#* @post /ask-the-stats
+#* @post /api/ask-the-stats
+#* @serializer unboxedJSONNullNA
+#* @summary Parse natural language netball question
+#* @param question Natural language question (e.g. "How many goals did Vixens score in 2025?")
+function(question = "", res) {
+  if (!nzchar(question)) {
+    return(json_error(res, 400, "Question text is required."))
+  }
+  
+  tryCatch({
+    result <- ask_the_stats_parse(question)
+    
+    if (!result$success) {
+      return(list(
+        success = FALSE,
+        error = result$error,
+        confidence = NULL
+      ))
+    }
+    
+    list(
+      success = TRUE,
+      error = NULL,
+      confidence = result$confidence,
+      parsed = result$parsed
+    )
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
 
 #* @plumber
 function(pr) {
