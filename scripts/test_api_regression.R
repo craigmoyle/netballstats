@@ -174,6 +174,38 @@ assert_true(!is.na(highest_value) && !is.na(lowest_value), 'Expected ranked team
 assert_true(highest_value >= lowest_value, 'Expected highest-mode team leaders to rank at least as high as lowest-mode leaders.')
 check_step('team leaders endpoint supports highest and lowest ranking modes')
 
+season_series_years <- as.integer(2020:2026)
+season_series_csv <- paste(season_series_years, collapse = ',')
+team_super_shot_series_payload <- request_json(
+  base_url,
+  '/competition-season-series',
+  query = list(seasons = season_series_csv, stat = 'goal2', metric = 'total')
+)
+team_goal_one_series_payload <- request_json(
+  base_url,
+  '/competition-season-series',
+  query = list(seasons = season_series_csv, stat = 'goal1', metric = 'total')
+)
+team_super_shot_years <- vapply(team_super_shot_series_payload$data, function(row) as.integer(scalar_value(row$season)), integer(1))
+team_goal_one_years <- vapply(team_goal_one_series_payload$data, function(row) as.integer(scalar_value(row$season)), integer(1))
+assert_true(
+  identical(team_super_shot_years, season_series_years),
+  sprintf(
+    'Expected /competition-season-series goal2 coverage for seasons %s, got %s.',
+    paste(season_series_years, collapse = ','),
+    paste(team_super_shot_years, collapse = ',')
+  )
+)
+assert_true(
+  identical(team_goal_one_years, season_series_years),
+  sprintf(
+    'Expected /competition-season-series goal1 coverage for seasons %s, got %s.',
+    paste(season_series_years, collapse = ','),
+    paste(team_goal_one_years, collapse = ',')
+  )
+)
+check_step('competition season series keeps full requested season coverage for team goal1 and goal2')
+
 team_game_highs_payload <- request_json(base_url, '/team-game-highs', query = list(season = default_season, stat = 'goals', ranking = 'highest', limit = 3))
 team_game_lows_payload <- request_json(base_url, '/team-game-highs', query = list(season = default_season, stat = 'goals', ranking = 'lowest', limit = 3))
 assert_true(is.list(team_game_highs_payload$data) && length(team_game_highs_payload$data) >= 1, 'Expected /team-game-highs to return rows.')
@@ -391,6 +423,41 @@ check_step('natural-language query endpoint supports representative team queries
 
 helpers_env <- new.env(parent = globalenv())
 sys.source('api/R/helpers.R', envir = helpers_env)
+captured_team_period_queries <- list()
+helpers_env$query_rows <- function(conn, query, params = list()) {
+  normalized_query <- normalize_sql(query)
+  captured_team_period_queries <<- c(
+    captured_team_period_queries,
+    list(list(query = normalized_query, params = params))
+  )
+
+  if (grepl("COUNT\\(DISTINCT round_number\\) AS games", normalized_query)) {
+    return(data.frame(
+      total = 11,
+      games = 2L,
+      stringsAsFactors = FALSE
+    ))
+  }
+
+  data.frame(
+    round_number = c(1L, 2L),
+    value = c(5, 6),
+    opponent = c('Thunderbirds', 'Vixens'),
+    stringsAsFactors = FALSE
+  )
+}
+
+helpers_env$fetch_team_season_aggregate(conn = NULL, team_id = 804L, stat_key = 'goal2', season = 2020L)
+assert_true(
+  identical(as.character(captured_team_period_queries[[1]]$params$source_stat), 'goal_from_zone2'),
+  'Expected fetch_team_season_aggregate to query goal_from_zone2 when callers request team goal2 totals.'
+)
+helpers_env$fetch_team_round_breakdown(conn = NULL, team_id = 804L, stat_key = 'goal1', season = 2020L)
+assert_true(
+  identical(as.character(captured_team_period_queries[[2]]$params$source_stat), 'goal_from_zone1'),
+  'Expected fetch_team_round_breakdown to query goal_from_zone1 when callers request team goal1 totals.'
+)
+check_step('team period stat helpers canonicalize goal1 and goal2 to zone-based team stat keys')
 composition_helpers_env <- new.env(parent = globalenv())
 sys.source('api/R/helpers.R', envir = composition_helpers_env)
 composition_helpers_env$record_to_scalars <- function(values) values

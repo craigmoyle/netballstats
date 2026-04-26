@@ -1335,6 +1335,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 8L, maximum = 25L)
     stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
+    source_stat <- canonical_team_query_stat(stat)
     metric <- parse_metric(metric)
     ranking <- parse_ranking_mode(ranking)
     order_column <- if (identical(metric, "average")) "average_value" else "total_value"
@@ -1344,9 +1345,9 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
       "SELECT squad_id, squad_name, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
       "COUNT(DISTINCT match_id) AS matches_played,",
       "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
-      "FROM team_period_stats WHERE stat = ?stat"
+      "FROM team_period_stats WHERE stat = ?source_stat"
     )
-    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round)
+    filters <- apply_stat_filters(query, list(stat = stat, source_stat = source_stat), seasons, team_id, round)
     filters$query <- paste0(
       filters$query,
       " GROUP BY squad_id, squad_name ORDER BY ", order_column, " ", order_direction, ", squad_name ASC LIMIT ?limit"
@@ -1406,15 +1407,16 @@ function(season = "", seasons = "", round = "", stat = "points", metric = "total
     seasons <- parse_season_filter(season, seasons)
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
+    source_stat <- canonical_team_query_stat(stat)
     metric <- parse_metric(metric)
 
     query <- paste(
       "SELECT season, ?stat AS stat, ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value,",
       "COUNT(DISTINCT match_id) AS matches_played,",
       "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
-      "FROM team_period_stats WHERE stat = ?stat"
+      "FROM team_period_stats WHERE stat = ?source_stat"
     )
-    filters <- apply_stat_filters(query, list(stat = stat), seasons, NULL, round)
+    filters <- apply_stat_filters(query, list(stat = stat, source_stat = source_stat), seasons, NULL, round)
     filters$query <- paste0(
       filters$query,
       " GROUP BY season ORDER BY season ASC"
@@ -1441,6 +1443,7 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
     limit <- parse_limit(limit, default = 10L, maximum = 10L)
     stat <- validate_stat(conn, "team_period_stats", stat, default_stat = "points")
+    source_stat <- canonical_team_query_stat(stat)
     metric <- parse_metric(metric)
     ranking <- parse_ranking_mode(ranking)
     ranked_order_column <- if (identical(metric, "average")) "average_value" else "grand_total"
@@ -1452,9 +1455,9 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
       "SELECT squad_id, ROUND(CAST(SUM(value_number) AS numeric), 2) AS grand_total,",
       "COUNT(DISTINCT match_id) AS matches_played,",
       "ROUND(CAST(SUM(value_number) AS numeric) / NULLIF(COUNT(DISTINCT match_id), 0), 2) AS average_value",
-      "FROM team_period_stats WHERE stat = ?stat"
+      "FROM team_period_stats WHERE stat = ?source_stat"
     )
-    ranked_filters <- apply_stat_filters(ranked_query, list(stat = stat), seasons, team_id, round)
+    ranked_filters <- apply_stat_filters(ranked_query, list(source_stat = source_stat), seasons, team_id, round)
     ranked_filters$query <- paste0(
       ranked_filters$query,
       " GROUP BY squad_id ORDER BY ", ranked_order_column, " ", ranked_order_direction, ", squad_id ASC"
@@ -1472,9 +1475,9 @@ function(season = "", seasons = "", team_id = "", round = "", stat = "points", m
       "ROUND(CAST(SUM(stats.value_number) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average_value",
       "FROM team_period_stats AS stats",
       "LEFT JOIN teams ON teams.squad_id = stats.squad_id",
-      "WHERE stats.stat = ?stat"
+      "WHERE stats.stat = ?source_stat"
     )
-    filters <- apply_stat_filters(query, list(stat = stat), seasons, team_id, round, table_alias = "stats")
+    filters <- apply_stat_filters(query, list(stat = stat, source_stat = source_stat), seasons, team_id, round, table_alias = "stats")
     if (is.null(team_id)) {
       ranked_series_filters <- append_integer_in_filter(
         filters$query,
