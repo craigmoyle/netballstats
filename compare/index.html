@@ -37,7 +37,7 @@
         <div class="hero-copy">
           <p class="eyebrow">Head to head across seasons</p>
           <h1>Compare players or teams</h1>
-          <p id="compare-hero-summary" class="compare-hero-dek">Choose a mode, then add two names to unlock the head-to-head.</p>
+          <p id="compare-hero-summary" class="compare-hero-dek">Start with players or teams, then add at least two names to compare them season by season.</p>
           <p class="compare-hero-meta"><span class="hero-aside__label">Mode</span> <strong id="compare-hero-mode">Players</strong></p>
         </div>
       </section>
@@ -49,9 +49,9 @@
         <div class="panel__heading panel__heading--split">
           <div>
             <p class="panel__eyebrow">Head-to-head</p>
-            <h2>Comparison builder</h2>
+            <h2>Set the matchup</h2>
           </div>
-          <p id="compare-summary" class="muted filter-summary">Choose a mode and add names to set up the matchup.</p>
+          <p id="compare-summary" class="muted filter-summary">Add at least two names, then choose the stat frame.</p>
         </div>
 
         <form id="compare-form" class="filters compare-builder" novalidate>
@@ -141,7 +141,7 @@
 
             <section id="compare-step-action" class="builder-step builder-step--action builder-step--rail" data-step-state="pending" aria-labelledby="compare-step-action-title">
               <h3 id="compare-step-action-title" class="sr-only">Run comparison</h3>
-              <p id="compare-action-hint" class="builder-step__runway">Choose two names to unlock the verdict, chart, and season table.</p>
+              <p id="compare-action-hint" class="builder-step__runway">Choose at least two names to compare. The verdict, chart, and season table will appear below.</p>
               <div class="filter-actions">
                 <button type="submit">Compare</button>
                 <button type="button" id="reset-compare" class="button button--ghost">Reset</button>
@@ -159,8 +159,8 @@
           <section id="compare-verdict" class="panel compare-verdict compare-results-lead reveal" aria-label="Comparison verdict" hidden>
             <div class="compare-verdict__lead">
               <p class="panel__eyebrow">Verdict</p>
-              <h2 id="compare-verdict-headline">Choose names to load a verdict.</h2>
-              <p id="compare-verdict-dek" class="panel__lead">The archive will call the overall edge once at least two players or teams are selected.</p>
+              <h2 id="compare-verdict-headline">Add at least two names to compare.</h2>
+              <p id="compare-verdict-dek" class="panel__lead">The archive will call the overall edge once the matchup is in place.</p>
             </div>
             <div id="compare-verdict-facts" class="compare-verdict__facts"></div>
           </section>
@@ -170,7 +170,7 @@
               <div>
                 <h2>Season trend</h2>
               </div>
-              <p id="compare-results-meta" class="muted">Choose names to load the chart.</p>
+              <p id="compare-results-meta" class="muted">Add at least two names to draw the season trend.</p>
             </div>
             <div id="compare-trend-chart" class="chart-shell"></div>
           </section>
@@ -184,7 +184,7 @@
           </div>
           <div class="table-wrapper compare-table-shell">
             <table class="compare-table stack-table" aria-describedby="compare-table-caption">
-              <caption id="compare-table-caption" class="table-caption">Comparison rows appear here once you choose players or teams.</caption>
+              <caption id="compare-table-caption" class="table-caption">Season rows appear here once you choose players or teams.</caption>
               <thead id="compare-table-head"></thead>
               <tbody id="compare-table-body"></tbody>
               <tfoot id="compare-table-foot"></tfoot>

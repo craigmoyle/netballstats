@@ -36,15 +36,15 @@ const QUERY_STATUS_LABELS = {
 const PARSER_CONFIDENCE_COPY = {
   HIGH: "Ready to run",
   MEDIUM: "Needs a clearer question",
-  LOW: "Prompt suggested"
+  LOW: "Builder recommended"
 };
 const DEFAULT_QUERY_STATE = {
-  title: "Question starters",
-  description: "Start with a player or team, name the stat, then ask what you want to know.",
+  title: "Questions that work well",
+  description: "The parser is strongest when you name the subject, the stat, then the kind of answer you want.",
   items: [
     "Ask how many times someone reached a stat total",
-    "Ask for the highest or lowest mark",
-    "List players or teams who hit a stat in a season"
+    "Ask for the highest or lowest mark against an opponent or across the archive",
+    "Ask for a season trend or a head-to-head comparison"
   ]
 };
 const FALLBACK_EXAMPLES = [
@@ -408,7 +408,7 @@ function renderQueryState({ title, description, items = [], extraParagraphs = []
 function renderDefaultQueryState() {
   renderQueryState(DEFAULT_QUERY_STATE);
   if (elements.queryHelpSummary) {
-    elements.queryHelpSummary.textContent = "Question patterns";
+    elements.queryHelpSummary.textContent = "Questions that work well";
   }
 }
 
@@ -488,8 +488,8 @@ function applyQuestionText(question, { focus = true } = {}) {
 function setIdleState() {
   hideErrorBanner();
   setTableSchema("player");
-  elements.answerHeadline.textContent = "Write a question to see the answer.";
-  elements.answerMeta.textContent = "Ask a question, then check the answer and rows below.";
+  elements.answerHeadline.textContent = "Ask about a player, team, or stat.";
+  elements.answerMeta.textContent = "The answer appears first, with the matching evidence underneath.";
   elements.interpretationGrid.replaceChildren();
   renderDefaultQueryState();
   if (elements.queryPulseSection) {
@@ -500,7 +500,7 @@ function setIdleState() {
     elements.queryHelp.open = false;
   }
   elements.tableMeta.textContent = "";
-  clearTable("Ask a question to see the matching rows.");
+  clearTable("Run a question to load the matching rows.");
   updateQuestionComposerState(elements.questionInput.value);
 }
 
@@ -885,18 +885,18 @@ function renderUnsupported(result) {
     elements.queryPulseSection.hidden = false;
   }
   elements.answerHeadline.textContent = reason;
-  elements.answerMeta.textContent = "Try a clearer question or start from a prompt below.";
+  elements.answerMeta.textContent = "Try one of the working shapes below, or open the builder to assemble it piece by piece.";
   elements.interpretationGrid.replaceChildren();
   if (elements.queryHelpSummary) {
     elements.queryHelpSummary.textContent = result.status === "ambiguous"
-      ? "Need a tighter prompt?"
-      : "Rewrite it in a supported shape";
+      ? "Need a clearer version?"
+      : "Try one of these shapes";
   }
   renderQueryState({
-    title: result.status === "ambiguous" ? "Tighten the wording" : "Rewrite the question in one supported shape",
+    title: result.status === "ambiguous" ? "Tighten the question" : "Use one working question shape",
     description: reason,
     extraParagraphs: Array.isArray(result.candidates) && result.candidates.length
-      ? [`Possible matches: ${result.candidates.join(", ")}`]
+      ? [`Closest matches: ${result.candidates.join(", ")}`]
       : [],
     items: Array.isArray(result.examples) && result.examples.length ? result.examples : FALLBACK_EXAMPLES
   });
@@ -906,11 +906,11 @@ function renderUnsupported(result) {
   }
 
   elements.tableMeta.textContent = "";
-  clearTable("Try a clearer question to see matching rows.");
+  clearTable("Rewrite the question, or open the builder to load matching rows.");
 }
 
 function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK_EXAMPLES, builderPrefill = null } = {}) {
-  const guidance = message || "We couldn't match the main parts of that question.";
+  const guidance = message || "That wording does not give the parser a clear subject, stat, and question shape yet.";
   hideErrorBanner();
   showErrorBanner(guidance);
   if (hasBuilderPrefill(builderPrefill)) {
@@ -922,11 +922,11 @@ function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK
   if (elements.queryPulseSection) {
     elements.queryPulseSection.hidden = false;
   }
-  elements.answerHeadline.textContent = "Tighten the wording or start from a prompt.";
-  elements.answerMeta.textContent = "Name the player or team, then the stat, then what you want to know.";
+  elements.answerHeadline.textContent = "The parser needs a clearer question.";
+  elements.answerMeta.textContent = "Start with the subject, then the stat, then the kind of answer you want. You can also open the builder.";
   elements.interpretationGrid.replaceChildren();
   renderQueryState({
-    title: confidence === "LOW" ? "Try a prompt" : "Tighten the wording",
+    title: confidence === "LOW" ? "Try one of these working questions" : "Tighten the question",
     description: guidance,
     items: Array.isArray(examples) && examples.length ? examples : FALLBACK_EXAMPLES
   });
@@ -935,7 +935,7 @@ function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK
     elements.queryHelp.open = true;
   }
   elements.tableMeta.textContent = "";
-  clearTable("Pick a prompt or rewrite the question to continue.");
+  clearTable("Pick a working example, or open the builder to keep going.");
 }
 
 function renderResult(result) {
@@ -947,7 +947,7 @@ function renderResult(result) {
   }
 
   if (result.status === "parse_help_needed") {
-    const message = result.error_message || "I couldn't match all the parts of that question. Try rephrasing or use the builder to construct it step-by-step.";
+    const message = result.error_message || "I couldn't match all the parts of that question. Try rephrasing it, or open the builder to fill in the missing pieces.";
     showErrorBanner(message);
 
     const actions = elements.errorBannerActions;
@@ -983,10 +983,10 @@ function renderResult(result) {
       elements.queryHelp.hidden = false;
       elements.queryHelp.open = true;
     }
-    elements.answerHeadline.textContent = "Try a different approach or use the builder.";
-    elements.answerMeta.textContent = "";
+    elements.answerHeadline.textContent = "The parser needs a clearer version of that question.";
+    elements.answerMeta.textContent = "Try the suggested rewrite, or open the builder if you want to build it piece by piece.";
     elements.interpretationGrid.replaceChildren();
-    clearTable("No results yet. Use the builder or rephrase your question.");
+    clearTable("No rows yet. Try the rewrite, or open the builder to continue.");
     return;
   }
 
@@ -1787,7 +1787,7 @@ async function init() {
     applyMetaConfig(meta);
     renderMeta(meta);
   } catch (error) {
-    elements.querySeasonSummary.textContent = "Metadata unavailable. Questions may still work.";
+    elements.querySeasonSummary.textContent = "Archive metadata is unavailable right now. Questions may still work.";
   }
 
   // Initialize builder modal
