@@ -41,9 +41,9 @@
 
           <aside class="hero-aside" aria-label="Query feature scope">
             <div class="hero-aside__card">
-              <span class="hero-aside__label">Parser scope</span>
+              <span class="hero-aside__label">Archive coverage</span>
               <strong id="hero-season-range">--</strong>
-              <p id="query-season-summary">Loading seasons and question types…</p>
+              <p id="query-season-summary">Loading archive coverage…</p>
             </div>
 
         </aside>
@@ -62,8 +62,8 @@
         <div class="query-board">
           <div class="query-board__header">
             <div class="panel__heading">
-              <p class="panel__eyebrow">Question builder</p>
-              <h2>Ask a question</h2>
+                <p class="panel__eyebrow">Ask the archive</p>
+                <h2>Ask a question</h2>
             </div>
           </div>
 
@@ -73,7 +73,7 @@
                 <span class="builder-step__number" aria-hidden="true">1</span>
                 <div>
                   <h3 id="query-step-compose-title">Write the question</h3>
-                  <p class="builder-step__hint">Start with the player or team, then the stat, then the count, highest, lowest, or list cue you want.</p>
+                  <p class="builder-step__hint">Start with the player or team and the stat you want. Add a season or opponent only when it changes the answer.</p>
                 </div>
               </div>
 
@@ -94,15 +94,15 @@
                 </div>
                 <div class="query-input-meta">
                   <p id="query-hint" class="query-hint">
-                    Works best as: player or team + stat + threshold or highest/lowest cue. Add opponent or season only when you need a tighter read.
-                  </p>
+                     Best with: player or team + stat + question. Add a season or opponent only when it changes the answer.
+                   </p>
                   <p id="question-character-count" class="query-character-count" aria-live="polite">0 / 220 characters</p>
                 </div>
               </div>
 
               <div class="query-recipe" aria-label="Question recipe">
-                <span class="query-recipe__label">Parser read</span>
-                <p>Keep it literal. Name the subject, name the stat, then ask for a count, list, highest, or lowest result.</p>
+                <span class="query-recipe__label">Quick guide</span>
+                <p>Name the player or team, name the stat, then ask what you want to know.</p>
               </div>
             </section>
 
@@ -110,8 +110,8 @@
               <div class="builder-step__header">
                 <span class="builder-step__number" aria-hidden="true">2</span>
                 <div>
-                  <h3 id="query-step-shape-title">Use a template if the parser needs help</h3>
-                  <p class="builder-step__hint">Pick a literal pattern the parser already understands, then swap in the player, team, stat, threshold, or season you want.</p>
+                  <h3 id="query-step-shape-title">Need a prompt?</h3>
+                  <p class="builder-step__hint">Choose a question starter, then swap in the player, team, stat, threshold, or season you want.</p>
                 </div>
               </div>
 
@@ -141,24 +141,24 @@
                   <span class="query-template-button__text">What is [team]'s [stat] by quarter in [season]?</span>
                 </button>
               </div>
-              <p class="builder-step__note">Pick the closest shape, then replace the bracketed placeholders with real names, stats, thresholds, or seasons before you run it.</p>
+              <p class="builder-step__note">Replace the bracketed placeholders with real names, stats, thresholds, or seasons before you run it.</p>
             </section>
 
             <section id="query-step-run" class="builder-step builder-step--query" data-step-state="pending" aria-labelledby="query-step-run-title">
               <div class="builder-step__header">
                 <span class="builder-step__number" aria-hidden="true">3</span>
                 <div>
-                  <h3 id="query-step-run-title">Test it or use an example</h3>
-                  <p class="builder-step__hint">Run your wording once the parser can read it, or use one of these complete examples to see the full flow.</p>
+                  <h3 id="query-step-run-title">Try an example</h3>
+                  <p class="builder-step__hint">Use one of these if you want to see a working question first.</p>
                 </div>
               </div>
 
-              <p id="query-runway-hint" class="builder-step__runway">Write a question or choose a template before you run it.</p>
+              <p id="query-runway-hint" class="builder-step__runway">Write a question or start from a prompt.</p>
 
               <div class="query-examples">
                 <div class="query-examples__header">
-                  <strong>Ready-made examples</strong>
-                  <p>These fire immediately so you can see how a supported question is shaped.</p>
+                  <strong>Working examples</strong>
+                  <p>Use one to see how the page answers a complete question.</p>
                 </div>
                 <div class="example-strip" id="example-strip" aria-label="Example question prompts">
                   <button type="button" class="example-chip" data-example="How many times has Grace Nweke scored 50 goals or more against the Vixens?">Grace Nweke 50+ against Vixens</button>
@@ -199,7 +199,7 @@
           <div class="answer-stage">
               <div class="answer-stage__card">
                 <h2 id="answer-headline" class="answer-stage__headline">Write a question to see the answer.</h2>
-                <p id="answer-meta" class="answer-stage__meta">The parser will check the wording before the answer card and evidence table update together.</p>
+                <p id="answer-meta" class="answer-stage__meta">Ask a question, then check the answer and rows below.</p>
               </div>
 
             <div id="interpretation-grid" class="interpretation-grid" aria-label="Parsed interpretation"></div>
@@ -234,7 +234,7 @@
               </thead>
               <tbody id="query-rows-body">
                 <tr>
-                  <td colspan="7">Ask a supported question to see the matching rows.</td>
+                  <td colspan="7">Ask a question to see the matching rows.</td>
                 </tr>
               </tbody>
             </table>
