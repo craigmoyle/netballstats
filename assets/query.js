@@ -60,39 +60,6 @@ const TABLE_SCHEMAS = {
   }
 };
 
-const QUERY_TEMPLATES = {
-  'head-to-head': {
-    label: 'Head-to-Head',
-    description: 'Compare Vixens vs Swifts goals in 2025',
-    query: 'How many goals did Vixens score vs Swifts in 2025?'
-  },
-  'player-combo': {
-    label: 'Player Combo',
-    description: 'Combine stats from multiple players',
-    query: 'What is Tara Hinchliffe and Taryn Aiken combined feeds in 2024?'
-  },
-  'alltime-record': {
-    label: 'Record Holder',
-    description: 'Find the all-time record for a stat',
-    query: 'Which player has the highest total points all-time?'
-  },
-  'multi-team': {
-    label: 'Multi-Team Gains',
-    description: 'Compare defensive gains across teams',
-    query: 'How many defensive gains did Vixens, Swifts, and Magpies record in 2025?'
-  },
-  'quarter-penalties': {
-    label: 'Quarter Breakdown',
-    description: 'See penalty trends by quarter',
-    query: 'What is Vixens penalties by quarter in 2025?'
-  },
-  'rising-stars': {
-    label: 'Rising Stars',
-    description: 'Track emerging players defensive stats',
-    query: 'Which young players had the most intercepts in 2024?'
-  }
-};
-
 const elements = {
   apiBase: document.getElementById("api-base"),
   heroSeasonRange: document.getElementById("hero-season-range"),
@@ -131,7 +98,7 @@ const elements = {
 elements.submitButton = elements.queryForm.querySelector('[type="submit"]');
 
 const exampleButtons = Array.from(elements.exampleStrip.querySelectorAll("[data-example]"));
-const templateButtons = Array.from((elements.queryTemplateStrip?.querySelectorAll("[data-template], [data-template-id]")) || []);
+const templateButtons = Array.from((elements.queryTemplateStrip?.querySelectorAll("[data-template]")) || []);
 const submitButtonDefaultLabel = elements.submitButton?.textContent || "Run question";
 
 // Builder modal elements
@@ -460,9 +427,7 @@ function updateQuestionComposerState(value = "") {
   });
 
   templateButtons.forEach((button) => {
-    const templateId = button.getAttribute("data-template-id");
-    const templateValue = button.getAttribute("data-template")
-      || (templateId && QUERY_TEMPLATES[templateId] ? QUERY_TEMPLATES[templateId].query : "");
+    const templateValue = button.getAttribute("data-template") || "";
     const isActive = templateValue === value;
     button.setAttribute("aria-pressed", isActive ? "true" : "false");
   });
@@ -1478,24 +1443,11 @@ elements.clearQuestion.addEventListener("click", () => {
 
 if (elements.queryTemplateStrip) {
   elements.queryTemplateStrip.addEventListener("click", (event) => {
-    const button = event.target.closest("[data-template], [data-template-id]");
+    const button = event.target.closest("[data-template]");
     if (!button) {
       return;
     }
 
-    // Handle new example templates with data-template-id
-    const templateId = button.getAttribute("data-template-id");
-    if (templateId && QUERY_TEMPLATES[templateId]) {
-      const template = QUERY_TEMPLATES[templateId];
-      applyQuestionText(template.query);
-      trackEvent("ask_stats_template_selected", {
-        template: template.label,
-        template_id: templateId
-      });
-      return;
-    }
-
-    // Handle old-style placeholder templates with data-template
     const template = button.getAttribute("data-template") || "";
     applyQuestionText(template);
     trackEvent("ask_stats_template_selected", {
