@@ -116,6 +116,10 @@ QUERY_STAT_DEFINITIONS <- list(
     label = "Contacts",
     aliases = c("contacts", "contact penalties", "contact penalty")
   ),
+  penalties = list(
+    label = "Penalties",
+    aliases = c("penalties", "penalty")
+  ),
   generalPlayTurnovers = list(
     label = "General Play Turnovers",
     aliases = c("general play turnovers", "general play turnover")
@@ -1155,6 +1159,25 @@ detect_query_list_subject_type <- function(text) {
   NULL
 }
 
+default_query_plural_subject_type <- function(intent_type, normalized_text, subject_search_phrase = NULL, parsed_subject = NULL) {
+  explicit_subject_type <- detect_query_list_subject_type(normalized_text)
+  if (!is.null(explicit_subject_type)) {
+    return(explicit_subject_type)
+  }
+
+  if (identical(parsed_subject, "players") || identical(parsed_subject, "teams")) {
+    return(parsed_subject)
+  }
+
+  has_subject_phrase <- !is.null(subject_search_phrase) &&
+    nzchar(trimws(as.character(subject_search_phrase)))
+  if (!has_subject_phrase && (identical(intent_type, "highest") || identical(intent_type, "lowest"))) {
+    return("players")
+  }
+
+  NULL
+}
+
 resolve_query_subject <- function(conn, phrase) {
   team <- resolve_query_team(conn, phrase)
   if (is.list(team) && !is.null(team$status) && identical(team$status, "supported")) {
@@ -1239,12 +1262,17 @@ parse_query_intent <- function(conn, question, limit = 12L) {
     return(opponent)
   }
 
-  plural_subject_type <- detect_query_list_subject_type(normalized_text)
+  extracted_subject_phrase <- extract_query_subject_phrase(parsed_question, intent_type)
+  plural_subject_type <- default_query_plural_subject_type(
+    intent_type,
+    normalized_text,
+    subject_search_phrase = extracted_subject_phrase
+  )
 
   subject_search_phrase <- if (!is.null(plural_subject_type)) {
     NULL
   } else {
-    extract_query_subject_phrase(parsed_question, intent_type) %||% parsed_question
+    extracted_subject_phrase %||% parsed_question
   }
   subject <- if (!is.null(plural_subject_type)) {
     list(status = "supported", subject_type = plural_subject_type)
@@ -1387,20 +1415,28 @@ build_simple_query_intent_from_preview <- function(conn, question, parsed, limit
   }
 
   subject_value <- parsed$subject %||% NULL
-  plural_subject_type <- if (identical(subject_value, "players")) {
-    "players"
-  } else if (identical(subject_value, "teams")) {
-    "teams"
+  extracted_subject_phrase <- if (
+    !is.null(subject_value) &&
+      !is.na(subject_value) &&
+      !identical(subject_value, "players") &&
+      !identical(subject_value, "teams") &&
+      nzchar(trimws(as.character(subject_value)))
+  ) {
+    as.character(subject_value)
   } else {
-    NULL
+    extract_query_subject_phrase(parsed_question, intent_type)
   }
+  plural_subject_type <- default_query_plural_subject_type(
+    intent_type,
+    normalized_text,
+    subject_search_phrase = extracted_subject_phrase,
+    parsed_subject = subject_value
+  )
 
   subject_search_phrase <- if (!is.null(plural_subject_type)) {
     NULL
-  } else if (!is.null(subject_value) && nzchar(trimws(as.character(subject_value)))) {
-    as.character(subject_value)
   } else {
-    extract_query_subject_phrase(parsed_question, intent_type) %||% parsed_question
+    extracted_subject_phrase %||% parsed_question
   }
   subject <- if (!is.null(plural_subject_type)) {
     list(status = "supported", subject_type = plural_subject_type)
