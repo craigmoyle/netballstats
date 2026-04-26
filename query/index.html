@@ -83,11 +83,11 @@
                 </div>
               </div>
               <div class="query-input-meta">
-                <p id="query-hint" class="query-hint">Name a player or team, name the stat, then ask what you want to know.</p>
+                <p id="query-hint" class="query-hint">Start with a player or team, name the stat, then ask for a count, record, comparison, or trend.</p>
                 <p id="question-character-count" class="query-character-count" aria-live="polite">0 / 220 characters</p>
               </div>
               <div class="query-input-footer">
-                <button type="button" id="open-builder-trigger" class="query-builder-trigger">Use the builder instead</button>
+                  <button type="button" id="open-builder-trigger" class="query-builder-trigger">Open the builder</button>
               </div>
             </div>
 
@@ -95,8 +95,8 @@
               <summary class="query-support__toggle">Starters and examples</summary>
               <div class="query-support__body">
                 <div class="query-support__section">
-                  <p class="query-support__section-label">Question starters</p>
-                  <p class="query-support__section-note">Choose a starter, then swap in real names, stats, thresholds, or seasons.</p>
+                  <p class="query-support__section-label">Question shapes</p>
+                  <p class="query-support__section-note">Use one when you know the shape, then swap in real names, stats, seasons, or thresholds.</p>
                   <div id="query-template-strip" class="query-template-strip" role="group" aria-label="Question templates">
                     <button type="button" class="query-template-button" data-template="How many times has [player] recorded [threshold] or more [stat]?">
                       <span class="query-template-button__label">Count threshold</span>
@@ -125,8 +125,8 @@
                   </div>
                 </div>
                 <div class="query-support__section">
-                  <p class="query-support__section-label">Working examples</p>
-                  <p class="query-support__section-note">Tap one to run a complete question against the archive.</p>
+                  <p class="query-support__section-label">Questions that already work</p>
+                  <p class="query-support__section-note">Tap one to run it as written against the archive.</p>
                   <div class="example-strip" id="example-strip" aria-label="Example question prompts">
                     <button type="button" class="example-chip" data-example="How many times has Grace Nweke scored 50 goals or more against the Vixens?">Grace Nweke 50+ against Vixens</button>
                     <button type="button" class="example-chip" data-example="What is Liz Watson's highest goal assist total against the Firebirds?">Liz Watson goal assists</button>
@@ -173,7 +173,7 @@
             <div id="interpretation-grid" class="interpretation-grid" aria-label="Parsed interpretation"></div>
 
             <details id="query-help" class="query-help" hidden>
-              <summary id="query-help-summary">Question patterns</summary>
+              <summary id="query-help-summary">Questions that work well</summary>
               <div id="query-state" class="query-state"></div>
             </details>
           </div>
@@ -184,7 +184,7 @@
             <div>
               <h2>Supporting evidence</h2>
             </div>
-            <p id="table-meta" class="table-meta">No rows loaded yet.</p>
+                <p id="table-meta" class="table-meta">Matching rows appear here once you run a question.</p>
           </div>
           <div class="table-wrapper table-wrapper--spotlight">
             <table class="query-table stack-table" id="query-table">
@@ -202,7 +202,7 @@
               </thead>
               <tbody id="query-rows-body">
                 <tr>
-                  <td colspan="7">Ask a question to see the matching rows.</td>
+                  <td colspan="7">Run a question to load the matching rows.</td>
                 </tr>
               </tbody>
             </table>

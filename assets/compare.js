@@ -191,8 +191,8 @@ function describeSeasons(seasons) {
 
 function promptMessage() {
   return state.mode === "players"
-    ? "Choose at least two players."
-    : "Choose at least two teams.";
+    ? "Choose at least two players to compare."
+    : "Choose at least two teams to compare.";
 }
 
 function entityNoun(count = 2) {
@@ -313,15 +313,15 @@ function updateSelectionMeta() {
   const playerCount = state.selectedPlayers.length;
   const teamCount = state.selectedTeamIds.length;
   elements.playerSelectionMeta.textContent = playerCount === 0
-    ? `Choose 2 to ${MAX_PLAYERS} players.`
+    ? `Add 2 to ${MAX_PLAYERS} players for one comparison.`
     : playerCount === 1
-      ? "1 player selected · add 1 more to unlock the verdict."
-      : `${playerCount} players selected · you can compare up to ${MAX_PLAYERS}.`;
+      ? "1 player selected, add 1 more to compare them."
+      : `${playerCount} players selected, you can compare up to ${MAX_PLAYERS}.`;
   elements.teamSelectionMeta.textContent = teamCount === 0
-    ? `Choose 2 to ${MAX_TEAMS} teams.`
+    ? `Add 2 to ${MAX_TEAMS} teams for one comparison.`
     : teamCount === 1
-      ? "1 team selected · add 1 more to unlock the verdict."
-      : `${teamCount} teams selected · you can compare up to ${MAX_TEAMS}.`;
+      ? "1 team selected, add 1 more to compare them."
+      : `${teamCount} teams selected, you can compare up to ${MAX_TEAMS}.`;
 }
 
 function updateWorkflowState() {
@@ -354,7 +354,7 @@ function updateWorkflowState() {
   }
 
   if (!selectionCount) {
-    elements.compareActionHint.textContent = `Choose at least two ${entityNoun(2)} to unlock the verdict, chart, and season table.`;
+    elements.compareActionHint.textContent = `Choose at least two ${entityNoun(2)} to compare. The verdict, chart, and season table will appear below.`;
     return;
   }
 
@@ -371,15 +371,15 @@ function updateBuilderSummary() {
   const seasonLabel = describeSeasons(getSelectedSeasons());
   elements.heroMode.textContent = state.mode === "players" ? "Players" : "Teams";
   if (!entities.length) {
-    elements.compareSummary.textContent = `Step 2: add ${state.mode === "players" ? `2 to ${MAX_PLAYERS} players` : `2 to ${MAX_TEAMS} teams`} before you tune the stat frame.`;
-    elements.heroSummary.textContent = `Choose a mode, then add two ${entityNoun(2)} to unlock the head-to-head.`;
+    elements.compareSummary.textContent = `Add ${state.mode === "players" ? `2 to ${MAX_PLAYERS} players` : `2 to ${MAX_TEAMS} teams`}, then choose the stat frame.`;
+    elements.heroSummary.textContent = `Start with ${state.mode}, then add at least two names to compare them season by season.`;
     updateWorkflowState();
     return;
   }
 
   if (entities.length === 1) {
-    elements.compareSummary.textContent = `1 ${entityNoun(1)} selected • add one more to unlock the verdict and chart.`;
-    elements.heroSummary.textContent = `1 ${entityNoun(1)} in place • add one more, then compare ${currentStatLabel()} by ${currentMetricLabel()}.`;
+    elements.compareSummary.textContent = `1 ${entityNoun(1)} selected, add one more to compare ${currentStatLabel()}.`;
+    elements.heroSummary.textContent = `1 ${entityNoun(1)} in place, add one more, then choose the stat frame.`;
     updateWorkflowState();
     return;
   }
@@ -542,7 +542,7 @@ function addSelectedPlayer(result) {
   }
 
   if (state.selectedPlayers.length >= MAX_PLAYERS) {
-    showStatus(`Choose no more than ${MAX_PLAYERS} players.`, "error");
+    showStatus(`You can compare up to ${MAX_PLAYERS} players at once.`, "error");
     return;
   }
 
@@ -590,7 +590,7 @@ const searchPlayersDebounced = debounce(async (query) => {
     if (seq !== playerSearchSeq) {
       return;
     }
-    showStatus(error.message || "Couldn't search players.", "error");
+    showStatus(error.message || "Player search is unavailable right now.", "error");
     closePlayerSearchResults();
   }
 }, 200);
@@ -946,8 +946,8 @@ async function fetchTeamComparisonRows() {
 function renderComparisonChart(rows, entities) {
   renderTrendChart(elements.compareChart, rows, {
     ariaLabel: `${state.mode === "players" ? "Player" : "Team"} comparison trend chart for ${currentStatLabel()}`,
-    emptyMessage: "No comparison data for these filters.",
-    singleSeasonMessage: "Choose two or more seasons for a trend.",
+    emptyMessage: "No shared comparison data for that stat and season range.",
+    singleSeasonMessage: "Choose at least two seasons to draw a trend.",
     idAccessor: (row) => row.entity_id,
     labelAccessor: (row) => row.entity_name,
     valueAccessor: (row) => metricDisplayValue(row),
@@ -994,7 +994,7 @@ function renderComparisonTable(rows, entities) {
     .sort((left, right) => left - right);
 
   if (!seasons.length) {
-    renderEmptyTable("No comparison data for these filters.");
+    renderEmptyTable("No shared comparison data for that stat and season range.");
     return;
   }
 
@@ -1103,12 +1103,12 @@ async function runComparison() {
     }
 
     if (!rows.length) {
-      clearComparison("No comparison data for these filters.");
+      clearComparison("No shared comparison data for that stat and season range.");
       trackEvent("compare_completed", {
         ...comparisonTelemetryProperties(entities.length),
         outcome: "no_data"
       });
-      showStatus("No comparison data for these filters.", "error", { kicker: "No overlap" });
+      showStatus("No shared comparison data. Try more seasons or a different stat.", "error", { kicker: "No overlap" });
       return;
     }
 
@@ -1122,12 +1122,12 @@ async function runComparison() {
     });
     showStatus("Comparison ready.", "success", { kicker: "Ready", autoHideMs: 2200 });
   } catch (error) {
-    clearComparison("Couldn't load comparison data.");
+    clearComparison("Comparison data is unavailable right now.");
     trackEvent("compare_completed", {
       ...comparisonTelemetryProperties(entities.length),
       outcome: "error"
     });
-    showStatus(error.message || "Couldn't load comparison data.", "error", { kicker: "Comparison unavailable" });
+    showStatus(error.message || "Comparison data is unavailable right now.", "error", { kicker: "Comparison unavailable" });
   }
 }
 
@@ -1227,7 +1227,7 @@ function initialiseEventListeners() {
     const checkedIds = getSelectedTeamIds();
     if (checkedIds.length > MAX_TEAMS) {
       event.target.checked = false;
-      showStatus(`Choose no more than ${MAX_TEAMS} teams.`, "error");
+      showStatus(`You can compare up to ${MAX_TEAMS} teams at once.`, "error");
       return;
     }
 
@@ -1324,8 +1324,8 @@ async function initialise() {
       showStatus("");
     }
   } catch (error) {
-    showStatus(error.message || "Couldn't load comparison options.", "error", { kicker: "Builder unavailable" });
-    clearComparison("Stats unavailable.");
+    showStatus(error.message || "Comparison options are unavailable right now.", "error", { kicker: "Builder unavailable" });
+    clearComparison("Comparison options are unavailable right now.");
   }
 }
 
