@@ -1314,14 +1314,26 @@ async function initialise() {
 
   try {
     let meta;
-    try {
-      meta = await fetchJson("/meta");
-    } catch (firstError) {
-      // Retry once to handle cold-start delays (R/Plumber can take 20-30s to start).
-      showLoadingStatus(ARCHIVE_STARTUP_MESSAGES, "Starting up");
-      await new Promise((resolve) => window.setTimeout(resolve, 5000));
-      meta = await fetchJson("/meta");
+    const metaBackoffMs = [0, 0, 1500];
+    let lastMetaError = null;
+
+    for (let attempt = 0; attempt < metaBackoffMs.length; attempt += 1) {
+      try {
+        if (metaBackoffMs[attempt] > 0) {
+          showLoadingStatus(ARCHIVE_STARTUP_MESSAGES, "Starting up");
+          await new Promise((resolve) => window.setTimeout(resolve, metaBackoffMs[attempt]));
+        }
+        meta = await fetchJson("/meta");
+        break;
+      } catch (error) {
+        lastMetaError = error;
+      }
     }
+
+    if (!meta) {
+      throw lastMetaError;
+    }
+
     applyMeta(meta);
     applyMetaConfig(meta);
     const editorialLeadPromise = fetchOptionalJson("/round-summary")

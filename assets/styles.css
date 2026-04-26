@@ -1055,7 +1055,7 @@ a:focus-visible {
   border-radius: 0 0 12px 12px;
   background: var(--accent);
   color: var(--text-on-accent);
-  font-family: var(--display-font);
+  font-family: var(--body-font);
   font-size: 1rem;
   font-weight: 600;
   letter-spacing: 0.01em;
@@ -2529,10 +2529,10 @@ tr[data-rank="3"] td:first-child {
 }
 
 .entity-picker__option strong {
-  font-family: var(--display-font);
-  font-size: 1.1rem;
+  font-family: var(--body-font);
+  font-size: 1rem;
   font-weight: 600;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.01em;
 }
 
 .entity-picker__eyebrow {
@@ -4692,6 +4692,8 @@ caption.table-caption {
 [data-theme="light"] .compare-verdict,
 [data-theme="light"] .player-dossier__summary-panel,
 [data-theme="light"] .compare-page .hero-panel,
+[data-theme="light"] .players-page .hero-panel,
+[data-theme="light"] .round-preview-page .hero-panel,
 [data-theme="light"] .home-edge-page .hero-panel,
 [data-theme="light"] .changelog-page .hero-panel,
 [data-theme="light"] .changelog-summary {
@@ -5307,6 +5309,13 @@ caption.table-caption {
   gap: var(--space-sm);
 }
 
+[data-theme="light"] .round-preview-card {
+  background:
+    linear-gradient(180deg, rgba(26, 138, 122, 0.05), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.74), rgba(255, 248, 240, 0.94));
+  border-color: rgba(130, 90, 30, 0.14);
+}
+
 .builder-shape-option {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -5316,7 +5325,7 @@ caption.table-caption {
   border: 1px solid var(--border);
   border-radius: var(--radius-sm);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
   align-items: start;
 }
 
@@ -5520,7 +5529,7 @@ caption.table-caption {
   font-size: var(--type-label);
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease, opacity 0.2s ease;
   white-space: nowrap;
   text-align: center;
   min-height: 2.5rem;
