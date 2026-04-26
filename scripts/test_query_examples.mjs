@@ -58,7 +58,7 @@ for (const example of expectedApiQuestions) {
     `Expected "${example.question}" to return status \"supported\".`
   );
   assert.equal(
-    payload.intent_type,
+    payload.intent_type ?? payload.parsed?.intent_type,
     example.intentType,
     `Expected "${example.question}" to resolve as ${example.intentType}.`
   );
