@@ -71,50 +71,57 @@ assert_contains <- function(text, needle, message) {
   assert_true(grepl(needle, text, fixed = TRUE), message)
 }
 
+perform_request_with_retry <- function(request_fn, request_label, expected_status = 200L, max_attempts = 8L) {
+  attempt <- 1L
+
+  repeat {
+    response <- request_fn()
+    status <- as.integer(httr::status_code(response))
+    body_text <- httr::content(response, as = 'text', encoding = 'UTF-8')
+
+    if (status == 429L && attempt < max_attempts) {
+      Sys.sleep(min(10L, 2L ^ (attempt - 1L)))
+      attempt <- attempt + 1L
+      next
+    }
+
+    if (status != as.integer(expected_status)) {
+      stop(
+        sprintf('Expected HTTP %s from %s, got %s. Body: %s', expected_status, request_label, status, body_text),
+        call. = FALSE
+      )
+    }
+
+    if (!nzchar(body_text)) {
+      return(list())
+    }
+
+    return(jsonlite::fromJSON(body_text, simplifyVector = FALSE))
+  }
+}
+
 request_json <- function(base_url, path, query = list(), expected_status = 200L) {
   url <- build_endpoint_url(base_url, path, query)
-  response <- httr::GET(url, httr::timeout(30))
-  status <- httr::status_code(response)
-  body_text <- httr::content(response, as = 'text', encoding = 'UTF-8')
-
-  if (!identical(status, expected_status)) {
-    stop(
-      sprintf('Expected HTTP %s from %s, got %s. Body: %s', expected_status, url, status, body_text),
-      call. = FALSE
-    )
-  }
-
-  if (!nzchar(body_text)) {
-    return(list())
-  }
-
-  jsonlite::fromJSON(body_text, simplifyVector = FALSE)
+  perform_request_with_retry(
+    function() httr::GET(url, httr::timeout(30)),
+    request_label = url,
+    expected_status = expected_status
+  )
 }
 
 request_json_post <- function(base_url, path, body = list(), expected_status = 200L) {
   url <- build_endpoint_url(base_url, path)
   body_json <- jsonlite::toJSON(body, auto_unbox = TRUE)
-  response <- httr::POST(
-    url,
-    httr::add_headers(`Content-Type` = 'application/json'),
-    body = body_json,
-    httr::timeout(30)
+  perform_request_with_retry(
+    function() httr::POST(
+      url,
+      httr::add_headers(`Content-Type` = 'application/json'),
+      body = body_json,
+      httr::timeout(30)
+    ),
+    request_label = paste0(url, ' (POST)'),
+    expected_status = expected_status
   )
-  status <- httr::status_code(response)
-  body_text <- httr::content(response, as = 'text', encoding = 'UTF-8')
-
-  if (!identical(status, expected_status)) {
-    stop(
-      sprintf('Expected HTTP %s from %s (POST), got %s. Body: %s', expected_status, url, status, body_text),
-      call. = FALSE
-    )
-  }
-
-  if (!nzchar(body_text)) {
-    return(list())
-  }
-
-  jsonlite::fromJSON(body_text, simplifyVector = FALSE)
 }
 
 first_record <- function(records) {
@@ -1929,15 +1936,26 @@ assert_true(identical(scalar_value(simple_lowest$status), 'supported'),
 check_step('/query backward compatibility: lowest queries work')
 
 cat("Checking /query POST with builder_source=false and no question (should skip parse and use simple logic)...\n")
-no_question_post <- request_json_post(base_url, '/query', list(question = '', builder_source = FALSE))
-assert_true(identical(scalar_value(no_question_post$status), 'unsupported') || 
-            identical(scalar_value(no_question_post$status), 'error'),
-  'Expected empty question to return unsupported or error')
-check_step('/query POST: empty question returns error as expected')
+no_question_post <- request_json_post(
+  base_url,
+  '/query',
+  list(question = '', builder_source = FALSE),
+  expected_status = 400L
+)
+assert_contains(
+  scalar_value(no_question_post$error),
+  'Invalid request parameters',
+  'Expected empty question POST to return the standard validation error payload'
+)
+check_step('/query POST: empty question returns 400 validation error as expected')
 
 cat("Checking /query POST builder_source=true with missing shape...\n")
-no_shape_post <- request_json_post(base_url, '/query', 
-  list(builder_source = TRUE, shape = NA), expected_status = 200L)
+no_shape_post <- request_json_post(
+  base_url,
+  '/query',
+  list(builder_source = TRUE),
+  expected_status = 400L
+)
 assert_true(identical(scalar_value(no_shape_post$status), 'error'),
   'Expected missing shape to return error')
 assert_contains(scalar_value(no_shape_post$error), 'Shape is required',
@@ -2013,7 +2031,7 @@ empty_subjects <- request_json_post(base_url, '/query', list(
   subjects = c(),
   stat = 'goals',
   seasons = c(2024)
-), expected_status = 200L)
+), expected_status = 400L)
 assert_true(identical(scalar_value(empty_subjects$status), 'error'),
   'Expected empty subjects to return error, not crash')
 assert_contains(scalar_value(empty_subjects$error), 'Comparison requires',
@@ -2027,12 +2045,13 @@ empty_seasons <- request_json_post(base_url, '/query', list(
   subjects = c('Collingwood', 'Melbourne'),
   stat = 'goals',
   seasons = c()
-), expected_status = 200L)
-assert_true(identical(scalar_value(empty_seasons$status), 'error'),
-  'Expected empty seasons to return error, not crash')
-assert_contains(scalar_value(empty_seasons$error), 'Comparison requires',
-  'Expected error message about comparison requirements')
-check_step('/query POST: comparison with empty seasons returns error safely')
+), expected_status = 400L)
+assert_contains(
+  scalar_value(empty_seasons$error),
+  'Invalid request parameters',
+  'Expected empty seasons array to fail request validation'
+)
+check_step('/query POST: comparison with empty seasons returns 400 safely')
 
 cat("Checking /query POST trend with empty seasons array...\n")
 trend_empty_seasons <- request_json_post(base_url, '/query', list(
@@ -2091,7 +2110,7 @@ comp_basic <- request_json_post(base_url, '/query', list(
   shape = 'comparison',
   subjects = c('Collingwood', 'Melbourne'),
   stat = 'goals',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(comp_basic$status), 'Comparison should return status')
@@ -2120,8 +2139,8 @@ comp_single_subject <- request_json_post(base_url, '/query', list(
   shape = 'comparison',
   subjects = c('Collingwood'),
   stat = 'goals',
-  season = default_season
-), expected_status = 200L)
+  seasons = c(default_season)
+), expected_status = 400L)
 
 assert_true(!is.null(comp_single_subject$status), 'Single subject comparison should return status')
 assert_true(identical(as.character(scalar_value(comp_single_subject$status)), 'error'),
@@ -2134,7 +2153,7 @@ comp_many_subjects <- request_json_post(base_url, '/query', list(
   shape = 'comparison',
   subjects = c('Collingwood', 'Melbourne', 'Essendon'),
   stat = 'goals',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(comp_many_subjects$status), '3+ subject comparison should return status')
@@ -2148,7 +2167,7 @@ comp_invalid_stat <- request_json_post(base_url, '/query', list(
   shape = 'comparison',
   subjects = c('Collingwood', 'Melbourne'),
   stat = 'invalid_stat_xyz_123',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(comp_invalid_stat$status), 'Invalid stat should return status')
@@ -2169,7 +2188,7 @@ comb_basic <- request_json_post(base_url, '/query', list(
     list(stat = 'feeds', operator = '>=', threshold = 100)
   ),
   logical_operator = 'AND',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(comb_basic$status), 'Combination should return status')
@@ -2185,7 +2204,7 @@ comb_or <- request_json_post(base_url, '/query', list(
     list(stat = 'intercepts', operator = '>=', threshold = 50)
   ),
   logical_operator = 'OR',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(comb_or$status), 'Combination with OR should return status')
@@ -2206,8 +2225,8 @@ comb_empty_filters <- request_json_post(base_url, '/query', list(
   shape = 'combination',
   filters = list(),
   logical_operator = 'AND',
-  season = default_season
-), expected_status = 200L)
+  seasons = c(default_season)
+), expected_status = 400L)
 
 assert_true(!is.null(comb_empty_filters$status), 'Empty filters should return status')
 assert_true(identical(as.character(scalar_value(comb_empty_filters$status)), 'error'),
@@ -2220,7 +2239,7 @@ comb_invalid_op <- request_json_post(base_url, '/query', list(
   shape = 'combination',
   filters = list(list(stat = 'goals', operator = '>=', threshold = 50)),
   logical_operator = 'INVALID_OP',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(comb_invalid_op$status), 'Invalid operator should return status')
@@ -2289,7 +2308,7 @@ record_season <- request_json_post(base_url, '/query', list(
   builder_source = TRUE,
   shape = 'record',
   stat = 'goals',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(record_season$status), 'Record for season should return status')
@@ -2355,21 +2374,27 @@ cat("\n[PARSER] Testing parser edge cases...\n")
 cat("  → Testing empty input\n")
 parse_empty <- request_json_post(base_url, '/query', list(
   question = ''
-), expected_status = 200L)
+), expected_status = 400L)
 
-assert_true(!is.null(parse_empty$status), 'Empty question should return status')
-# Should return error or low confidence, not crash
-check_step('Parser: Empty input handled gracefully')
+assert_contains(
+  scalar_value(parse_empty$error),
+  'Invalid request parameters',
+  'Empty question should fail request validation'
+)
+check_step('Parser: Empty input returns 400 validation error')
 
 cat("  → Testing very long input\n")
 long_input <- paste(rep('word ', 200), collapse = '')
 parse_long <- request_json_post(base_url, '/query', list(
   question = long_input
-), expected_status = 200L)
+), expected_status = 400L)
 
-assert_true(!is.null(parse_long$status), 'Long input should return status')
-# Should handle gracefully without crashing or timeouts
-check_step('Parser: Very long input (200+ words) handled gracefully')
+assert_contains(
+  scalar_value(parse_long$error),
+  'Invalid request parameters',
+  'Overlong question should fail request validation'
+)
+check_step('Parser: Very long input returns 400 validation error')
 
 cat("  → Testing random/nonsense input\n")
 parse_nonsense <- request_json_post(base_url, '/query', list(
@@ -2432,7 +2457,7 @@ api_builder_comp <- request_json_post(base_url, '/query', list(
   shape = 'comparison',
   subjects = c('Collingwood', 'Melbourne'),
   stat = 'goals',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 assert_true(!is.null(api_builder_comp$status), 'builder_source=true should return status')
@@ -2478,15 +2503,15 @@ existing_comp <- request_json_post(base_url, '/query', list(
 assert_true(!is.null(existing_comp$status), 'Existing comparison query should work')
 check_step('Existing query: Team comparison still works')
 
-cat("  → Testing existing stats list query\n")
-existing_list <- request_json(base_url, '/player-stats', query = list(
+cat("  → Testing existing player list query\n")
+existing_list <- request_json(base_url, '/players', query = list(
   limit = 5,
-  season = default_season
+  search = ''
 ), expected_status = 200L)
 
 assert_true(is.list(existing_list) && length(existing_list) >= 1, 
-  'Existing stats list should work')
-check_step('Existing query: Player stats list still works')
+  'Existing player list should work')
+check_step('Existing query: Player list still works')
 
 cat("  → Testing existing metadata queries\n")
 existing_meta <- request_json(base_url, '/meta', expected_status = 200L)
@@ -2507,7 +2532,7 @@ for (i in 1:5) {
     shape = if (i %% 2 == 0) 'comparison' else 'record',
     subjects = if (i %% 2 == 0) c('Collingwood', 'Melbourne') else NULL,
     stat = 'goals',
-    season = default_season
+    seasons = c(default_season)
   ), expected_status = 200L)
   assert_true(!is.null(seq_result$status), 
     sprintf('Sequential call %d should return status', i))
@@ -2521,7 +2546,7 @@ mixed_results[[1]] <- request_json_post(base_url, '/query', list(
   shape = 'comparison',
   subjects = c('Collingwood', 'Melbourne'),
   stat = 'goals',
-  season = default_season
+  seasons = c(default_season)
 ), expected_status = 200L)
 
 mixed_results[[2]] <- request_json_post(base_url, '/query', list(
