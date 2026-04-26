@@ -34,17 +34,17 @@ const QUERY_STATUS_LABELS = {
   record: "Record"
 };
 const PARSER_CONFIDENCE_COPY = {
-  HIGH: "High confidence",
-  MEDIUM: "Medium confidence",
-  LOW: "Template recommended"
+  HIGH: "Ready to run",
+  MEDIUM: "Needs a clearer question",
+  LOW: "Prompt suggested"
 };
 const DEFAULT_QUERY_STATE = {
-  title: "Supported question shapes",
-  description: "Keep the wording literal and stick to match totals the parser can trace end to end.",
+  title: "Question starters",
+  description: "Start with a player or team, name the stat, then ask what you want to know.",
   items: [
-    "Player or team + stat + threshold + optional opponent or season",
-    "Player or team + highest or lowest + stat + optional opponent or season",
-    "List players or teams meeting a stat filter in a season"
+    "Ask how many times someone reached a stat total",
+    "Ask for the highest or lowest mark",
+    "List players or teams who hit a stat in a season"
   ]
 };
 const FALLBACK_EXAMPLES = [
@@ -434,16 +434,16 @@ function updateQuestionWorkflowState(value = "") {
   }
 
   if (!hasText) {
-    elements.queryRunwayHint.textContent = "Write a question or choose a template before you run it.";
+    elements.queryRunwayHint.textContent = "Write a question or start from a prompt.";
     return;
   }
 
   if (hasPlaceholders) {
-    elements.queryRunwayHint.textContent = "Replace the bracketed placeholders with real names, stats, thresholds, or seasons before you run it.";
+    elements.queryRunwayHint.textContent = "Replace the bracketed placeholders before you run it.";
     return;
   }
 
-  elements.queryRunwayHint.textContent = "Ready to run. The answer card and evidence table will update together.";
+  elements.queryRunwayHint.textContent = "Ready to run. The answer and rows will update together.";
 }
 
 function updateQuestionComposerState(value = "") {
@@ -488,7 +488,7 @@ function setIdleState() {
   setTableSchema("player");
   setSummaryCards("--", "--", "--", "Write a question");
   elements.answerHeadline.textContent = "Write a question to see the answer.";
-  elements.answerMeta.textContent = "The parser will check the wording before the answer card and evidence table update together.";
+  elements.answerMeta.textContent = "Ask a question, then check the answer and rows below.";
   elements.interpretationGrid.replaceChildren();
   renderDefaultQueryState();
   if (elements.queryHelp) {
@@ -496,13 +496,13 @@ function setIdleState() {
     elements.queryHelp.open = false;
   }
   elements.tableMeta.textContent = "";
-  clearTable("Ask a question to see matching rows.");
+  clearTable("Ask a question to see the matching rows.");
   updateQuestionComposerState(elements.questionInput.value);
 }
 
 function renderMeta(meta) {
   if (!meta || !Array.isArray(meta.seasons) || !meta.seasons.length) {
-    elements.querySeasonSummary.textContent = "Count, highest/lowest, and list questions across the archive.";
+    elements.querySeasonSummary.textContent = "Questions work across the archive.";
     return;
   }
 
@@ -874,11 +874,11 @@ function renderRows(rows, subjectType = "player") {
 }
 
 function renderUnsupported(result) {
-  const reason = result.reason || "That question is outside the current parser.";
+  const reason = result.reason || "That wording is not supported yet.";
   setTableSchema("player");
   setSummaryCards("--", "--", "--", result.status === "ambiguous" ? "Ambiguous" : "Unsupported");
   elements.answerHeadline.textContent = reason;
-  elements.answerMeta.textContent = "Stay literal: subject + stat + request type. The guide below shows supported shapes and complete examples.";
+  elements.answerMeta.textContent = "Try a clearer question or start from a prompt below.";
   elements.interpretationGrid.replaceChildren();
   if (elements.queryHelpSummary) {
     elements.queryHelpSummary.textContent = result.status === "ambiguous"
@@ -899,11 +899,11 @@ function renderUnsupported(result) {
   }
 
   elements.tableMeta.textContent = "";
-  clearTable("Use a supported question shape to see matching rows.");
+  clearTable("Try a clearer question to see matching rows.");
 }
 
 function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK_EXAMPLES, builderPrefill = null } = {}) {
-  const guidance = message || "The parser could not match the main parts of that question.";
+  const guidance = message || "We couldn't match the main parts of that question.";
   hideErrorBanner();
   showErrorBanner(guidance);
   if (hasBuilderPrefill(builderPrefill)) {
@@ -911,12 +911,12 @@ function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK
     openBuilderModal(builderPrefill);
   }
   setTableSchema("player");
-  setSummaryCards("--", "--", "--", PARSER_CONFIDENCE_COPY[confidence] || "Parser help");
-  elements.answerHeadline.textContent = "Tighten the wording or use a template.";
-  elements.answerMeta.textContent = "Keep it literal: subject first, stat second, then the count, list, highest, or lowest cue.";
+  setSummaryCards("--", "--", "--", PARSER_CONFIDENCE_COPY[confidence] || "Need help");
+  elements.answerHeadline.textContent = "Tighten the wording or start from a prompt.";
+  elements.answerMeta.textContent = "Name the player or team, then the stat, then what you want to know.";
   elements.interpretationGrid.replaceChildren();
   renderQueryState({
-    title: confidence === "LOW" ? "Try a supported template" : "Tighten the wording",
+    title: confidence === "LOW" ? "Try a prompt" : "Tighten the wording",
     description: guidance,
     items: Array.isArray(examples) && examples.length ? examples : FALLBACK_EXAMPLES
   });
@@ -925,7 +925,7 @@ function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK
     elements.queryHelp.open = true;
   }
   elements.tableMeta.textContent = "";
-  clearTable("Pick a template or rewrite the question to continue.");
+  clearTable("Pick a prompt or rewrite the question to continue.");
 }
 
 function renderResult(result) {
@@ -1078,14 +1078,14 @@ async function runQuestion(question, source = "manual") {
           outcome: "parse_help_needed",
           parser_confidence: parseResult.confidence || "LOW"
         });
-        showStatus("Use the builder or tighten the wording.", "error", {
-          kicker: parseResult.confidence === "LOW" ? "Template recommended" : "Need help"
+      showStatus("Use the builder or tighten the wording.", "error", {
+          kicker: parseResult.confidence === "LOW" ? "Prompt suggested" : "Need help"
         });
         return;
       }
 
       renderParserGuidance({
-        message: parseResult.error_message || parseResult.error || "The parser could not match that wording.",
+        message: parseResult.error_message || parseResult.error || "We couldn't match that wording.",
         confidence: parseResult.confidence || "LOW",
         builderPrefill: hasBuilderPrefill(parseResult.builder_prefill) ? parseResult.builder_prefill : null
       });
@@ -1095,13 +1095,13 @@ async function runQuestion(question, source = "manual") {
         outcome: "parse_failed",
         parser_confidence: parseResult.confidence || "LOW"
       });
-      showStatus("Use a template or tighten the wording.", "error", { kicker: "Parser help" });
+      showStatus("Use a prompt or tighten the wording.", "error", { kicker: "Need help" });
       return;
     }
 
     if (parseResult.confidence === "LOW") {
       renderParserGuidance({
-        message: "The parser found some pieces, but not enough to run that question safely yet.",
+        message: "We found some of it, but not enough to run that question safely yet.",
         confidence: "LOW",
         builderPrefill: hasBuilderPrefill(parseResult.builder_prefill) ? parseResult.builder_prefill : null
       });
@@ -1111,7 +1111,7 @@ async function runQuestion(question, source = "manual") {
         outcome: "parse_low_confidence",
         parser_confidence: "LOW"
       });
-      showStatus("Use a template or tighten the wording.", "error", { kicker: "Template recommended" });
+      showStatus("Use a prompt or tighten the wording.", "error", { kicker: "Prompt suggested" });
       return;
     }
 
@@ -1143,7 +1143,7 @@ async function runQuestion(question, source = "manual") {
           kicker: parseResult.confidence === "MEDIUM" ? "Medium confidence" : "Ready",
           autoHideMs: parseResult.confidence === "MEDIUM" ? 3200 : 2200
         }
-        : { kicker: result.status === "parse_help_needed" ? "Need help" : "Parser limit" }
+        : { kicker: result.status === "parse_help_needed" ? "Need help" : "Not supported yet" }
     );
   } catch (error) {
     renderUnsupported({
@@ -1763,7 +1763,7 @@ async function init() {
     applyMetaConfig(meta);
     renderMeta(meta);
   } catch (error) {
-    elements.querySeasonSummary.textContent = "Metadata unavailable. The parser may still work.";
+    elements.querySeasonSummary.textContent = "Metadata unavailable. Questions may still work.";
   }
 
   // Initialize builder modal
