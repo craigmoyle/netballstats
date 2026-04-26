@@ -27,7 +27,11 @@ const QUERY_STATUS_LABELS = {
   count: "Count",
   highest: "Highest",
   lowest: "Lowest",
-  list: "List"
+  list: "List",
+  comparison: "Comparison",
+  combination: "Combination",
+  trend: "Trend",
+  record: "Record"
 };
 const PARSER_CONFIDENCE_COPY = {
   HIGH: "High confidence",
@@ -57,6 +61,22 @@ const TABLE_SCHEMAS = {
   team: {
     caption: "Matching team performances",
     columns: ["Team", "Opponent", "Season", "Round", "Stat total", "Local start"]
+  },
+  trend: {
+    caption: "Season-by-season trend",
+    columns: ["Season", "Games", "Total", "Average", "Year-over-year change"]
+  },
+  comparison: {
+    caption: "Comparison summary",
+    columns: ["Subject", "Type", "Games", "Total", "Average per game"]
+  },
+  record: {
+    caption: "Record context",
+    columns: ["Rank", "Subject", "Season", "Value", "Date"]
+  },
+  combination: {
+    caption: "Matching performances",
+    columns: ["Player", "Team", "Opponent", "Season", "Date", "Matched stats"]
   }
 };
 
@@ -294,7 +314,7 @@ function normalizeQuerySubjectType(subjectType = "player") {
 }
 
 function setTableSchema(subjectType = "player") {
-  const schema = TABLE_SCHEMAS[normalizeQuerySubjectType(subjectType)] || TABLE_SCHEMAS.player;
+  const schema = TABLE_SCHEMAS[subjectType] || TABLE_SCHEMAS[normalizeQuerySubjectType(subjectType)] || TABLE_SCHEMAS.player;
   if (elements.queryTableCaption) {
     elements.queryTableCaption.textContent = schema.caption;
   }
@@ -487,7 +507,8 @@ function renderInterpretation(parsed = {}) {
     ? parsed.seasons.join(", ")
     : (parsed.season || "All seasons");
   const subjectType = normalizeQuerySubjectType(parsed.subject_type);
-  const subjectValue = parsed.player_name
+  const subjectValue = parsed.subject_label
+    || parsed.player_name
     || parsed.team_name
     || (parsed.subject_type === "players" ? "Players" : (parsed.subject_type === "teams" ? "Teams" : "--"));
   const statValue = parsed.stat ? formatStatLabel(parsed.stat) : (parsed.stat_label || "--");
@@ -497,9 +518,10 @@ function renderInterpretation(parsed = {}) {
     ["Subject", subjectValue],
     ["Subject type", subjectType === "team" ? "Team" : "Player"],
     ["Stat", statValue],
-    ["Filter", parsed.comparison_label && parsed.threshold !== undefined && parsed.threshold !== null
-      ? `${parsed.comparison_label} ${formatNumber(parsed.threshold)}`
-      : "None"],
+    ["Filter", parsed.filter_label
+      || (parsed.comparison_label && parsed.threshold !== undefined && parsed.threshold !== null
+        ? `${parsed.comparison_label} ${formatNumber(parsed.threshold)}`
+        : "None")],
     ["Opponent", parsed.opponent_name || "Any"],
     ["Season", seasonValue]
   ];
@@ -507,6 +529,243 @@ function renderInterpretation(parsed = {}) {
   cards.forEach(([label, value]) => {
     elements.interpretationGrid.appendChild(createInterpretationCard(label, `${value}`));
   });
+}
+
+function formatSignedValue(value, suffix = "") {
+  const numericValue = Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return "--";
+  }
+  return `${numericValue > 0 ? "+" : ""}${formatNumber(numericValue)}${suffix}`;
+}
+
+function normalizeLegacySupportedResult(result) {
+  const summary = result.summary || {};
+  const parsed = result.parsed || {};
+  const subjectType = normalizeQuerySubjectType(parsed.subject_type);
+  const rows = Array.isArray(result.rows) ? result.rows : [];
+  const matchCount = summary.match_count ?? rows.length;
+
+  return {
+    answer: result.answer || "No answer.",
+    answerMeta: "Transparent answer with the matching evidence table below.",
+    summary: {
+      questionType: QUERY_STATUS_LABELS[summary.question_type] || "--",
+      matchCount: formatNumber(matchCount),
+      stat: parsed.stat ? formatStatLabel(parsed.stat) : (summary.stat_label || "--"),
+      status: "Supported"
+    },
+    parsed,
+    tableKind: subjectType,
+    rows,
+    tableMeta: rows.length
+      ? `Showing ${rows.length} row${rows.length === 1 ? "" : "s"} from ${formatNumber(matchCount)} matching performance${matchCount === 1 ? "" : "s"}.`
+      : "No matching records."
+  };
+}
+
+function normalizeTrendResult(result) {
+  const rows = Array.isArray(result.results) ? result.results : [];
+  const subjectType = normalizeQuerySubjectType(result.subject_type);
+  const statLabel = result.stat_label || formatStatLabel(result.stat);
+  const totalGames = rows.reduce((sum, entry) => sum + (Number(entry.games) || 0), 0);
+  const first = rows[0];
+  const last = rows[rows.length - 1];
+
+  let answer = `${result.subject} recorded ${formatNumber(last?.total || 0)} ${statLabel.toLowerCase()} in ${last?.season || "the selected season"}.`;
+  if (first && last && rows.length > 1) {
+    const firstTotal = Number(first.total) || 0;
+    const lastTotal = Number(last.total) || 0;
+    const direction = lastTotal > firstTotal ? "rose" : (lastTotal < firstTotal ? "fell" : "held steady");
+    answer = `${result.subject}'s ${statLabel.toLowerCase()} ${direction} from ${formatNumber(firstTotal)} in ${first.season} to ${formatNumber(lastTotal)} in ${last.season}.`;
+  }
+
+  return {
+    answer,
+    answerMeta: "Season-by-season totals with per-game averages and year-over-year change.",
+    summary: {
+      questionType: QUERY_STATUS_LABELS.trend,
+      matchCount: formatNumber(totalGames),
+      stat: statLabel,
+      status: "Supported"
+    },
+    parsed: {
+      intent_type: "trend",
+      subject_type: subjectType,
+      stat: result.stat,
+      stat_label: statLabel,
+      seasons: Array.isArray(result.seasons) ? result.seasons : [],
+      ...(subjectType === "team" ? { team_name: result.subject } : { player_name: result.subject })
+    },
+    tableKind: "trend",
+    rows: rows.map((entry) => ({
+      season: entry.season,
+      games: entry.games,
+      total: entry.total,
+      average: entry.average,
+      change: entry.yoy_change_label || (entry.yoy_change != null ? formatSignedValue(entry.yoy_change, "%") : "Baseline")
+    })),
+    tableMeta: rows.length
+      ? `Showing ${rows.length} season row${rows.length === 1 ? "" : "s"} across ${formatNumber(totalGames)} matches.`
+      : "No trend data found."
+  };
+}
+
+function normalizeComparisonResult(result) {
+  const rows = Array.isArray(result.results) ? result.results : [];
+  const firstType = rows[0]?.subject_type || "player";
+  const subjectType = normalizeQuerySubjectType(firstType);
+  const statLabel = result.stat_label || formatStatLabel(result.stat);
+  const leader = result.comparison?.leader;
+  const difference = result.comparison?.difference;
+  const percentageAhead = result.comparison?.percentage_ahead;
+  const subjectLabel = Array.isArray(result.subjects) && result.subjects.length
+    ? result.subjects.join(" vs ")
+    : "Comparison";
+
+  return {
+    answer: leader
+      ? `${leader} led by ${formatNumber(difference)} ${statLabel.toLowerCase()} in ${result.season}.`
+      : `${subjectLabel} comparison ready for ${result.season}.`,
+    answerMeta: percentageAhead != null
+      ? `${leader} finished ${formatNumber(percentageAhead)}% ahead over the selected season.`
+      : "Season totals and per-game rates for each subject.",
+    summary: {
+      questionType: QUERY_STATUS_LABELS.comparison,
+      matchCount: formatNumber(rows.length),
+      stat: statLabel,
+      status: "Supported"
+    },
+    parsed: {
+      intent_type: "comparison",
+      subject_type: subjectType,
+      subject_label: subjectLabel,
+      stat: result.stat,
+      stat_label: statLabel,
+      season: result.season
+    },
+    tableKind: "comparison",
+    rows: rows.map((entry) => ({
+      subject: entry.subject,
+      subject_type: normalizeQuerySubjectType(entry.subject_type),
+      games: entry.games,
+      total: entry.total,
+      average_per_game: entry.average_per_game
+    })),
+    tableMeta: rows.length
+      ? `Showing ${rows.length} compared subject${rows.length === 1 ? "" : "s"} for ${result.season}.`
+      : "No comparison data found."
+  };
+}
+
+function normalizeRecordResult(result) {
+  const record = result.record || null;
+  const rows = Array.isArray(result.context) ? result.context : [];
+  const subjectType = record?.team ? "team" : "player";
+  const subjectName = record?.player || record?.team || "--";
+  const statLabel = result.stat_label || formatStatLabel(result.stat);
+  const scopeLabel = result.scope === "seasonal" && record?.season ? `the ${record.season} season` : "all time";
+
+  return {
+    answer: record
+      ? `${subjectName} holds the ${scopeLabel} ${statLabel.toLowerCase()} record with ${formatNumber(record.value)}.`
+      : `No ${statLabel.toLowerCase()} record was found.`,
+    answerMeta: record
+      ? `${record.opponent ? `Set against ${record.opponent}` : "Record performance"}${record.round ? ` in round ${record.round}` : ""}.`
+      : "No matching record context is available.",
+    summary: {
+      questionType: QUERY_STATUS_LABELS.record,
+      matchCount: formatNumber(rows.length || (record ? 1 : 0)),
+      stat: statLabel,
+      status: "Supported"
+    },
+    parsed: {
+      intent_type: "record",
+      subject_type: subjectType,
+      stat: result.stat,
+      stat_label: statLabel,
+      season: record?.season || null,
+      ...(subjectType === "team" ? { team_name: subjectName } : { player_name: subjectName })
+    },
+    tableKind: "record",
+    rows: rows.map((entry) => ({
+      rank: entry.rank,
+      subject: entry.player || entry.team || "--",
+      season: entry.season,
+      value: entry.value,
+      date: entry.date
+    })),
+    tableMeta: rows.length
+      ? `Showing ${rows.length} top record row${rows.length === 1 ? "" : "s"} for context.`
+      : "No record context found."
+  };
+}
+
+function normalizeCombinationResult(result) {
+  const rows = Array.isArray(result.results) ? result.results : [];
+  const filters = Array.isArray(result.filters) ? result.filters : [];
+  const operator = result.logical_operator || "AND";
+  const filterSummary = filters.map((filter) => {
+    const statLabel = filter.stat_label || formatStatLabel(filter.stat);
+    return `${statLabel} ${filter.operator} ${formatNumber(filter.threshold)}`;
+  }).join(` ${operator} `);
+  const statSummary = filters.map((filter) => filter.stat_label || formatStatLabel(filter.stat)).join(" + ") || "--";
+
+  return {
+    answer: rows.length
+      ? `${formatNumber(result.total_matches ?? rows.length)} matches met ${filterSummary}${result.season ? ` in ${result.season}` : ""}.`
+      : `No matches met ${filterSummary}${result.season ? ` in ${result.season}` : ""}.`,
+    answerMeta: "Each row shows the performance that satisfied the requested stat thresholds.",
+    summary: {
+      questionType: QUERY_STATUS_LABELS.combination,
+      matchCount: formatNumber(result.total_matches ?? rows.length),
+      stat: statSummary,
+      status: "Supported"
+    },
+    parsed: {
+      intent_type: "combination",
+      subject_type: "players",
+      subject_label: "Matching players",
+      filter_label: filterSummary,
+      season: result.season || null,
+      stat_label: statSummary
+    },
+    tableKind: "combination",
+    rows: rows.map((entry) => ({
+      player: entry.player,
+      team: entry.team,
+      opponent: entry.opponent,
+      season: entry.season,
+      date: entry.date,
+      matched_stats: filters.map((filter) => {
+        const statLabel = filter.stat_label || formatStatLabel(filter.stat);
+        const value = entry[filter.stat] ?? entry.value;
+        return `${statLabel} ${formatNumber(value)}`;
+      }).join(" · ")
+    })),
+    tableMeta: rows.length
+      ? `Showing ${rows.length} matched performance${rows.length === 1 ? "" : "s"}.`
+      : "No matching records."
+  };
+}
+
+function normalizeSupportedResult(result) {
+  if (!result || result.status !== "supported") {
+    return null;
+  }
+
+  switch (result.intent_type) {
+    case "trend":
+      return normalizeTrendResult(result);
+    case "comparison":
+      return normalizeComparisonResult(result);
+    case "record":
+      return normalizeRecordResult(result);
+    case "combination":
+      return normalizeCombinationResult(result);
+    default:
+      return normalizeLegacySupportedResult(result);
+  }
 }
 
 function renderRows(rows, subjectType = "player") {
@@ -522,7 +781,40 @@ function renderRows(rows, subjectType = "player") {
     const row = document.createElement("tr");
 
     let cells;
-    if (normalizedSubjectType === "team") {
+    if (subjectType === "trend") {
+      cells = [
+        entry.season != null ? String(entry.season) : "--",
+        formatNumber(entry.games),
+        formatNumber(entry.total),
+        formatNumber(entry.average),
+        entry.change || "--"
+      ];
+    } else if (subjectType === "comparison") {
+      cells = [
+        entry.subject || "--",
+        entry.subject_type === "team" ? "Team" : "Player",
+        formatNumber(entry.games),
+        formatNumber(entry.total),
+        formatNumber(entry.average_per_game)
+      ];
+    } else if (subjectType === "record") {
+      cells = [
+        formatNumber(entry.rank),
+        entry.subject || "--",
+        entry.season != null ? String(entry.season) : "--",
+        formatNumber(entry.value),
+        formatDate(entry.date)
+      ];
+    } else if (subjectType === "combination") {
+      cells = [
+        entry.player || "--",
+        entry.team || "--",
+        entry.opponent || "--",
+        entry.season != null ? String(entry.season) : "--",
+        formatDate(entry.date),
+        entry.matched_stats || "--"
+      ];
+    } else if (normalizedSubjectType === "team") {
       cells = [
         entry.squad_name || entry.team_name || "Unknown team",
         entry.opponent || "--",
@@ -670,27 +962,25 @@ function renderResult(result) {
     return;
   }
 
-  const summary = result.summary || {};
-  const parsed = result.parsed || {};
-  const subjectType = normalizeQuerySubjectType(parsed.subject_type);
+  const normalized = normalizeSupportedResult(result);
+  const parsed = normalized?.parsed || {};
+  const tableKind = normalized?.tableKind || normalizeQuerySubjectType(parsed.subject_type);
 
   setSummaryCards(
-    QUERY_STATUS_LABELS[summary.question_type] || "--",
-    formatNumber(summary.match_count),
-    parsed.stat ? formatStatLabel(parsed.stat) : (summary.stat_label || "--"),
-    "Supported"
+    normalized?.summary?.questionType || "--",
+    normalized?.summary?.matchCount || "--",
+    normalized?.summary?.stat || "--",
+    normalized?.summary?.status || "Supported"
   );
-  elements.answerHeadline.textContent = result.answer || "No answer.";
-  elements.answerMeta.textContent = "Transparent answer with the matching evidence table below.";
+  elements.answerHeadline.textContent = normalized?.answer || "No answer.";
+  elements.answerMeta.textContent = normalized?.answerMeta || "Transparent answer with the matching evidence table below.";
   if (elements.queryHelp) {
     elements.queryHelp.open = false;
   }
-  setTableSchema(subjectType);
+  setTableSchema(tableKind);
   renderInterpretation(parsed);
-  renderRows(result.rows, subjectType);
-  elements.tableMeta.textContent = Array.isArray(result.rows) && result.rows.length
-    ? `Showing ${result.rows.length} row${result.rows.length === 1 ? "" : "s"} from ${formatNumber(summary.match_count)} matching performance${summary.match_count === 1 ? "" : "s"}.`
-    : "No matching records.";
+  renderRows(normalized?.rows || [], tableKind);
+  elements.tableMeta.textContent = normalized?.tableMeta || "No matching records.";
 }
 
 function updateUrl(question) {
