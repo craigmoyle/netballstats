@@ -872,12 +872,13 @@ build_query_stat_alias_rows <- function() {
   alias_rows <- alias_rows[order(alias_rows$alias_length, decreasing = TRUE), , drop = FALSE]
   rownames(alias_rows) <- NULL
   # Pre-compile regex patterns once at load time so resolve_query_stat() is
-  # pure vectorised matching with no per-call regex construction.
-  alias_rows$pattern <- paste0(
-    "\\b",
-    gsub(" ", "\\\\s+", sapply(alias_rows$alias, escape_regex, USE.NAMES = FALSE), fixed = TRUE),
-    "\\b"
-  )
+  # pure vectorised matching with no per-call regex construction. Multi-word
+  # aliases need token-wise escaping before being joined with \s+ separators.
+  alias_rows$pattern <- vapply(alias_rows$alias, function(alias) {
+    alias_tokens <- strsplit(trimws(alias), "\\s+")[[1]]
+    escaped_tokens <- vapply(alias_tokens, escape_regex, character(1), USE.NAMES = FALSE)
+    paste0("\\b", paste(escaped_tokens, collapse = "\\s+"), "\\b")
+  }, character(1), USE.NAMES = FALSE)
   alias_rows
 }
 
@@ -1220,11 +1221,7 @@ parse_query_intent <- function(conn, question, limit = 12L) {
     return(opponent)
   }
 
-  plural_subject_type <- if (identical(intent_type, "list")) {
-    detect_query_list_subject_type(normalized_text)
-  } else {
-    NULL
-  }
+  plural_subject_type <- detect_query_list_subject_type(normalized_text)
 
   subject_search_phrase <- if (!is.null(plural_subject_type)) {
     NULL
