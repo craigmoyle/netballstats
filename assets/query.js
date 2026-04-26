@@ -218,6 +218,14 @@ function showBuilderButton(prefill) {
   elements.errorBannerActions.appendChild(button);
 }
 
+function hasBuilderPrefill(prefill) {
+  return Boolean(
+    prefill
+    && typeof prefill === "object"
+    && Object.keys(prefill).length
+  );
+}
+
 function openBuilderModal(prefill) {
   const event = new CustomEvent("open-builder-modal", {
     detail: { prefill }
@@ -894,10 +902,14 @@ function renderUnsupported(result) {
   clearTable("Use a supported question shape to see matching rows.");
 }
 
-function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK_EXAMPLES } = {}) {
+function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK_EXAMPLES, builderPrefill = null } = {}) {
   const guidance = message || "The parser could not match the main parts of that question.";
   hideErrorBanner();
   showErrorBanner(guidance);
+  if (hasBuilderPrefill(builderPrefill)) {
+    showBuilderButton(builderPrefill);
+    openBuilderModal(builderPrefill);
+  }
   setTableSchema("player");
   setSummaryCards("--", "--", "--", PARSER_CONFIDENCE_COPY[confidence] || "Parser help");
   elements.answerHeadline.textContent = "Tighten the wording or use a template.";
@@ -949,6 +961,7 @@ function renderResult(result) {
 
     if (result.builder_prefill) {
       showBuilderButton(result.builder_prefill);
+      openBuilderModal(result.builder_prefill);
     }
 
     setTableSchema("player");
@@ -1073,7 +1086,8 @@ async function runQuestion(question, source = "manual") {
 
       renderParserGuidance({
         message: parseResult.error_message || parseResult.error || "The parser could not match that wording.",
-        confidence: parseResult.confidence || "LOW"
+        confidence: parseResult.confidence || "LOW",
+        builderPrefill: hasBuilderPrefill(parseResult.builder_prefill) ? parseResult.builder_prefill : null
       });
       updateUrl(trimmed);
       trackEvent("ask_stats_completed", {
@@ -1088,7 +1102,8 @@ async function runQuestion(question, source = "manual") {
     if (parseResult.confidence === "LOW") {
       renderParserGuidance({
         message: "The parser found some pieces, but not enough to run that question safely yet.",
-        confidence: "LOW"
+        confidence: "LOW",
+        builderPrefill: hasBuilderPrefill(parseResult.builder_prefill) ? parseResult.builder_prefill : null
       });
       updateUrl(trimmed);
       trackEvent("ask_stats_completed", {
@@ -1160,18 +1175,20 @@ async function runQuestion(question, source = "manual") {
 // ============================================================================
 
 function resetBuilderState() {
+  const existingSeasons = Array.isArray(builderState.availableSeasons) ? [...builderState.availableSeasons] : [];
+  const existingSubjects = Array.isArray(builderState.availableSubjects) ? [...builderState.availableSubjects] : [];
   builderState = {
     currentStep: 1,
     shape: null,
     subjects: [],
     stat: null,
-    filters: {},
+    filters: [],
     logicalOperator: "AND",
     timeframe: null,
     seasonSingle: null,
     seasonRange: null,
-    availableSeasons: [],
-    availableSubjects: []
+    availableSeasons: existingSeasons,
+    availableSubjects: existingSubjects
   };
 }
 
@@ -1217,6 +1234,14 @@ function validateBuilderStep(stepNum) {
       if (builderState.shape === "combination" || builderState.shape === "record") {
         return true;
       }
+      if ((!builderState.subjects || !builderState.subjects.length) && builderElements.subjectSearch?.value.trim()) {
+        builderState.subjects = builderState.shape === "comparison"
+          ? builderElements.subjectSearch.value.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 2)
+          : [builderElements.subjectSearch.value.trim()];
+      }
+      if (builderState.shape === "comparison") {
+        return builderState.subjects && builderState.subjects.length === 2;
+      }
       return builderState.subjects && builderState.subjects.length > 0;
     case 3: // Stat
       if (builderState.shape === "combination") {
@@ -1241,7 +1266,9 @@ function validateBuilderStep(stepNum) {
 function getValidationErrorMessage(step) {
   switch (step) {
     case 1: return "Please select a query shape to continue.";
-    case 2: return "Please select at least one subject to continue.";
+    case 2: return builderState.shape === "comparison"
+      ? "Please enter two subjects separated by a comma to continue."
+      : "Please select at least one subject to continue.";
     case 3: return "Please select a stat to continue.";
     case 4: return ""; // Filters are optional
     case 5: return "Please select a timeframe to continue.";
@@ -1263,19 +1290,6 @@ function showBuilderValidationError(message) {
 }
 
 function nextBuilderStep() {
-  // Special handling for step 2 (write question): try to parse the question
-  if (builderState.currentStep === 2) {
-    const questionText = (builderElements.questionInput?.value || "").trim();
-    if (!questionText) {
-      showBuilderValidationError("Please enter a question to parse.");
-      return;
-    }
-    
-    // Try to parse the question
-    void parseAndExecuteQuestion(questionText);
-    return;
-  }
-  
   if (!validateBuilderStep(builderState.currentStep)) {
     // Show error message
     showBuilderValidationError(getValidationErrorMessage(builderState.currentStep));
@@ -1283,61 +1297,6 @@ function nextBuilderStep() {
   }
   if (builderState.currentStep < 5) {
     showBuilderStep(builderState.currentStep + 1);
-  }
-}
-
-async function parseAndExecuteQuestion(questionText) {
-  try {
-    showLoadingStatus(QUERY_LOADING_MESSAGES, "Parsing question");
-    
-    const parseResult = await fetchJson("/ask-the-stats", { question: questionText }, {
-      method: "POST"
-    });
-    
-    if (!parseResult.success) {
-      // Parsing failed - show step 1 (template picker) as fallback
-      showBuilderValidationError(parseResult.error || "Could not parse question. Try a template instead.");
-      showBuilderStep(1);
-      return;
-    }
-    
-    // Parsing succeeded
-    const confidence = parseResult.confidence;
-    
-    if (confidence === "HIGH") {
-      // High confidence - execute directly
-      const result = await fetchJson("/query", {
-        natural_language: true,
-        question: questionText,
-        parsed: parseResult.parsed,
-        limit: 12
-      });
-      renderResult(result);
-      closeBuilderModal();
-    } else if (confidence === "MEDIUM") {
-      // Medium confidence - execute but show a note
-      const result = await fetchJson("/query", {
-        natural_language: true,
-        question: questionText,
-        parsed: parseResult.parsed,
-        limit: 12
-      });
-      if (elements.answerHeadline) {
-        const note = document.createElement("p");
-        note.className = "query-note";
-        note.textContent = "⚠ This parse was medium confidence. Try rephrasing if results don't look right.";
-        elements.answerHeadline.parentElement?.insertBefore(note, elements.answerHeadline);
-      }
-      renderResult(result);
-      closeBuilderModal();
-    } else {
-      // Low confidence - show template picker as fallback
-      showBuilderValidationError("Low confidence in parse. Try a template or rephrase your question.");
-      showBuilderStep(1);
-    }
-  } catch (error) {
-    showBuilderValidationError("Error parsing question: " + (error.message || "Unknown error"));
-    showBuilderStep(1);
   }
 }
 
@@ -1353,7 +1312,6 @@ function getStatsList() {
 }
 
 function renderBuilderShapeOptions() {
-  const shapes = ["comparison", "combination", "trend", "record", "count", "highest", "lowest", "list"];
   const radios = builderElements.stepShape.querySelectorAll('input[name="shape"]');
   
   radios.forEach((radio) => {
@@ -1382,6 +1340,24 @@ function renderBuilderSubjectOptions() {
 
   builderElements.subjectList.replaceChildren();
 
+   if (builderState.subjects.length) {
+    const selected = document.createElement("p");
+    selected.className = "builder-step__note";
+    selected.textContent = builderState.shape === "comparison"
+      ? `Selected subjects: ${builderState.subjects.join(", ")}`
+      : `Selected subject: ${builderState.subjects[0]}`;
+    builderElements.subjectList.appendChild(selected);
+  }
+
+  if (!matched.length && !builderState.subjects.length) {
+    const helper = document.createElement("p");
+    helper.className = "builder-step__note";
+    helper.textContent = builderState.shape === "comparison"
+      ? "Type two player or team names separated by a comma."
+      : "Type a player or team name to continue.";
+    builderElements.subjectList.appendChild(helper);
+  }
+
   matched.forEach((subject) => {
     const isMulti = builderState.shape === "comparison";
     const label = document.createElement("label");
@@ -1391,6 +1367,7 @@ function renderBuilderSubjectOptions() {
     input.type = isMulti ? "checkbox" : "radio";
     input.name = isMulti ? "subjects" : "subject-single";
     input.value = subject;
+    input.checked = builderState.subjects.includes(subject);
     
     input.addEventListener("change", () => {
       if (isMulti) {
@@ -1434,6 +1411,7 @@ function renderBuilderStatOptions() {
     input.type = "radio";
     input.name = "stat";
     input.value = stat;
+    input.checked = builderState.stat === stat;
     
     input.addEventListener("change", () => {
       builderState.stat = stat;
@@ -1564,7 +1542,7 @@ async function submitBuilderQuery() {
       formData.seasons.push(i);
     }
   } else {
-    formData.seasons = builderState.availableSeasons;
+    formData.seasons = null;
   }
 
   try {
@@ -1635,6 +1613,10 @@ function openBuilderModalUI(prefill = {}) {
     builderState.logicalOperator = prefill.logical_operator;
   }
 
+  if (prefill.scope === "all_time" || prefill.scope === "alltime") {
+    builderState.timeframe = "alltime";
+  }
+
   if (prefillSeasons.length) {
     if (prefillSeasons.length === 1) {
       builderState.timeframe = "single";
@@ -1648,13 +1630,43 @@ function openBuilderModalUI(prefill = {}) {
     }
   }
 
-  const initialStep = builderState.shape === "combination"
-    ? 4
-    : builderState.shape === "record"
-      ? 3
-      : builderState.shape
-        ? 2
-        : 1;
+  if (builderElements.subjectSearch) {
+    builderElements.subjectSearch.value = builderState.shape === "comparison"
+      ? builderState.subjects.join(", ")
+      : (builderState.subjects[0] || "");
+  }
+
+  populateBuilderSeasonSelects();
+  renderBuilderSubjectOptions();
+  renderBuilderStatOptions();
+
+  if (builderElements.seasonSingle && builderState.seasonSingle) {
+    builderElements.seasonSingle.value = String(builderState.seasonSingle);
+  }
+  if (builderElements.seasonFrom && builderState.seasonRange?.from) {
+    builderElements.seasonFrom.value = String(builderState.seasonRange.from);
+  }
+  if (builderElements.seasonTo && builderState.seasonRange?.to) {
+    builderElements.seasonTo.value = String(builderState.seasonRange.to);
+  }
+  if (builderElements.timeframeSingle) {
+    builderElements.timeframeSingle.hidden = builderState.timeframe !== "single";
+  }
+  if (builderElements.timeframeRange) {
+    builderElements.timeframeRange.hidden = builderState.timeframe !== "range";
+  }
+  if (builderElements.form) {
+    const timeframeRadio = builderElements.form.querySelector(`[name="timeframe"][value="${builderState.timeframe}"]`);
+    if (timeframeRadio) {
+      timeframeRadio.checked = true;
+    }
+  }
+
+  const initialStep = !builderState.shape
+    ? 1
+    : (!validateBuilderStep(2) ? 2
+      : (!validateBuilderStep(3) ? 3
+        : (!validateBuilderStep(5) ? 5 : 5)));
   showBuilderStep(initialStep);
   builderElements.modal.showModal();
 }
