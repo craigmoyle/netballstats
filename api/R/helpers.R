@@ -1663,12 +1663,12 @@ build_team_match_query <- function(stat, seasons = NULL, team_id = NULL, opponen
     "SELECT stats.squad_id AS team_id, stats.squad_name,",
     paste0(opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,"),
     "stats.season AS season, stats.round_number AS round_number, stats.match_id AS match_id, matches.local_start_time AS local_start_time,",
-    "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+    "?display_stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
     "FROM team_period_stats AS stats",
     "INNER JOIN matches ON matches.match_id = stats.match_id",
     "WHERE stats.stat = ?source_stat"
   )
-  params <- list(stat = stat, source_stat = source_stat)
+  params <- list(display_stat = stat, source_stat = source_stat)
 
   filters <- apply_stat_filters(query, params, seasons = seasons, team_id = team_id, round_number = NULL, table_alias = "stats")
   query <- filters$query
@@ -1706,12 +1706,12 @@ build_fast_team_match_query <- function(stat, seasons = NULL, team_id = NULL, op
     "SELECT tms.squad_id AS team_id, tms.squad_name,",
     paste0(opponent_name_sql("tms.squad_id"), " AS opponent,"),
     "tms.season AS season, tms.round_number AS round_number, tms.match_id AS match_id, matches.local_start_time AS local_start_time,",
-    "?stat AS stat, tms.match_value AS total_value",
+    "?display_stat AS stat, tms.match_value AS total_value",
     "FROM team_match_stats AS tms",
     "INNER JOIN matches ON matches.match_id = tms.match_id",
     "WHERE tms.stat = ?source_stat"
   )
-  params <- list(stat = stat, source_stat = source_stat)
+  params <- list(display_stat = stat, source_stat = source_stat)
 
   filters <- apply_stat_filters(query, params, seasons = seasons, team_id = team_id, round_number = NULL, table_alias = "tms")
   query <- filters$query
@@ -2596,13 +2596,13 @@ fetch_team_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, roun
       "SELECT tms.squad_id, tms.squad_name,",
       paste0(opponent_name_sql("tms.squad_id"), " AS opponent,"),
       "tms.season, tms.round_number, tms.match_id, matches.local_start_time,",
-      "?stat AS stat, tms.match_value AS total_value",
+      "?display_stat AS stat, tms.match_value AS total_value",
       "FROM team_match_stats AS tms",
       "INNER JOIN matches ON matches.match_id = tms.match_id",
       "WHERE tms.stat = ?source_stat"
     )
     filters <- apply_stat_filters(
-      query, list(stat = stat, source_stat = source_stat), seasons = seasons_filter, team_id = team_id,
+      query, list(display_stat = stat, source_stat = source_stat), seasons = seasons_filter, team_id = team_id,
       round_number = round, table_alias = "tms"
     )
     if (!is.null(competition_phase)) {
@@ -2622,14 +2622,14 @@ fetch_team_game_high_rows <- function(conn, seasons = NULL, team_id = NULL, roun
     "SELECT stats.squad_id, stats.squad_name,",
     paste0(opponent_name_sql("stats.squad_id", aggregate = TRUE), " AS opponent,"),
     "stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
-    "?stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
+    "?display_stat AS stat, ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
     "FROM team_period_stats AS stats",
     "INNER JOIN matches ON matches.match_id = stats.match_id",
     "WHERE stats.stat = ?source_stat"
   )
   filters <- apply_stat_filters(
     query,
-    list(stat = stat, source_stat = source_stat),
+    list(display_stat = stat, source_stat = source_stat),
     seasons = seasons_filter,
     team_id = team_id,
     round_number = round,
