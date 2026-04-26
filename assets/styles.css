@@ -2631,9 +2631,14 @@ tr[data-rank="3"] td:first-child {
 .compare-verdict {
   display: grid;
   gap: var(--space-sm);
+  position: relative;
+  overflow: hidden;
+  padding-bottom: calc(var(--space-md) + 0.1rem);
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent) 9%, transparent), transparent 40%),
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 5%, transparent), transparent 68%),
+    radial-gradient(circle at 14% 0%, rgba(240, 198, 126, 0.12), transparent 32%),
+    radial-gradient(circle at 88% 14%, rgba(121, 216, 208, 0.1), transparent 28%),
+    linear-gradient(135deg, color-mix(in srgb, var(--accent) 10%, transparent), transparent 38%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 6%, transparent), transparent 72%),
     var(--panel-solid);
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border));
 }
@@ -2655,23 +2660,34 @@ tr[data-rank="3"] td:first-child {
 
 .compare-verdict__lead h2 {
   margin: 0;
-  max-width: 18ch;
+  max-width: 14ch;
+  font-size: clamp(1.95rem, 3.35vw, 3.15rem);
+  line-height: 1.03;
+  letter-spacing: -0.01em;
+  text-wrap: balance;
 }
 
 .compare-verdict__facts {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.8rem;
+  gap: 0.9rem;
 }
 
 .compare-verdict__fact {
   display: grid;
   gap: 0.35rem;
   min-height: 100%;
-  padding: 0.95rem 1rem;
+  padding: 1rem 1.05rem;
   border-radius: var(--radius-card);
   border: 1px solid color-mix(in srgb, var(--text) 8%, transparent);
   background: color-mix(in srgb, var(--text) 3%, transparent);
+}
+
+.compare-verdict__fact:first-child {
+  border-color: color-mix(in srgb, var(--accent) 20%, var(--border));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, transparent), transparent 72%),
+    color-mix(in srgb, var(--text) 3%, transparent);
 }
 
 .compare-verdict__fact-label {
@@ -3063,17 +3079,42 @@ caption.table-caption {
   }
 
   .compare-top-story {
-    grid-template-columns: minmax(18rem, 0.95fr) minmax(0, 1.35fr);
-    gap: 1rem 1.2rem;
+    grid-template-columns: minmax(18.5rem, 0.86fr) minmax(0, 1.44fr);
+    gap: 1rem 1.25rem;
+    align-items: start;
   }
 
   .compare-results-lead {
     grid-column: 1;
     align-self: start;
+    padding-right: 0.2rem;
   }
 
   .compare-results-panel--chart {
     grid-column: 2;
+    align-self: start;
+    margin-top: 0.15rem;
+  }
+
+  .answer-stage {
+    grid-template-columns: minmax(0, 1.08fr) minmax(16rem, 0.72fr);
+    column-gap: 1.25rem;
+    align-items: start;
+  }
+
+  .answer-stage__card {
+    grid-column: 1;
+    width: min(100%, 54rem);
+  }
+
+  .interpretation-grid {
+    grid-column: 2;
+    align-self: start;
+    margin-top: 0.2rem;
+  }
+
+  .query-help {
+    grid-column: 1 / -1;
   }
 }
 
@@ -4024,17 +4065,19 @@ caption.table-caption {
 
 .answer-stage {
   display: grid;
-  gap: 1rem;
+  gap: 1.15rem;
 }
 
 .answer-stage__card {
   position: relative;
   overflow: hidden;
-  padding: 1.3rem;
+  padding: 1.55rem 1.45rem 1.4rem;
   border-radius: var(--radius-panel);
-  border: 1px solid color-mix(in srgb, var(--accent-cool) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-cool) 30%, var(--border));
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 6%, transparent), transparent),
+    radial-gradient(circle at 18% 0%, rgba(121, 216, 208, 0.14), transparent 34%),
+    radial-gradient(circle at 88% 22%, rgba(240, 198, 126, 0.1), transparent 30%),
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-cool) 8%, transparent), transparent 66%),
     rgba(9, 17, 23, 0.5);
 }
 
@@ -4049,21 +4092,21 @@ caption.table-caption {
 
 .answer-stage__headline {
   margin: 0.45rem 0 0;
-  max-width: 18ch;
+  max-width: 15ch;
   font-family: var(--body-font);
-  font-size: clamp(1.7rem, 3vw, 2.55rem);
+  font-size: clamp(1.95rem, 3.4vw, 3.1rem);
   font-weight: 600;
-  line-height: 1.12;
-  letter-spacing: 0.01em;
+  line-height: 1.05;
+  letter-spacing: -0.01em;
   text-wrap: balance;
 }
 
 .answer-stage__meta {
   margin: 0;
-  max-width: 62ch;
+  max-width: 48ch;
   color: var(--muted);
   font-size: var(--text-ui-size);
-  line-height: 1.65;
+  line-height: 1.62;
 }
 
 .interpretation-grid {
