@@ -3,7 +3,8 @@
     showStatusBanner = () => {},
     cycleStatusBanner = () => {},
     fetchJson,
-    formatDate
+    formatDate,
+    unwrapValue = (value) => value
   } = window.NetballStatsUI || {};
 
   const elements = {
@@ -233,13 +234,14 @@
         // Group consecutive notes by team
         const groups = [];
         playerWatch.forEach((note) => {
-          if (!note || !note.summary) return;
-          const team = note.team || null;
+          const summary = unwrapValue(note?.summary);
+          if (!note || !summary) return;
+          const team = unwrapValue(note.team) || null;
           const last = groups[groups.length - 1];
           if (last && last.team === team) {
-            last.notes.push(note.summary);
+            last.notes.push(summary);
           } else {
-            groups.push({ team, notes: [note.summary] });
+            groups.push({ team, notes: [summary] });
           }
         });
 
