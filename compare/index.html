@@ -48,145 +48,142 @@
         <div id="compare-status" class="status-banner" role="status" aria-live="polite" hidden></div>
         <div class="panel__heading panel__heading--split">
           <div>
-            <p class="panel__eyebrow">Comparison builder</p>
-            <h2>Build a comparison</h2>
+            <p class="panel__eyebrow">Head-to-head</p>
+            <h2>Comparison builder</h2>
           </div>
-          <p id="compare-summary" class="muted filter-summary">Step 1: choose whether this is player versus player or team versus team.</p>
+          <p id="compare-summary" class="muted filter-summary">Choose a mode and add names to set up the matchup.</p>
         </div>
 
         <form id="compare-form" class="filters compare-builder" novalidate>
-          <section id="compare-step-mode" class="builder-step builder-step--rail" data-step-state="ready" aria-labelledby="compare-step-mode-title">
-            <div class="builder-step__header">
-              <span class="builder-step__number" aria-hidden="true">1</span>
-              <div>
-                <h3 id="compare-step-mode-title">Set the matchup</h3>
-              </div>
-            </div>
-            <div class="field field--wide">
-              <span class="field-label">Mode</span>
-              <div class="view-toggle compare-mode-toggle" role="group" aria-label="Comparison mode">
-                <button type="button" class="button button--small is-active" data-compare-mode="players" aria-pressed="true">Players</button>
-                <button type="button" class="button button--small button--ghost" data-compare-mode="teams" aria-pressed="false">Teams</button>
-              </div>
-            </div>
-          </section>
 
-          <section id="compare-step-entities" class="builder-step" data-step-state="active" aria-labelledby="compare-step-entities-title">
-            <div class="builder-step__header">
-              <span class="builder-step__number" aria-hidden="true">2</span>
-              <div>
-                <h3 id="compare-step-entities-title">Add the shortlist</h3>
-              </div>
-            </div>
+          <!-- Matchup surface: mode + entities — dominant -->
+          <div class="compare-surface compare-surface--matchup">
+            <p class="compare-surface__label">The matchup</p>
 
-            <div id="player-picker-field" class="field field--wide">
-              <label for="compare-player-search">Add players</label>
-              <div class="compare-combobox">
-                <input
-                  id="compare-player-search"
-                  type="search"
-                  autocomplete="off"
-                  placeholder="Search by player name"
-                  role="combobox"
-                  aria-haspopup="listbox"
-                  aria-autocomplete="list"
-                  aria-expanded="false"
-                  aria-controls="player-search-results"
-                >
-                <div id="player-search-results" class="entity-picker" role="listbox" hidden></div>
-              </div>
-              <div id="selected-player-chips" class="tag-list compare-chip-list" aria-live="polite"></div>
-              <p id="player-selection-meta" class="compare-selection-meta muted">Choose 2 to 6 players.</p>
-            </div>
-
-            <div id="team-picker-field" class="field field--wide" hidden>
-              <div class="field__label-row">
-                <span class="field-label">Teams</span>
-                <p id="team-selection-meta" class="compare-selection-meta muted">Choose 2 to 8 teams.</p>
-              </div>
-              <div id="team-choices" class="season-choices compare-team-choices" role="group" aria-label="Team choices"></div>
-            </div>
-          </section>
-
-          <section id="compare-step-details" class="builder-step" data-step-state="pending" aria-labelledby="compare-step-details-title">
-            <div class="builder-step__header">
-              <span class="builder-step__number" aria-hidden="true">3</span>
-              <div>
-                <h3 id="compare-step-details-title">Tune the stat frame</h3>
-              </div>
-            </div>
-
-            <div class="builder-step__fields">
-              <div class="field">
-                <label for="compare-stat">Stat</label>
-                <select id="compare-stat" name="compare-stat"></select>
-              </div>
-
-              <div class="field">
-                <span class="field-label">Metric</span>
-                <div class="view-toggle compare-metric-toggle" role="group" aria-label="Stat mode">
-                  <button type="button" class="button button--small is-active" data-compare-metric="total" aria-pressed="true">Total</button>
-                  <button type="button" class="button button--small button--ghost" data-compare-metric="average" aria-pressed="false">Avg/game</button>
+            <section id="compare-step-mode" class="builder-step builder-step--rail" data-step-state="ready" aria-labelledby="compare-step-mode-title">
+              <h3 id="compare-step-mode-title" class="sr-only">Comparison mode</h3>
+              <div class="field field--wide">
+                <span class="field-label">Mode</span>
+                <div class="view-toggle compare-mode-toggle" role="group" aria-label="Comparison mode">
+                  <button type="button" class="button button--small is-active" data-compare-mode="players" aria-pressed="true">Players</button>
+                  <button type="button" class="button button--small button--ghost" data-compare-mode="teams" aria-pressed="false">Teams</button>
                 </div>
               </div>
+            </section>
 
-              <div class="field field--wide field--season-block">
+            <section id="compare-step-entities" class="builder-step" data-step-state="active" aria-labelledby="compare-step-entities-title">
+              <h3 id="compare-step-entities-title" class="sr-only">Who to compare</h3>
+
+              <div id="player-picker-field" class="field field--wide">
+                <label for="compare-player-search">Add players</label>
+                <div class="compare-combobox">
+                  <input
+                    id="compare-player-search"
+                    type="search"
+                    autocomplete="off"
+                    placeholder="Search by player name"
+                    role="combobox"
+                    aria-haspopup="listbox"
+                    aria-autocomplete="list"
+                    aria-expanded="false"
+                    aria-controls="player-search-results"
+                  >
+                  <div id="player-search-results" class="entity-picker" role="listbox" hidden></div>
+                </div>
+                <div id="selected-player-chips" class="tag-list compare-chip-list" aria-live="polite"></div>
+                <p id="player-selection-meta" class="compare-selection-meta muted">Choose 2 to 6 players.</p>
+              </div>
+
+              <div id="team-picker-field" class="field field--wide" hidden>
                 <div class="field__label-row">
-                  <span class="field-label">Seasons</span>
-                  <div class="season-actions" role="group" aria-label="Season quick actions">
-                    <button type="button" class="button button--ghost button--small" data-compare-season-action="recent">Recent 3</button>
-                    <button type="button" class="button button--ghost button--small" data-compare-season-action="all">All</button>
-                    <button type="button" class="button button--ghost button--small" data-compare-season-action="clear">Clear</button>
+                  <span class="field-label">Teams</span>
+                  <p id="team-selection-meta" class="compare-selection-meta muted">Choose 2 to 8 teams.</p>
+                </div>
+                <div id="team-choices" class="season-choices compare-team-choices" role="group" aria-label="Team choices"></div>
+              </div>
+            </section>
+          </div>
+
+          <!-- Stat-frame surface: stat + metric + seasons + action — supporting -->
+          <div class="compare-surface compare-surface--statframe">
+            <p class="compare-surface__label">Stat frame</p>
+
+            <section id="compare-step-details" class="builder-step" data-step-state="pending" aria-labelledby="compare-step-details-title">
+              <h3 id="compare-step-details-title" class="sr-only">Stat and season</h3>
+
+              <div class="builder-step__fields">
+                <div class="field">
+                  <label for="compare-stat">Stat</label>
+                  <select id="compare-stat" name="compare-stat"></select>
+                </div>
+
+                <div class="field">
+                  <span class="field-label">Metric</span>
+                  <div class="view-toggle compare-metric-toggle" role="group" aria-label="Stat mode">
+                    <button type="button" class="button button--small is-active" data-compare-metric="total" aria-pressed="true">Total</button>
+                    <button type="button" class="button button--small button--ghost" data-compare-metric="average" aria-pressed="false">Avg/game</button>
                   </div>
                 </div>
-                <div id="compare-season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
-              </div>
-            </div>
-          </section>
 
-          <section id="compare-step-action" class="builder-step builder-step--action builder-step--rail" data-step-state="pending" aria-labelledby="compare-step-action-title">
-            <div class="builder-step__header">
-              <span class="builder-step__number" aria-hidden="true">4</span>
-              <div>
-                <h3 id="compare-step-action-title">Run the read</h3>
+                <div class="field field--wide field--season-block">
+                  <div class="field__label-row">
+                    <span class="field-label">Seasons</span>
+                    <div class="season-actions" role="group" aria-label="Season quick actions">
+                      <button type="button" class="button button--ghost button--small" data-compare-season-action="recent">Recent 3</button>
+                      <button type="button" class="button button--ghost button--small" data-compare-season-action="all">All</button>
+                      <button type="button" class="button button--ghost button--small" data-compare-season-action="clear">Clear</button>
+                    </div>
+                  </div>
+                  <div id="compare-season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
+                </div>
               </div>
-            </div>
-            <p id="compare-action-hint" class="builder-step__runway">Choose two names to unlock the verdict, chart, and season table.</p>
-            <div class="filter-actions">
-              <button type="submit">Compare</button>
-              <button type="button" id="reset-compare" class="button button--ghost">Reset</button>
-            </div>
-          </section>
+            </section>
+
+            <section id="compare-step-action" class="builder-step builder-step--action builder-step--rail" data-step-state="pending" aria-labelledby="compare-step-action-title">
+              <h3 id="compare-step-action-title" class="sr-only">Run comparison</h3>
+              <p id="compare-action-hint" class="builder-step__runway">Choose two names to unlock the verdict, chart, and season table.</p>
+              <div class="filter-actions">
+                <button type="submit">Compare</button>
+                <button type="button" id="reset-compare" class="button button--ghost">Reset</button>
+              </div>
+            </section>
+          </div>
+
         </form>
       </section>
 
       <div class="compare-results-stack">
-        <section id="compare-verdict" class="panel compare-verdict compare-results-lead reveal" aria-label="Comparison verdict" hidden>
-          <div class="compare-verdict__lead">
-            <p class="panel__eyebrow">Verdict</p>
-            <h2 id="compare-verdict-headline">Choose names to load a verdict.</h2>
-            <p id="compare-verdict-dek" class="panel__lead">The archive will call the overall edge once at least two players or teams are selected.</p>
-          </div>
-          <div id="compare-verdict-facts" class="compare-verdict__facts"></div>
-        </section>
 
-        <section class="panel results-panel results-panel--wide compare-results-panel compare-results-panel--chart reveal">
-          <div class="panel__heading panel__heading--split">
-            <div>
-              <h2>Season trend</h2>
+        <!-- Top story: verdict + trend chart as one editorial read -->
+        <div class="compare-top-story">
+          <section id="compare-verdict" class="panel compare-verdict compare-results-lead reveal" aria-label="Comparison verdict" hidden>
+            <div class="compare-verdict__lead">
+              <p class="panel__eyebrow">Verdict</p>
+              <h2 id="compare-verdict-headline">Choose names to load a verdict.</h2>
+              <p id="compare-verdict-dek" class="panel__lead">The archive will call the overall edge once at least two players or teams are selected.</p>
             </div>
-            <p id="compare-results-meta" class="muted">Choose names to load the chart.</p>
-          </div>
-          <div id="compare-trend-chart" class="chart-shell"></div>
-        </section>
+            <div id="compare-verdict-facts" class="compare-verdict__facts"></div>
+          </section>
 
-        <section class="panel results-panel results-panel--wide compare-results-panel compare-results-panel--table reveal">
+          <section class="panel results-panel results-panel--wide compare-results-panel compare-results-panel--chart reveal">
+            <div class="panel__heading panel__heading--split">
+              <div>
+                <h2>Season trend</h2>
+              </div>
+              <p id="compare-results-meta" class="muted">Choose names to load the chart.</p>
+            </div>
+            <div id="compare-trend-chart" class="chart-shell"></div>
+          </section>
+        </div>
+
+        <!-- Supporting evidence: exact values, demoted below the story -->
+        <section class="panel results-panel results-panel--wide compare-results-panel compare-results-panel--table compare-results-evidence reveal">
           <div class="panel__heading">
-            <p class="panel__eyebrow">Exact values</p>
-            <h2>Comparison table</h2>
+            <p class="panel__eyebrow">Supporting evidence</p>
+            <h2>Season by season</h2>
           </div>
           <div class="table-wrapper compare-table-shell">
-              <table class="compare-table stack-table" aria-describedby="compare-table-caption">
+            <table class="compare-table stack-table" aria-describedby="compare-table-caption">
               <caption id="compare-table-caption" class="table-caption">Comparison rows appear here once you choose players or teams.</caption>
               <thead id="compare-table-head"></thead>
               <tbody id="compare-table-body"></tbody>
@@ -194,6 +191,7 @@
             </table>
           </div>
         </section>
+
       </div>
     </main>
   </body>
