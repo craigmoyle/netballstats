@@ -184,3 +184,4 @@ output postgresAdminSecretUri string = appStack.outputs.postgresAdminSecretUri
 output postgresApiUser string = appStack.outputs.postgresApiUser
 output dbRefreshJobSatName string = appStack.outputs.dbRefreshJobSatName
 output dbRefreshJobSunName string = appStack.outputs.dbRefreshJobSunName
+output dbRefreshJobTueName string = appStack.outputs.dbRefreshJobTueName

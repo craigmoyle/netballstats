@@ -230,12 +230,13 @@ NETBALL_STATS_API_DB_PASSWORD='<readonly password>' \
 Rscript scripts/build_database.R
 ```
 
-The deployed stack also provisions two scheduled Container Apps jobs:
+The deployed stack also provisions three scheduled Container Apps jobs:
 
 - Saturday at **21:00 AEST**
 - Sunday at **18:00 AEST**
+- Tuesday at **19:00 AEST**
 
-Those jobs rebuild the database in Azure using the deployed API image.
+Those jobs rebuild the database in Azure using the deployed API image, with the Tuesday run picking up late Champion Data review changes.
 
 ### Validate the deployed API
 

@@ -5,7 +5,7 @@
     "_generator": {
       "name": "bicep",
       "version": "0.41.2.15936",
-      "templateHash": "3833466686648841417"
+      "templateHash": "10988252834931542424"
     }
   },
   "parameters": {
@@ -139,6 +139,24 @@
         "description": "Storage size for PostgreSQL in GB."
       }
     },
+    "postgresPublicNetworkAccess": {
+      "type": "string",
+      "defaultValue": "Disabled",
+      "allowedValues": [
+        "Enabled",
+        "Disabled"
+      ],
+      "metadata": {
+        "description": "Whether PostgreSQL should expose a public endpoint. Disabled — private networking handles connectivity."
+      }
+    },
+    "allowAzureServicesPostgresFirewallRule": {
+      "type": "bool",
+      "defaultValue": false,
+      "metadata": {
+        "description": "Whether to create the broad Allow Azure Services firewall rule for PostgreSQL. Disabled — private networking handles connectivity."
+      }
+    },
     "apiCpu": {
       "type": "int",
       "defaultValue": 1,
@@ -170,10 +188,10 @@
     },
     "apiMaxReplicas": {
       "type": "int",
-      "defaultValue": 2,
+      "defaultValue": 1,
       "minValue": 1,
       "metadata": {
-        "description": "Maximum API replicas."
+        "description": "Maximum API replicas. Keep at 1 unless a distributed rate-limiter is added — the in-process limiter is per-replica."
       }
     },
     "customFrontendHostname": {
@@ -185,7 +203,7 @@
     },
     "privatePostgresNetworkingMode": {
       "type": "string",
-      "defaultValue": "disabled",
+      "defaultValue": "enabled",
       "allowedValues": [
         "",
         "disabled",
@@ -221,6 +239,13 @@
       "defaultValue": "",
       "metadata": {
         "description": "Optional override for the private DNS zone used when private PostgreSQL networking is enabled."
+      }
+    },
+    "apiImageName": {
+      "type": "string",
+      "defaultValue": "",
+      "metadata": {
+        "description": "Container image for the API and DB refresh jobs. Populated by azd after first deploy via SERVICE_API_IMAGE_NAME. Empty on first provision — Bicep defaults to the placeholder image."
       }
     }
   },
@@ -291,6 +316,12 @@
           "postgresStorageSizeGb": {
             "value": "[parameters('postgresStorageSizeGb')]"
           },
+          "postgresPublicNetworkAccess": {
+            "value": "[parameters('postgresPublicNetworkAccess')]"
+          },
+          "allowAzureServicesPostgresFirewallRule": {
+            "value": "[parameters('allowAzureServicesPostgresFirewallRule')]"
+          },
           "apiCpu": {
             "value": "[parameters('apiCpu')]"
           },
@@ -323,6 +354,9 @@
           },
           "postgresPrivateDnsZoneName": {
             "value": "[parameters('postgresPrivateDnsZoneName')]"
+          },
+          "apiImageName": {
+            "value": "[parameters('apiImageName')]"
           }
         },
         "template": {
@@ -332,7 +366,7 @@
             "_generator": {
               "name": "bicep",
               "version": "0.41.2.15936",
-              "templateHash": "3311266662939117299"
+              "templateHash": "4950839172449192177"
             }
           },
           "parameters": {
@@ -384,6 +418,13 @@
               ],
               "metadata": {
                 "description": "Region for Azure Static Web Apps. This can differ from the rest of the stack."
+              }
+            },
+            "apiImageName": {
+              "type": "string",
+              "defaultValue": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
+              "metadata": {
+                "description": "Container image for the API and DB refresh jobs. Defaults to the placeholder; overridden by SERVICE_API_IMAGE_NAME after first deploy."
               }
             },
             "postgresAdminUsername": {
@@ -464,14 +505,14 @@
                 "Disabled"
               ],
               "metadata": {
-                "description": "Whether PostgreSQL should expose a public endpoint. Keep Enabled until private networking is configured for the API and DB refresh jobs."
+                "description": "Whether PostgreSQL should expose a public endpoint. For production deployments, set privatePostgresNetworkingMode to enabled instead of enabling the public endpoint. See AGENTS.md for the private networking migration guide."
               }
             },
             "allowAzureServicesPostgresFirewallRule": {
               "type": "bool",
-              "defaultValue": true,
+              "defaultValue": false,
               "metadata": {
-                "description": "Whether to create the broad Allow Azure services firewall rule for PostgreSQL. Keep this enabled until the API and DB refresh jobs use private networking or another explicit allow-list."
+                "description": "Whether to create the broad Allow Azure Services firewall rule for PostgreSQL. This rule permits any Azure-hosted resource (in any subscription) to connect. Disabled by default; enable only as a temporary stopgap when private networking is not yet configured."
               }
             },
             "privatePostgresNetworkingMode": {
@@ -545,10 +586,10 @@
             },
             "apiMaxReplicas": {
               "type": "int",
-              "defaultValue": 2,
+              "defaultValue": 1,
               "minValue": 1,
               "metadata": {
-                "description": "Maximum API replicas."
+                "description": "Maximum API replicas. Single replica is recommended for this read-only stats site: the in-process rate limiter is not shared across replicas, so a higher count allows bypass. Increase only after adding a distributed rate store (e.g. Redis)."
               }
             },
             "customFrontendHostname": {
@@ -571,23 +612,26 @@
             "effectiveVirtualNetworkAddressPrefix": "[if(empty(parameters('virtualNetworkAddressPrefix')), variables('defaultVirtualNetworkAddressPrefix'), parameters('virtualNetworkAddressPrefix'))]",
             "effectiveContainerAppsInfrastructureSubnetPrefix": "[if(empty(parameters('containerAppsInfrastructureSubnetPrefix')), variables('defaultContainerAppsInfrastructureSubnetPrefix'), parameters('containerAppsInfrastructureSubnetPrefix'))]",
             "effectivePostgresDelegatedSubnetPrefix": "[if(empty(parameters('postgresDelegatedSubnetPrefix')), variables('defaultPostgresDelegatedSubnetPrefix'), parameters('postgresDelegatedSubnetPrefix'))]",
-            "effectivePostgresPrivateDnsZoneName": "[if(empty(parameters('postgresPrivateDnsZoneName')), format('{0}-{1}.postgres.database.azure.com', variables('normalizedPrefix'), variables('resourceToken')), parameters('postgresPrivateDnsZoneName'))]",
+            "effectivePostgresPrivateDnsZoneName": "[if(empty(parameters('postgresPrivateDnsZoneName')), format('{0}.private.postgres.database.azure.com', variables('postgresServerName')), parameters('postgresPrivateDnsZoneName'))]",
             "staticWebAppName": "[take(format('{0}-web-{1}', parameters('namePrefix'), variables('resourceToken')), 40)]",
             "containerEnvironmentName": "[take(format('{0}-aca-env-{1}', parameters('namePrefix'), variables('resourceToken')), 32)]",
             "containerAppName": "[take(format('{0}-api-{1}', parameters('namePrefix'), variables('resourceToken')), 32)]",
             "dbRefreshJobSatName": "[take(format('{0}-db-sat-{1}', parameters('namePrefix'), variables('resourceToken')), 32)]",
             "dbRefreshJobSunName": "[take(format('{0}-db-sun-{1}', parameters('namePrefix'), variables('resourceToken')), 32)]",
+            "dbRefreshJobTueName": "[take(format('{0}-db-tue-{1}', parameters('namePrefix'), variables('resourceToken')), 32)]",
             "keyVaultName": "[take(format('{0}-{1}-kv', variables('normalizedPrefix'), variables('resourceToken')), 24)]",
             "workspaceName": "[take(format('{0}-logs-{1}', parameters('namePrefix'), variables('resourceToken')), 63)]",
             "browserTelemetryInsightsName": "[take(format('{0}-browser-ai-{1}', parameters('namePrefix'), variables('resourceToken')), 64)]",
             "userAssignedIdentityName": "[take(format('{0}-api-mi-{1}', parameters('namePrefix'), variables('resourceToken')), 64)]",
+            "dbJobIdentityName": "[take(format('{0}-dbjob-mi-{1}', parameters('namePrefix'), variables('resourceToken')), 64)]",
             "virtualNetworkName": "[take(format('{0}-vnet-{1}', parameters('namePrefix'), variables('resourceToken')), 64)]",
             "containerAppsInfrastructureSubnetName": "aca-infrastructure",
             "postgresDelegatedSubnetName": "postgres-flex",
             "postgresPrivateDnsZoneLinkName": "[take(format('{0}-postgres-dns-{1}', parameters('namePrefix'), variables('resourceToken')), 80)]",
             "allowAllAzureIpsRuleName": "allow-azure-services",
             "keyVaultSecretsUserRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '4633458b-17de-408a-b874-0445c86b69e6')]",
-            "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]"
+            "acrPullRoleDefinitionId": "[subscriptionResourceId('Microsoft.Authorization/roleDefinitions', '7f951dda-4ed3-4680-a7ca-43fe172d538d')]",
+            "resolvedApiImage": "[if(empty(parameters('apiImageName')), 'mcr.microsoft.com/azuredocs/containerapps-helloworld:latest', parameters('apiImageName'))]"
           },
           "resources": [
             {
@@ -600,6 +644,9 @@
                 "retentionInDays": 30,
                 "sku": {
                   "name": "PerGB2018"
+                },
+                "workspaceCapping": {
+                  "dailyQuotaGb": 1
                 }
               }
             },
@@ -623,6 +670,13 @@
               "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
               "apiVersion": "2024-11-30",
               "name": "[variables('userAssignedIdentityName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]"
+            },
+            {
+              "type": "Microsoft.ManagedIdentity/userAssignedIdentities",
+              "apiVersion": "2024-11-30",
+              "name": "[variables('dbJobIdentityName')]",
               "location": "[parameters('location')]",
               "tags": "[parameters('tags')]"
             },
@@ -654,6 +708,21 @@
               "dependsOn": [
                 "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
                 "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
+              "name": "[guid(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'AcrPull')]",
+              "properties": {
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), '2024-11-30').principalId]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[variables('acrPullRoleDefinitionId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]"
               ]
             },
             {
@@ -699,16 +768,46 @@
             {
               "type": "Microsoft.Authorization/roleAssignments",
               "apiVersion": "2022-04-01",
-              "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
-              "name": "[guid(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'KeyVaultSecretsUser')]",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'KeyVaultSecretsUser')]",
               "properties": {
                 "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), '2024-11-30').principalId]",
                 "principalType": "ServicePrincipal",
                 "roleDefinitionId": "[variables('keyVaultSecretsUserRoleDefinitionId')]"
               },
               "dependsOn": [
-                "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+                "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]",
                 "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password')]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'KeyVaultSecretsUser')]",
+              "properties": {
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), '2024-11-30').principalId]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[variables('keyVaultSecretsUserRoleDefinitionId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password')]"
+              ]
+            },
+            {
+              "type": "Microsoft.Authorization/roleAssignments",
+              "apiVersion": "2022-04-01",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]",
+              "name": "[guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'KeyVaultSecretsUser')]",
+              "properties": {
+                "principalId": "[reference(resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), '2024-11-30').principalId]",
+                "principalType": "ServicePrincipal",
+                "roleDefinitionId": "[variables('keyVaultSecretsUserRoleDefinitionId')]"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]"
               ]
             },
             {
@@ -848,6 +947,99 @@
               ]
             },
             {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
+              "apiVersion": "2025-08-01",
+              "name": "[format('{0}/{1}', variables('postgresServerName'), 'azure.extensions')]",
+              "properties": {
+                "value": "pg_trgm,pgaudit",
+                "source": "user-override"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/databases', variables('postgresServerName'), parameters('postgresDatabaseName'))]",
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.DBforPostgreSQL/flexibleServers/configurations",
+              "apiVersion": "2025-08-01",
+              "name": "[format('{0}/{1}', variables('postgresServerName'), 'pgaudit.log')]",
+              "properties": {
+                "value": "ddl,write,role",
+                "source": "user-override"
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/configurations', variables('postgresServerName'), 'azure.extensions')]",
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]",
+              "name": "postgres-diag",
+              "properties": {
+                "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]",
+                "logs": [
+                  {
+                    "category": "PostgreSQLLogs",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]",
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
+              "name": "acr-diag",
+              "properties": {
+                "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]",
+                "logs": [
+                  {
+                    "category": "ContainerRegistryLoginEvents",
+                    "enabled": true
+                  },
+                  {
+                    "category": "ContainerRegistryRepositoryEvents",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.Insights/diagnosticSettings",
+              "apiVersion": "2021-05-01-preview",
+              "scope": "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+              "name": "kv-diag",
+              "properties": {
+                "workspaceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]",
+                "logs": [
+                  {
+                    "category": "AuditEvent",
+                    "enabled": true
+                  }
+                ],
+                "metrics": [
+                  {
+                    "category": "AllMetrics",
+                    "enabled": true
+                  }
+                ]
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName'))]",
+                "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspaceName'))]"
+              ]
+            },
+            {
               "condition": "[and(not(variables('enablePrivatePostgresNetworking')), parameters('allowAzureServicesPostgresFirewallRule'))]",
               "type": "Microsoft.DBforPostgreSQL/flexibleServers/firewallRules",
               "apiVersion": "2025-08-01",
@@ -909,7 +1101,7 @@
                         "weight": 100
                       }
                     ],
-                    "transport": "Auto"
+                    "transport": "Https"
                   },
                   "registries": [
                     {
@@ -929,7 +1121,7 @@
                   "containers": [
                     {
                       "name": "api",
-                      "image": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
+                      "image": "[variables('resolvedApiImage')]",
                       "env": [
                         {
                           "name": "NETBALL_STATS_REPO_ROOT",
@@ -973,7 +1165,11 @@
                         },
                         {
                           "name": "NETBALL_STATS_DB_SSLMODE",
-                          "value": "require"
+                          "value": "verify-full"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_SSLROOTCERT",
+                          "value": "system"
                         },
                         {
                           "name": "NETBALL_STATS_DB_CONNECT_TIMEOUT_SECONDS",
@@ -990,6 +1186,14 @@
                         {
                           "name": "NETBALL_STATS_BROWSER_APPINSIGHTS_CONNECTION_STRING",
                           "value": "[reference(resourceId('Microsoft.Insights/components', variables('browserTelemetryInsightsName')), '2020-02-02').ConnectionString]"
+                        },
+                        {
+                          "name": "NETBALL_STATS_RATE_LIMIT_WINDOW_SECONDS",
+                          "value": "60"
+                        },
+                        {
+                          "name": "NETBALL_STATS_RATE_LIMIT_MAX_REQUESTS",
+                          "value": "60"
                         }
                       ],
                       "probes": [
@@ -1045,7 +1249,7 @@
                 "[resourceId('Microsoft.Insights/components', variables('browserTelemetryInsightsName'))]",
                 "[resourceId('Microsoft.App/managedEnvironments', variables('containerEnvironmentName'))]",
                 "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
-                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'KeyVaultSecretsUser'))]",
+                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'KeyVaultSecretsUser'))]",
                 "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]",
                 "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/databases', variables('postgresServerName'), parameters('postgresDatabaseName'))]",
                 "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/firewallRules', variables('postgresServerName'), variables('allowAllAzureIpsRuleName'))]",
@@ -1063,7 +1267,7 @@
               "identity": {
                 "type": "UserAssigned",
                 "userAssignedIdentities": {
-                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')))]": {}
+                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')))]": {}
                 }
               },
               "properties": {
@@ -1076,18 +1280,23 @@
                     "parallelism": 1
                   },
                   "replicaTimeout": 3600,
-                  "replicaRetryLimit": 1,
+                  "replicaRetryLimit": 2,
                   "registries": [
                     {
-                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
                       "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), '2025-04-01').loginServer]"
                     }
                   ],
                   "secrets": [
                     {
                       "name": "postgres-admin-password",
-                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
                       "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), '2025-05-01').secretUriWithVersion]"
+                    },
+                    {
+                      "name": "postgres-api-password",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                      "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), '2025-05-01').secretUriWithVersion]"
                     }
                   ]
                 },
@@ -1095,7 +1304,7 @@
                   "containers": [
                     {
                       "name": "db-refresh",
-                      "image": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
+                      "image": "[variables('resolvedApiImage')]",
                       "command": [
                         "Rscript",
                         "scripts/build_database.R"
@@ -1131,11 +1340,23 @@
                         },
                         {
                           "name": "NETBALL_STATS_DB_SSLMODE",
-                          "value": "require"
+                          "value": "verify-full"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_SSLROOTCERT",
+                          "value": "system"
                         },
                         {
                           "name": "NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS",
                           "value": "0"
+                        },
+                        {
+                          "name": "NETBALL_STATS_API_DB_USERNAME",
+                          "value": "[parameters('postgresApiUsername')]"
+                        },
+                        {
+                          "name": "NETBALL_STATS_API_DB_PASSWORD",
+                          "secretRef": "postgres-api-password"
                         }
                       ],
                       "resources": {
@@ -1147,15 +1368,14 @@
                 }
               },
               "dependsOn": [
-                "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'AcrPull'))]",
                 "[resourceId('Microsoft.App/managedEnvironments', variables('containerEnvironmentName'))]",
                 "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
-                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'KeyVaultSecretsUser'))]",
+                "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'AcrPull'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'KeyVaultSecretsUser'))]",
                 "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password')]",
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/databases', variables('postgresServerName'), parameters('postgresDatabaseName'))]",
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/firewallRules', variables('postgresServerName'), variables('allowAllAzureIpsRuleName'))]",
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]",
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]"
+                "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]",
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
               ]
             },
             {
@@ -1167,7 +1387,7 @@
               "identity": {
                 "type": "UserAssigned",
                 "userAssignedIdentities": {
-                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')))]": {}
+                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')))]": {}
                 }
               },
               "properties": {
@@ -1180,18 +1400,23 @@
                     "parallelism": 1
                   },
                   "replicaTimeout": 3600,
-                  "replicaRetryLimit": 1,
+                  "replicaRetryLimit": 2,
                   "registries": [
                     {
-                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
                       "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), '2025-04-01').loginServer]"
                     }
                   ],
                   "secrets": [
                     {
                       "name": "postgres-admin-password",
-                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
                       "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), '2025-05-01').secretUriWithVersion]"
+                    },
+                    {
+                      "name": "postgres-api-password",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                      "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), '2025-05-01').secretUriWithVersion]"
                     }
                   ]
                 },
@@ -1199,7 +1424,7 @@
                   "containers": [
                     {
                       "name": "db-refresh",
-                      "image": "mcr.microsoft.com/azuredocs/containerapps-helloworld:latest",
+                      "image": "[variables('resolvedApiImage')]",
                       "command": [
                         "Rscript",
                         "scripts/build_database.R"
@@ -1235,11 +1460,23 @@
                         },
                         {
                           "name": "NETBALL_STATS_DB_SSLMODE",
-                          "value": "require"
+                          "value": "verify-full"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_SSLROOTCERT",
+                          "value": "system"
                         },
                         {
                           "name": "NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS",
                           "value": "0"
+                        },
+                        {
+                          "name": "NETBALL_STATS_API_DB_USERNAME",
+                          "value": "[parameters('postgresApiUsername')]"
+                        },
+                        {
+                          "name": "NETBALL_STATS_API_DB_PASSWORD",
+                          "secretRef": "postgres-api-password"
                         }
                       ],
                       "resources": {
@@ -1251,15 +1488,140 @@
                 }
               },
               "dependsOn": [
-                "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'AcrPull'))]",
                 "[resourceId('Microsoft.App/managedEnvironments', variables('containerEnvironmentName'))]",
                 "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
-                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults', variables('keyVaultName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName')), 'KeyVaultSecretsUser'))]",
+                "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'AcrPull'))]",
+                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'KeyVaultSecretsUser'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'KeyVaultSecretsUser'))]",
                 "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password')]",
+                "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]",
                 "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/databases', variables('postgresServerName'), parameters('postgresDatabaseName'))]",
                 "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/firewallRules', variables('postgresServerName'), variables('allowAllAzureIpsRuleName'))]",
-                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]",
-                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('userAssignedIdentityName'))]"
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
+              ]
+            },
+            {
+              "type": "Microsoft.App/jobs",
+              "apiVersion": "2025-02-02-preview",
+              "name": "[variables('dbRefreshJobTueName')]",
+              "location": "[parameters('location')]",
+              "tags": "[parameters('tags')]",
+              "identity": {
+                "type": "UserAssigned",
+                "userAssignedIdentities": {
+                  "[format('{0}', resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')))]": {}
+                }
+              },
+              "properties": {
+                "environmentId": "[resourceId('Microsoft.App/managedEnvironments', variables('containerEnvironmentName'))]",
+                "configuration": {
+                  "triggerType": "Schedule",
+                  "scheduleTriggerConfig": {
+                    "cronExpression": "0 9 * * 2",
+                    "replicaCompletionCount": 1,
+                    "parallelism": 1
+                  },
+                  "replicaTimeout": 3600,
+                  "replicaRetryLimit": 2,
+                  "registries": [
+                    {
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                      "server": "[reference(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), '2025-04-01').loginServer]"
+                    }
+                  ],
+                  "secrets": [
+                    {
+                      "name": "postgres-admin-password",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                      "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), '2025-05-01').secretUriWithVersion]"
+                    },
+                    {
+                      "name": "postgres-api-password",
+                      "identity": "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                      "keyVaultUrl": "[reference(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), '2025-05-01').secretUriWithVersion]"
+                    }
+                  ]
+                },
+                "template": {
+                  "containers": [
+                    {
+                      "name": "db-refresh",
+                      "image": "[variables('resolvedApiImage')]",
+                      "command": [
+                        "Rscript",
+                        "scripts/build_database.R"
+                      ],
+                      "env": [
+                        {
+                          "name": "NETBALL_STATS_REPO_ROOT",
+                          "value": "/app"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_BACKEND",
+                          "value": "postgres"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_HOST",
+                          "value": "[reference(resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName')), '2025-08-01').fullyQualifiedDomainName]"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_PORT",
+                          "value": "5432"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_NAME",
+                          "value": "[parameters('postgresDatabaseName')]"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_USER",
+                          "value": "[parameters('postgresAdminUsername')]"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_PASSWORD",
+                          "secretRef": "postgres-admin-password"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_SSLMODE",
+                          "value": "verify-full"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_SSLROOTCERT",
+                          "value": "system"
+                        },
+                        {
+                          "name": "NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS",
+                          "value": "0"
+                        },
+                        {
+                          "name": "NETBALL_STATS_API_DB_USERNAME",
+                          "value": "[parameters('postgresApiUsername')]"
+                        },
+                        {
+                          "name": "NETBALL_STATS_API_DB_PASSWORD",
+                          "secretRef": "postgres-api-password"
+                        }
+                      ],
+                      "resources": {
+                        "cpu": "[json('2')]",
+                        "memory": "4Gi"
+                      }
+                    }
+                  ]
+                }
+              },
+              "dependsOn": [
+                "[resourceId('Microsoft.App/managedEnvironments', variables('containerEnvironmentName'))]",
+                "[resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName'))]",
+                "[extensionResourceId(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.ContainerRegistry/registries', variables('containerRegistryName')), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'AcrPull'))]",
+                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'KeyVaultSecretsUser'))]",
+                "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName'))]",
+                "[extensionResourceId(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), 'Microsoft.Authorization/roleAssignments', guid(resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password'), resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', variables('dbJobIdentityName')), 'KeyVaultSecretsUser'))]",
+                "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-admin-password')]",
+                "[resourceId('Microsoft.KeyVault/vaults/secrets', variables('keyVaultName'), 'postgres-api-password')]",
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/databases', variables('postgresServerName'), parameters('postgresDatabaseName'))]",
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers/firewallRules', variables('postgresServerName'), variables('allowAllAzureIpsRuleName'))]",
+                "[resourceId('Microsoft.DBforPostgreSQL/flexibleServers', variables('postgresServerName'))]"
               ]
             },
             {
@@ -1287,6 +1649,7 @@
               "kind": "ContainerApp",
               "properties": {
                 "backendResourceId": "[resourceId('Microsoft.App/containerApps', variables('containerAppName'))]",
+                "routingPath": "/api",
                 "region": "[parameters('location')]"
               },
               "dependsOn": [
@@ -1339,6 +1702,10 @@
             "dbRefreshJobSunName": {
               "type": "string",
               "value": "[variables('dbRefreshJobSunName')]"
+            },
+            "dbRefreshJobTueName": {
+              "type": "string",
+              "value": "[variables('dbRefreshJobTueName')]"
             }
           }
         }
@@ -1396,6 +1763,10 @@
     "dbRefreshJobSunName": {
       "type": "string",
       "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('app-stack-{0}', parameters('environmentName'))), '2025-04-01').outputs.dbRefreshJobSunName.value]"
+    },
+    "dbRefreshJobTueName": {
+      "type": "string",
+      "value": "[reference(extensionResourceId(format('/subscriptions/{0}/resourceGroups/{1}', subscription().subscriptionId, parameters('resourceGroupName')), 'Microsoft.Resources/deployments', format('app-stack-{0}', parameters('environmentName'))), '2025-04-01').outputs.dbRefreshJobTueName.value]"
     }
   }
 }
