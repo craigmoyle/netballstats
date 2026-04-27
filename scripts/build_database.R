@@ -454,6 +454,11 @@ prepare_match_tables <- function(entries, competitions) {
       ))
     }
     # else: pre-2017 feed — periodInfo not expected, silently skip
+
+    entries[[index]] <- NULL
+    if (index %% 10L == 0L) {
+      gc(verbose = FALSE)
+    }
   }
 
   player_period_stats <- dplyr::bind_rows(player_stat_rows)
@@ -1434,6 +1439,8 @@ if (!length(entries)) {
 }
 
 tables <- prepare_match_tables(entries, competitions)
+rm(entries)
+gc(verbose = FALSE)
 invisible(write_database(tables, if (sample_mode) "sample" else "production"))
 message(sprintf("Database written to %s with %s matches.", database_target_description(), nrow(tables$matches)))
 
