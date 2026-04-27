@@ -1202,7 +1202,7 @@ function(season = "", seasons = "", team_id = "", round = "", res) {
     round <- parse_optional_int(round, "round", minimum = 1L, maximum = 30L)
 
     match_query <- "SELECT COUNT(*) AS total_matches, COUNT(DISTINCT venue_id) AS total_venues FROM matches WHERE 1 = 1"
-    match_filters <- apply_match_filters(match_query, list(), seasons, team_id, round)
+    match_filters <- apply_match_filters(match_query, list(), seasons, team_id, round, completed_only = TRUE)
     match_summary <- query_rows(conn, match_filters$query, match_filters$params)
 
     team_query <- "SELECT COUNT(DISTINCT squad_id) AS total_teams FROM team_period_stats WHERE 1 = 1"
@@ -1258,7 +1258,7 @@ function(season = "", seasons = "", team_id = "", round = "", limit = "12", res)
       "home_score, away_score, venue_name, local_start_time",
       "FROM matches WHERE 1 = 1"
     )
-    filters <- apply_match_filters(base_query, list(), seasons, team_id, round)
+    filters <- apply_match_filters(base_query, list(), seasons, team_id, round, completed_only = TRUE)
     filters$query <- paste0(
       filters$query,
       " ORDER BY season DESC, local_start_time DESC, round_number DESC, game_number DESC LIMIT ?limit"
