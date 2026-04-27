@@ -1,6 +1,6 @@
 # Azure Deployment Preflight Report
 
-**Generated:** 2026-04-26T05:23:20Z
+**Generated:** 2026-04-27T06:47:00Z
 **Status:** ⚠️ Pass with Warnings
 
 ---
@@ -20,8 +20,8 @@
 
 | Check | Status | Details |
 |-------|--------|---------|
-| Bicep Syntax | ⚠️ Warnings | Both Bicep builds succeeded; `infra/modules/app-stack.bicep:949` still emits known `BCP037` for `routingPath` on `StaticSiteLinkedBackendARMResourceProperties` |
-| What-If Analysis | ✅ Pass | `azd provision --preview --environment nbs --no-prompt` completed successfully |
+| Bicep Syntax | ⚠️ Warnings | `az bicep build --file infra/main.bicep --outfile infra/main.json` succeeded; existing `BCP037` warning remains for `routingPath` on the Static Web App linked backend type |
+| What-If Analysis | ✅ Pass | `azd provision --preview -e nbs` completed successfully and includes the new Tuesday refresh job |
 | Permission Check | ✅ Pass | Preview completed without RBAC fallback |
 
 ---
@@ -32,13 +32,13 @@
 
 | Step | Command | Exit Code | Duration |
 |------|---------|-----------|----------|
-| 1 | `az --version` | 0 | not measured |
+| 1 | `az --version \| head -n 5` | 0 | not measured |
 | 2 | `azd version` | 0 | not measured |
 | 3 | `bicep --version` | 0 | not measured |
-| 4 | `azd env list` | 0 | not measured |
-| 5 | `bicep build infra/main.bicep --stdout` | 0 | not measured |
-| 6 | `bicep build infra/modules/app-stack.bicep --stdout` | 0 | not measured |
-| 7 | `azd provision --preview --environment nbs --no-prompt` | 0 | 22s |
+| 4 | `az account show --query '{name:name,id:id}' -o json` | 0 | not measured |
+| 5 | `azd env list` | 0 | not measured |
+| 6 | `az bicep build --file infra/main.bicep --outfile infra/main.json` | 0 | not measured |
+| 7 | `azd provision --preview -e nbs` | 0 | 21s |
 
 ### Tool Versions
 
@@ -54,20 +54,20 @@
 
 ### Warnings
 
-#### ⚠️ Known Static Web App linked backend warning
+#### ⚠️ Existing Static Web App linked backend type warning
 
 - **Severity:** Warning
 - **Source:** bicep build
-- **Location:** `infra/modules/app-stack.bicep:949`
+- **Location:** `infra/modules/app-stack.bicep`
 - **Message:** `BCP037` reports that `routingPath` is not allowed on `StaticSiteLinkedBackendARMResourceProperties`.
-- **Recommendation:** Treat this as the existing type-definition warning already seen in earlier preflights unless the linked backend resource is being reworked.
+- **Recommendation:** Treat this as the existing type-definition warning already seen in prior preflights unless the linked backend resource itself is being reworked.
 
-#### ⚠️ Preview includes broad infrastructure modifications
+#### ⚠️ Preview still contains broad baseline modify operations
 
 - **Severity:** Warning
 - **Source:** azd preview
-- **Message:** The preview still shows modify operations for the Container App, both refresh jobs, Container Apps Environment, Registry, PostgreSQL server, Application Insights, Virtual Network, and Static Web App.
-- **Recommendation:** For this frontend-only change, proceed with `azd deploy web` rather than a full `azd provision` unless infrastructure changes are actually intended.
+- **Message:** The preview still shows modify operations for the Container App, the Saturday and Sunday refresh jobs, the Container Apps Environment, Registry, PostgreSQL server, Application Insights, Virtual Network, and Static Web App in addition to the new Tuesday job.
+- **Recommendation:** Proceed only because the intended change is additive and the environment already shows this recurring preview noise; review the modify set again if a future provision touches unrelated infrastructure.
 
 ---
 
@@ -77,7 +77,7 @@
 
 | Change Type | Count |
 |-------------|-------|
-| 🆕 Create | 0 |
+| 🆕 Create | 1 |
 | 📝 Modify | 9 |
 | 🗑️ Delete | 0 |
 | ✓ No Change | 0 |
@@ -86,7 +86,9 @@
 
 ### Resources to Create
 
-*No resources will be created.*
+| Resource Type | Resource Name |
+|---------------|---------------|
+| Container App Job | `netballstats-db-tue-wr5i2l` |
 
 ### Resources to Modify
 
@@ -101,8 +103,6 @@
 | Application Insights | `netballstats-browser-ai-wr5i2l` |
 | Virtual Network | `netballstats-vnet-wr5i2l` |
 | Static Web App | `netballstats-web-wr5i2l` |
-
-The current Static Web App preview also shows metadata-only property removals for `branch`, `repositoryUrl`, `deploymentAuthPolicy`, `provider`, `stableInboundIP`, and `trafficSplitting`.
 
 ### Resources to Delete
 
@@ -120,18 +120,18 @@ The current Static Web App preview also shows metadata-only property removals fo
 
 ## Recommendations
 
-1. Keep treating the `routingPath` `BCP037` warning as known drift unless you are actively changing the linked backend definition.
-2. Use `azd deploy web --environment nbs --no-prompt` for this frontend-only release instead of a full infrastructure provision.
-3. If a future infra deployment is needed, review the nine previewed modify operations first so they are intentional.
+1. Proceed with `azd provision -e nbs` to create the Tuesday refresh job because the preview shows the expected additive resource.
+2. Keep the `routingPath` `BCP037` warning treated as known drift unless the Static Web App linked backend definition changes.
+3. After provisioning, verify the new job cron is `0 9 * * 2` and that `azure.yaml` can discover and sync `-db-tue-` jobs during future API deploys.
 
 ---
 
 ## Next Steps
 
-The preflight validation passed with warnings. For this change, proceed with the frontend-only deployment:
+The preflight validation passed with warnings. You can proceed with deployment:
 
 ```bash
-azd deploy web --environment nbs --no-prompt
+azd provision -e nbs
 ```
 
 ---

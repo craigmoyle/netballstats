@@ -40,8 +40,19 @@ hooks:
         --name "$SUN_JOB" \
         --query "properties.template.containers[0].name" \
         --output tsv)
+      TUE_JOB=$(az containerapp job list \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --query "[?contains(name, '-db-tue-')].name | [0]" \
+        --output tsv)
+      TUE_CONTAINER=$(az containerapp job show \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --name "$TUE_JOB" \
+        --query "properties.template.containers[0].name" \
+        --output tsv)
       
-      # Update both jobs' container images in parallel (background)
+      # Update all refresh job images in parallel (background)
       az containerapp job update \
         --subscription "$AZURE_SUBSCRIPTION_ID" \
         --name "$SAT_JOB" \
@@ -55,6 +66,13 @@ hooks:
         --resource-group "$RG" \
         --image "$API_IMAGE" \
         --container-name "$SUN_CONTAINER" \
+        --no-wait &
+      az containerapp job update \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --name "$TUE_JOB" \
+        --resource-group "$RG" \
+        --image "$API_IMAGE" \
+        --container-name "$TUE_CONTAINER" \
         --no-wait &
       
       # Only trigger DB refresh if R code was modified (check for R files in git diff)
