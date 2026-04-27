@@ -455,7 +455,7 @@ prepare_match_tables <- function(entries, competitions) {
     }
     # else: pre-2017 feed — periodInfo not expected, silently skip
 
-    entries[[index]] <- NULL
+    entries[[index]]$payload <- NULL
     if (index %% 10L == 0L) {
       gc(verbose = FALSE)
     }

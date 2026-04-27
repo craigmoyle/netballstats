@@ -9,7 +9,7 @@ assert_true <- function(condition, message) {
 script_text <- paste(readLines("scripts/build_database.R", warn = FALSE), collapse = "\n")
 
 assert_true(
-  grepl("entries\\[\\[index\\]\\]\\s*<-\\s*NULL", script_text),
+  grepl("entries\\[\\[index\\]\\](\\$payload)?\\s*<-\\s*NULL", script_text),
   "Expected prepare_match_tables() to clear processed raw entries so the rebuild does not retain every match payload in memory."
 )
 
