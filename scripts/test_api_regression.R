@@ -154,6 +154,27 @@ default_season <- as.integer(scalar_value(meta$default_season %||% meta$seasons[
 summary_payload <- request_json(base_url, '/summary', query = list(season = default_season))
 assert_true(!is.null(summary_payload$total_matches), 'Expected /summary to return total_matches.')
 assert_true(as.numeric(scalar_value(summary_payload$total_matches)) >= 1, 'Expected /summary to report at least one match.')
+summary_series_payload <- request_json(
+  base_url,
+  '/team-season-series',
+  query = list(seasons = as.character(default_season), stat = 'points', metric = 'total')
+)
+summary_series_matches <- vapply(
+  summary_series_payload$data,
+  function(row) as.integer(scalar_value(row$matches_played %||% NA_integer_)),
+  integer(1L)
+)
+assert_true(length(summary_series_matches) >= 2L, 'Expected /team-season-series to return enough team rows to infer completed matches.')
+assert_true(all(!is.na(summary_series_matches)), 'Expected /team-season-series matches_played values to be numeric.')
+expected_completed_matches <- sum(summary_series_matches) / 2
+assert_true(
+  identical(as.numeric(scalar_value(summary_payload$total_matches)), expected_completed_matches),
+  sprintf(
+    'Expected /summary total_matches to reflect completed matches (%s), got %s.',
+    expected_completed_matches,
+    as.numeric(scalar_value(summary_payload$total_matches))
+  )
+)
 check_step('summary endpoint returns season totals')
 
 players_payload <- request_json(base_url, '/players', query = list(limit = 1))
@@ -989,6 +1010,14 @@ assert_true(all(c('comparison_matches_other_home_venues', 'other_home_venues_win
 
 matches_payload <- request_json(base_url, '/matches', query = list(season = default_season, limit = '50'))
 assert_true(is.list(matches_payload$data) && length(matches_payload$data) >= 1L, 'Expected /matches to return rows for the default season.')
+assert_true(
+  all(vapply(
+    matches_payload$data,
+    function(match_row) !is.null(match_row$home_score) && !is.null(match_row$away_score),
+    logical(1L)
+  )),
+  'Expected /matches recent results rows to include completed scores only.'
+)
 candidate_match <- NULL
 for (match_row in matches_payload$data) {
   if (!is.null(match_row$home_score) && !is.null(match_row$away_score) && !is.null(match_row$venue_name) && nzchar(as.character(match_row$venue_name))) {

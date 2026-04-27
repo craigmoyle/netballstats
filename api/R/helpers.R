@@ -580,10 +580,14 @@ append_integer_in_filter <- function(query, params, column_name, values, prefix)
   )
 }
 
-apply_match_filters <- function(query, params, seasons = NULL, team_id = NULL, round_number = NULL) {
+apply_match_filters <- function(query, params, seasons = NULL, team_id = NULL, round_number = NULL, completed_only = FALSE) {
   season_filter <- append_integer_in_filter(query, params, "season", seasons, "season")
   query <- season_filter$query
   params <- season_filter$params
+
+  if (isTRUE(completed_only)) {
+    query <- paste0(query, " AND home_score IS NOT NULL AND away_score IS NOT NULL")
+  }
 
   if (!is.null(team_id)) {
     query <- paste0(query, " AND (home_squad_id = ?team_id OR away_squad_id = ?team_id)")
