@@ -138,6 +138,8 @@ var containerAppName = take('${namePrefix}-api-${resourceToken}', 32)
 var dbRefreshJobSatName = take('${namePrefix}-db-sat-${resourceToken}', 32)
 var dbRefreshJobSunName = take('${namePrefix}-db-sun-${resourceToken}', 32)
 var dbRefreshJobTueName = take('${namePrefix}-db-tue-${resourceToken}', 32)
+var dbRefreshJobIntlTueName = take('${namePrefix}-db-intl-tue-${resourceToken}', 32)
+var dbRefreshJobIntlFriName = take('${namePrefix}-db-intl-fri-${resourceToken}', 32)
 var keyVaultName = take('${normalizedPrefix}-${resourceToken}-kv', 24)
 var workspaceName = take('${namePrefix}-logs-${resourceToken}', 63)
 var browserTelemetryInsightsName = take('${namePrefix}-browser-ai-${resourceToken}', 64)
@@ -532,6 +534,7 @@ var containerEnvironmentProperties = union({
   vnetConfiguration: {
     infrastructureSubnetId: containerAppsInfrastructureSubnet.id
     internal: false
+    platformReservedDnsIP: '168.63.129.16'
   }
   workloadProfiles: [
     {
@@ -990,6 +993,143 @@ resource dbRefreshJobTue 'Microsoft.App/jobs@2025-02-02-preview' = {
   ]
 }
 
+// International data refresh jobs
+// Tuesday 21:00 AEST (UTC+10) = 11:00 UTC
+resource dbRefreshJobIntlTue 'Microsoft.App/jobs@2025-02-02-preview' = {
+  name: dbRefreshJobIntlTueName
+  location: location
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${dbJobIdentity.id}': {}
+    }
+  }
+  properties: {
+    environmentId: containerEnvironment.id
+    configuration: {
+      triggerType: 'Schedule'
+      scheduleTriggerConfig: {
+        cronExpression: '0 11 * * 2'
+        replicaCompletionCount: 1
+        parallelism: 1
+      }
+      replicaTimeout: 3600
+      replicaRetryLimit: 2
+      registries: [
+        {
+          identity: dbJobIdentity.id
+          server: containerRegistry.properties.loginServer
+        }
+      ]
+      secrets: [
+        {
+          name: 'postgres-admin-password'
+          identity: dbJobIdentity.id
+          keyVaultUrl: postgresAdminPasswordSecret.properties.secretUriWithVersion
+        }
+        {
+          name: 'postgres-api-password'
+          identity: dbJobIdentity.id
+          keyVaultUrl: postgresApiPasswordSecret.properties.secretUriWithVersion
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'db-refresh-intl'
+          image: resolvedApiImage
+          command: [
+            'Rscript'
+            'scripts/build_international_database.R'
+          ]
+          env: dbRefreshEnv
+          resources: {
+            cpu: json('1')
+            memory: '2Gi'
+          }
+        }
+      ]
+    }
+  }
+  dependsOn: [
+    dbJobAcrPullAssignment
+    dbJobKeyVaultAssignment
+    dbJobApiPasswordKvAssignment
+    postgresDatabase
+    postgresFirewallRule
+  ]
+}
+
+// Friday 21:00 AEST (UTC+10) = 11:00 UTC
+resource dbRefreshJobIntlFri 'Microsoft.App/jobs@2025-02-02-preview' = {
+  name: dbRefreshJobIntlFriName
+  location: location
+  tags: tags
+  identity: {
+    type: 'UserAssigned'
+    userAssignedIdentities: {
+      '${dbJobIdentity.id}': {}
+    }
+  }
+  properties: {
+    environmentId: containerEnvironment.id
+    configuration: {
+      triggerType: 'Schedule'
+      scheduleTriggerConfig: {
+        cronExpression: '0 11 * * 5'
+        replicaCompletionCount: 1
+        parallelism: 1
+      }
+      replicaTimeout: 3600
+      replicaRetryLimit: 2
+      registries: [
+        {
+          identity: dbJobIdentity.id
+          server: containerRegistry.properties.loginServer
+        }
+      ]
+      secrets: [
+        {
+          name: 'postgres-admin-password'
+          identity: dbJobIdentity.id
+          keyVaultUrl: postgresAdminPasswordSecret.properties.secretUriWithVersion
+        }
+        {
+          name: 'postgres-api-password'
+          identity: dbJobIdentity.id
+          keyVaultUrl: postgresApiPasswordSecret.properties.secretUriWithVersion
+        }
+      ]
+    }
+    template: {
+      containers: [
+        {
+          name: 'db-refresh-intl'
+          image: resolvedApiImage
+          command: [
+            'Rscript'
+            'scripts/build_international_database.R'
+          ]
+          env: dbRefreshEnv
+          resources: {
+            cpu: json('1')
+            memory: '2Gi'
+          }
+        }
+      ]
+    }
+  }
+  dependsOn: [
+    dbJobAcrPullAssignment
+    dbJobKeyVaultAssignment
+    dbJobApiPasswordKvAssignment
+    postgresDatabase
+    postgresFirewallRule
+  ]
+}
+
 resource staticWebApp 'Microsoft.Web/staticSites@2025-03-01' = {
   name: staticWebAppName
   location: staticWebAppLocation
@@ -1032,3 +1172,5 @@ output postgresApiUser string = postgresApiUsername
 output dbRefreshJobSatName string = dbRefreshJobSat.name
 output dbRefreshJobSunName string = dbRefreshJobSun.name
 output dbRefreshJobTueName string = dbRefreshJobTue.name
+output dbRefreshJobIntlTueName string = dbRefreshJobIntlTue.name
+output dbRefreshJobIntlFriName string = dbRefreshJobIntlFri.name
