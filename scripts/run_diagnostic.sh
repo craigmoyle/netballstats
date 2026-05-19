@@ -3,13 +3,13 @@
 echo "=== RUNNING COMPREHENSIVE DIAGNOSTIC TEST ==="
 
 # Get ACR credentials
-ACR_USERNAME=$(az acr credential show --name netballstatswr5i2lacr --query username -o tsv 2>/dev/null)
-ACR_PASSWORD=$(az acr credential show --name netballstatswr5i2lacr --query passwords[0].value -o tsv 2>/dev/null)
+ACR_USERNAME=$(az acr credential show --name netballstatswr5i2lacr --query username -o tsv)
+ACR_PASSWORD=$(az acr credential show --name netballstatswr5i2lacr --query passwords[0].value -o tsv)
 
 # Get database connection info from environment
 RESOURCE_GROUP="rg-netballstats-audljf"
 LOCATION="australiaeast"
-IMAGE="netballstatswr5i2lacr.azurecr.io/netballstats/api-nbs:azd-deploy-1779172726"
+IMAGE="netballstatswr5i2lacr.azurecr.io/netballstats/api-nbs:azd-deploy-1779174153"
 KEY_VAULT_NAME="netballstats-wr5i2l-kv"
 POSTGRES_HOST="netballstats-wr5i2l-pg.postgres.database.azure.com"
 POSTGRES_DATABASE="netballstats"
@@ -37,6 +37,7 @@ az container create \
     NETBALL_STATS_DB_PASSWORD="$(az keyvault secret show --vault-name $KEY_VAULT_NAME --name postgres-admin-password --query value -o tsv 2>/dev/null)" \
   --cpu 1 \
   --memory 2 \
+  --os-type Linux \
   --restart-policy Never \
   --registry-login-server netballstatswr5i2lacr.azurecr.io \
   --registry-username $ACR_USERNAME \

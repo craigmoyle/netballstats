@@ -40,6 +40,7 @@ options(netballstats.repo_root = repo_root_path)
 source(file.path(repo_root_path, "R", "database.R"), local = TRUE)
 source(file.path(repo_root_path, "R", "player_reference.R"), local = TRUE)
 source(file.path(repo_root_path, "api", "R", "helpers.R"), local = TRUE)
+source(file.path(repo_root_path, "api", "R", "international_helpers.R"), local = TRUE)
 source(file.path(repo_root_path, "api", "R", "parse_question.R"), local = TRUE)
 
 # Shared in-process cache for /meta responses (30-minute TTL).
@@ -2279,6 +2280,169 @@ function(question = "", res) {
       confidence = result$confidence,
       parsed = result$parsed
     )
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /international/meta
+#* @get /api/international/meta
+function(res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_matches(conn)) {
+      return(json_error(res, 503, "International data not available."))
+    }
+    
+    payload <- with_statement_timeout(conn, meta_statement_timeout_ms(), build_meta_payload(conn))
+    
+    # Add international-specific metadata
+    payload$international_data_available <- TRUE
+    payload$last_international_refresh <- tryCatch({
+      meta_rows <- query_rows(conn, "SELECT value FROM metadata WHERE key = 'international_refreshed_at'", list())
+      if (nrow(meta_rows) > 0) meta_rows$value[[1]] else NULL
+    }, error = function(e) NULL)
+    
+    json_success(res, payload)
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /international/players
+#* @get /api/international/players
+function(search = "", limit = "2000", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_players(conn)) {
+      return(json_error(res, 503, "International player data not available."))
+    }
+    
+    limit <- parse_limit(limit, default = 2000L, maximum = 2000L)
+    parsed_search <- parse_search(search, name = "search")
+
+    player_rows <- query_rows(
+      conn,
+      paste(
+        "SELECT player_id, firstname, surname, short_display_name, player_name, canonical_name",
+        "FROM international_players",
+        if (nzchar(parsed_search)) "WHERE search_name LIKE ?search_pattern" else "",
+        "ORDER BY player_name",
+        "LIMIT ?limit"
+      ),
+      c(
+        list(limit = limit),
+        if (nzchar(parsed_search)) list(search_pattern = paste0("%", parsed_search, "%")) else list()
+      )
+    )
+
+    json_success(res, list(players = player_rows))
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /international/player-profile
+#* @get /api/international/player-profile
+function(player_id = "", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_players(conn)) {
+      return(json_error(res, 503, "International player data not available."))
+    }
+    
+    player_id <- parse_optional_int(player_id, "player_id", minimum = 1L)
+    if (is.null(player_id)) {
+      stop("player_id is required.", call. = FALSE)
+    }
+
+    player <- fetch_international_player_profile(conn, player_id)
+    if (is.null(player) || nrow(player) == 0) {
+      return(json_error(res, 404, "Player not found."))
+    }
+
+    stats_rows <- fetch_international_player_stats(conn, player_id)
+    identity_row <- fetch_international_player_identity(conn, player_id)
+
+    payload <- build_international_player_profile_payload(player, stats_rows, identity_row)
+    json_success(res, payload)
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /international/leaders
+#* @get /api/international/leaders
+function(type = "player", stat = "points", seasons = "", limit = "12", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_matches(conn)) {
+      return(json_error(res, 503, "International data not available."))
+    }
+    
+    limit <- parse_limit(limit, default = 12L, maximum = 100L)
+    parsed_seasons <- parse_season_list(seasons)
+    stat <- trimws(stat)
+    
+    if (!nzchar(stat)) {
+      stop("stat is required.", call. = FALSE)
+    }
+
+    if (identical(type, "player")) {
+      leaders <- fetch_international_player_leaders(conn, seasons = parsed_seasons, stat = stat, limit = limit)
+      json_success(res, list(type = "player", stat = stat, leaders = leaders))
+    } else if (identical(type, "team")) {
+      leaders <- fetch_international_team_leaders(conn, seasons = parsed_seasons, stat = stat, limit = limit)
+      json_success(res, list(type = "team", stat = stat, leaders = leaders))
+    } else {
+      stop("type must be 'player' or 'team'.", call. = FALSE)
+    }
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /international/matches
+#* @get /api/international/matches
+function(season = "", limit = "100", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_matches(conn)) {
+      return(json_error(res, 503, "International match data not available."))
+    }
+    
+    limit <- parse_limit(limit, default = 100L, maximum = 1000L)
+    
+    if (nzchar(season)) {
+      season <- parse_int(season, "season", minimum = 2000L, maximum = 2030L)
+      matches <- fetch_international_matches_by_season(conn, season, limit = limit)
+    } else {
+      # Get matches from current season
+      current_season <- as.integer(format(Sys.Date(), "%Y"))
+      matches <- fetch_international_matches_by_season(conn, current_season, limit = limit)
+    }
+    
+    json_success(res, list(matches = matches))
   }, error = function(error) {
     handle_request_error(error, res)
   })
