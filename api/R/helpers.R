@@ -1217,6 +1217,96 @@ resolve_query_subject <- function(conn, phrase) {
   )
 }
 
+# Validate resolved query components and package them into the final intent list.
+# Called by both parse_query_intent() and build_simple_query_intent_from_preview()
+# after all resolution steps to avoid duplicating ~70 lines of guard logic.
+# Returns a supported intent list or an unsupported error payload.
+# @param parsed_question Character: cleaned question text
+# @param intent_type Character: "count", "highest", "lowest", or "list"
+# @param subject List: resolved subject (subject_type, player_id/name or team_id/name)
+# @param stat Character: canonical stat key
+# @param threshold List with $comparison and $threshold, or NULL
+# @param opponent List with $squad_id/$squad_name, or NULL
+# @param seasons Integer vector or NULL
+# @param season Single integer or NULL
+# @param limit Integer: max rows
+package_query_intent <- function(
+  parsed_question, intent_type, subject, stat, threshold, opponent, seasons, season, limit
+) {
+  subject_type <- subject$subject_type %||% NULL
+  if (is.null(subject_type)) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "I couldn't identify whether the question is about a player or a team."
+    ))
+  }
+  if (
+    identical(subject_type, "player") &&
+    (
+      is.null(subject$player_id) ||
+      is.null(subject$player_name) ||
+      !nzchar(as.character(subject$player_name))
+    )
+  ) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "I couldn't confidently match a single player in that question."
+    ))
+  }
+  if (
+    identical(subject_type, "team") &&
+    (
+      is.null(subject$team_id) ||
+      is.null(subject$team_name) ||
+      !nzchar(as.character(subject$team_name))
+    )
+  ) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "I couldn't confidently match a single team in that question."
+    ))
+  }
+  if (identical(intent_type, "count") && is.null(threshold)) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "Count questions need a threshold such as 50+, at least 40, or exactly 20."
+    ))
+  }
+  if (identical(intent_type, "list") &&
+      subject_type %in% c("players", "teams") &&
+      is.null(threshold) && is.null(opponent) && is.null(seasons)) {
+    return(query_error_payload(
+      "unsupported",
+      parsed_question,
+      "Broader list questions need at least one narrowing filter such as a threshold, opponent, or season."
+    ))
+  }
+  list(
+    status         = "supported",
+    question       = parsed_question,
+    intent_type    = intent_type,
+    subject_type   = subject_type,
+    player_id      = subject$player_id   %||% NULL,
+    player_name    = subject$player_name %||% NULL,
+    team_id        = subject$team_id     %||% NULL,
+    team_name      = subject$team_name   %||% NULL,
+    stat           = stat,
+    stat_label     = query_stat_label(stat),
+    comparison     = threshold$comparison %||% NULL,
+    comparison_label = if (!is.null(threshold$comparison)) query_comparison_label(threshold$comparison) else NULL,
+    threshold      = threshold$threshold %||% NULL,
+    opponent_id    = opponent$squad_id   %||% NULL,
+    opponent_name  = opponent$squad_name %||% NULL,
+    seasons        = seasons,
+    season         = season,
+    limit          = limit
+  )
+}
+
 # Parse and resolve a natural language stats question into structured query parameters
 # Extracts intent type (count/highest/lowest/list), subject (player/team), stat, and filters
 # Validates all parameters are present and consistent before returning
@@ -1288,87 +1378,7 @@ parse_query_intent <- function(conn, question, limit = 12L) {
     return(subject)
   }
 
-  subject_type <- subject$subject_type %||% NULL
-  if (is.null(subject_type)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "I couldn't identify whether the question is about a player or a team."
-    ))
-  }
-  if (
-    identical(subject_type, "player") &&
-    (
-      is.null(subject$player_id) ||
-      is.null(subject$player_name) ||
-      !nzchar(as.character(subject$player_name))
-    )
-  ) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "I couldn't confidently match a single player in that question."
-    ))
-  }
-  if (
-    identical(subject_type, "team") &&
-    (
-      is.null(subject$team_id) ||
-      is.null(subject$team_name) ||
-      !nzchar(as.character(subject$team_name))
-    )
-  ) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "I couldn't confidently match a single team in that question."
-    ))
-  }
-
-  if (identical(intent_type, "count") && is.null(threshold)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "Count questions need a threshold such as 50+, at least 40, or exactly 20."
-    ))
-  }
-  if (identical(intent_type, "list") && identical(subject_type, "players") &&
-      is.null(threshold) && is.null(opponent) && is.null(seasons)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "Broader list questions need at least one narrowing filter such as a threshold, opponent, or season."
-    ))
-  }
-  if (identical(intent_type, "list") && identical(subject_type, "teams") &&
-      is.null(threshold) && is.null(opponent) && is.null(seasons)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "Broader list questions need at least one narrowing filter such as a threshold, opponent, or season."
-    ))
-  }
-
-  list(
-    status = "supported",
-    question = parsed_question,
-    intent_type = intent_type,
-    subject_type = subject_type,
-    player_id = subject$player_id %||% NULL,
-    player_name = subject$player_name %||% NULL,
-    team_id = subject$team_id %||% NULL,
-    team_name = subject$team_name %||% NULL,
-    stat = stat,
-    stat_label = query_stat_label(stat),
-    comparison = threshold$comparison %||% NULL,
-    comparison_label = if (!is.null(threshold$comparison)) query_comparison_label(threshold$comparison) else NULL,
-    threshold = threshold$threshold %||% NULL,
-    opponent_id = opponent$squad_id %||% NULL,
-    opponent_name = opponent$squad_name %||% NULL,
-    seasons = seasons,
-    season = season,
-    limit = limit
-  )
+  package_query_intent(parsed_question, intent_type, subject, stat, threshold, opponent, seasons, season, limit)
 }
 
 build_simple_query_intent_from_preview <- function(conn, question, parsed, limit = 12L) {
@@ -1452,87 +1462,7 @@ build_simple_query_intent_from_preview <- function(conn, question, parsed, limit
     return(subject)
   }
 
-  subject_type <- subject$subject_type %||% NULL
-  if (is.null(subject_type)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "I couldn't identify whether the question is about a player or a team."
-    ))
-  }
-  if (
-    identical(subject_type, "player") &&
-    (
-      is.null(subject$player_id) ||
-      is.null(subject$player_name) ||
-      !nzchar(as.character(subject$player_name))
-    )
-  ) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "I couldn't confidently match a single player in that question."
-    ))
-  }
-  if (
-    identical(subject_type, "team") &&
-    (
-      is.null(subject$team_id) ||
-      is.null(subject$team_name) ||
-      !nzchar(as.character(subject$team_name))
-    )
-  ) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "I couldn't confidently match a single team in that question."
-    ))
-  }
-
-  if (identical(intent_type, "count") && is.null(threshold)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "Count questions need a threshold such as 50+, at least 40, or exactly 20."
-    ))
-  }
-  if (identical(intent_type, "list") && identical(subject_type, "players") &&
-      is.null(threshold) && is.null(opponent) && is.null(seasons)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "Broader list questions need at least one narrowing filter such as a threshold, opponent, or season."
-    ))
-  }
-  if (identical(intent_type, "list") && identical(subject_type, "teams") &&
-      is.null(threshold) && is.null(opponent) && is.null(seasons)) {
-    return(query_error_payload(
-      "unsupported",
-      parsed_question,
-      "Broader list questions need at least one narrowing filter such as a threshold, opponent, or season."
-    ))
-  }
-
-  list(
-    status = "supported",
-    question = parsed_question,
-    intent_type = intent_type,
-    subject_type = subject_type,
-    player_id = subject$player_id %||% NULL,
-    player_name = subject$player_name %||% NULL,
-    team_id = subject$team_id %||% NULL,
-    team_name = subject$team_name %||% NULL,
-    stat = stat,
-    stat_label = query_stat_label(stat),
-    comparison = threshold$comparison %||% NULL,
-    comparison_label = if (!is.null(threshold$comparison)) query_comparison_label(threshold$comparison) else NULL,
-    threshold = threshold$threshold %||% NULL,
-    opponent_id = opponent$squad_id %||% NULL,
-    opponent_name = opponent$squad_name %||% NULL,
-    seasons = seasons,
-    season = season,
-    limit = limit
-  )
+  package_query_intent(parsed_question, intent_type, subject, stat, threshold, opponent, seasons, season, limit)
 }
 
 build_player_match_query <- function(stat, seasons = NULL, player_id = NULL, opponent_id = NULL, comparison = NULL, threshold = NULL) {
@@ -1577,83 +1507,64 @@ build_player_match_query <- function(stat, seasons = NULL, player_id = NULL, opp
   list(query = query, params = params)
 }
 
+# Generic helper: check whether a DB table exists, caching both TRUE and FALSE
+# for the process lifetime (tables don't appear/disappear mid-process in production).
+# For tables that may not yet exist at startup (e.g. scoreflow), use
+# cache_table_exists_once() instead — it only caches TRUE so a transient miss
+# during a rolling deploy does not permanently disable an endpoint.
+# @param conn DBI connection
+# @param table_name Name of the table to probe
+# @param option_key Full getOption() key, e.g. "netballstats.pms_available"
+# @return Logical: TRUE if the table exists, FALSE otherwise
+cache_table_exists <- function(conn, table_name, option_key) {
+  cached <- getOption(option_key)
+  if (!is.null(cached)) return(isTRUE(cached))
+  result <- isTRUE(tryCatch(
+    DBI::dbExistsTable(conn, table_name),
+    error = function(e) FALSE
+  ))
+  options(setNames(list(result), option_key))
+  result
+}
+
+# Variant of cache_table_exists that only caches a TRUE result.
+# Use for tables that may not exist during a rolling deploy but will not
+# disappear once confirmed present (FALSE is never cached so re-checking is
+# safe and cheap).
+cache_table_exists_once <- function(conn, table_name, option_key) {
+  if (isTRUE(getOption(option_key))) return(TRUE)
+  result <- isTRUE(tryCatch(
+    DBI::dbExistsTable(conn, table_name),
+    error = function(e) FALSE
+  ))
+  if (result) options(setNames(list(TRUE), option_key))
+  result
+}
+
 # Returns TRUE when player_match_stats is available in the connected database.
 # The table is created by build_database.R; older DB builds won't have it.
-has_player_match_stats <- function(conn) {
-  cached <- getOption("netballstats.pms_available")
-  if (!is.null(cached)) return(isTRUE(cached))
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "player_match_stats"),
-    error = function(e) FALSE
-  ))
-  options(netballstats.pms_available = result)
-  result
-}
-
-has_player_match_positions <- function(conn) {
-  cached <- getOption("netballstats.pmp_available")
-  if (!is.null(cached)) return(isTRUE(cached))
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "player_match_positions"),
-    error = function(e) FALSE
-  ))
-  options(netballstats.pmp_available = result)
-  result
-}
-
-has_player_match_participation <- function(conn) {
-  cached <- getOption("netballstats.pmpart_available")
-  if (!is.null(cached)) return(isTRUE(cached))
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "player_match_participation"),
-    error = function(e) FALSE
-  ))
-  options(netballstats.pmpart_available = result)
-  result
-}
-
+has_player_match_stats        <- function(conn) cache_table_exists(conn, "player_match_stats",        "netballstats.pms_available")
+has_player_match_positions    <- function(conn) cache_table_exists(conn, "player_match_positions",    "netballstats.pmp_available")
+has_player_match_participation <- function(conn) cache_table_exists(conn, "player_match_participation", "netballstats.pmpart_available")
 # Returns TRUE when team_match_stats is available in the connected database.
 # The table is created by build_database.R; older DB builds won't have it.
-has_team_match_stats <- function(conn) {
-  cached <- getOption("netballstats.tms_available")
-  if (!is.null(cached)) return(isTRUE(cached))
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "team_match_stats"),
-    error = function(e) FALSE
-  ))
-  options(netballstats.tms_available = result)
-  result
-}
-
-has_home_venue_impact_rows <- function(conn) {
-  cached <- getOption("netballstats.hvir_available")
-  if (!is.null(cached)) return(isTRUE(cached))
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "home_venue_impact_rows"),
-    error = function(e) FALSE
-  ))
-  options(netballstats.hvir_available = result)
-  result
-}
-
-has_home_venue_breakdown_rows <- function(conn) {
-  cached <- getOption("netballstats.hvbr_available")
-  if (!is.null(cached)) return(isTRUE(cached))
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "home_venue_breakdown_rows"),
-    error = function(e) FALSE
-  ))
-  options(netballstats.hvbr_available = result)
-  result
-}
+has_team_match_stats           <- function(conn) cache_table_exists(conn, "team_match_stats",           "netballstats.tms_available")
+has_home_venue_impact_rows     <- function(conn) cache_table_exists(conn, "home_venue_impact_rows",     "netballstats.hvir_available")
+has_home_venue_breakdown_rows  <- function(conn) cache_table_exists(conn, "home_venue_breakdown_rows",  "netballstats.hvbr_available")
 
 # Maps a Champion Data startingPositionCode to a broad positional group.
 # GS/GA are Shooters; WA/C/WD are Midcourt; GD/GK are Defenders.
 # Interchange and unrecognised codes fall through to "Other".
+.POSITION_GROUP_LOOKUP <- c(
+  GS = "Shooter", GA = "Shooter",
+  WA = "Midcourt", C  = "Midcourt", WD = "Midcourt",
+  GD = "Defender", GK = "Defender"
+)
+
 position_group_from_code <- function(code) {
-  ifelse(code %in% c("GS", "GA"), "Shooter",
-    ifelse(code %in% c("WA", "C", "WD"), "Midcourt",
-      ifelse(code %in% c("GD", "GK"), "Defender", "Other")))
+  result <- .POSITION_GROUP_LOOKUP[as.character(code)]
+  result[is.na(result)] <- "Other"
+  unname(result)
 }
 
 # Faster alternative to build_player_match_query that reads from the
@@ -1972,26 +1883,37 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
     )
   }
 
+  # Context rows: top-10 performances with all-time rank embedded via a window
+  # function.  Each CTE computes RANK() OVER the full population (no season
+  # filter) and the outer SELECT optionally narrows to a single season.  This
+  # replaces the previous pattern of calling compute_archive_rank() once per
+  # row (up to 10 extra DB round-trips) with a single query.
+  season_params <- if (!is.null(season)) list(season = as.integer(season)) else list()
+  season_filter <- if (!is.null(season)) " WHERE season = ?season" else ""
+
   context_rows <- if (identical(stat, "points")) {
     if (identical(subject_type, "player")) {
       tryCatch({
         query_rows(
           conn,
           paste0(
-            "SELECT pms1.player_id, players.canonical_name AS player_name,",
+            "WITH all_scored AS (",
+            " SELECT pms1.player_id, players.canonical_name AS player_name,",
             " pms1.squad_name,",
             " COALESCE(pms1.match_value, 0) + 2 * COALESCE(pms2.match_value, 0) AS total_value,",
-            " pms1.season, pms1.round_number, pms1.match_id, matches.local_start_time",
+            " pms1.season, pms1.round_number, pms1.match_id, matches.local_start_time,",
+            " RANK() OVER (ORDER BY COALESCE(pms1.match_value, 0) + 2 * COALESCE(pms2.match_value, 0) DESC) AS rank",
             " FROM player_match_stats pms1",
             " LEFT JOIN player_match_stats pms2",
             "   ON pms1.player_id = pms2.player_id AND pms1.match_id = pms2.match_id AND pms2.stat = 'goal2'",
             " INNER JOIN players ON players.player_id = pms1.player_id",
             " INNER JOIN matches ON matches.match_id = pms1.match_id",
             " WHERE pms1.stat = 'goal1'",
-            if (!is.null(season)) " AND pms1.season = ?season" else "",
+            ")",
+            " SELECT * FROM all_scored", season_filter,
             " ORDER BY total_value DESC LIMIT 10"
           ),
-          if (!is.null(season)) list(season = as.integer(season)) else list()
+          season_params
         )
       }, error = function(e) data.frame())
     } else {
@@ -1999,20 +1921,23 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
         query_rows(
           conn,
           paste0(
-            "SELECT match_id, home_squad_id AS squad_id, home_squad_name AS squad_name,",
+            "WITH all_scores AS (",
+            " SELECT match_id, home_squad_id AS squad_id, home_squad_name AS squad_name,",
             " season, round_number, local_start_time,",
-            " CAST(home_score AS numeric) AS total_value FROM matches",
-            " WHERE home_score IS NOT NULL",
-            if (!is.null(season)) " AND season = ?season" else "",
+            " CAST(home_score AS numeric) AS total_value",
+            " FROM matches WHERE home_score IS NOT NULL",
             " UNION ALL",
             " SELECT match_id, away_squad_id AS squad_id, away_squad_name AS squad_name,",
             " season, round_number, local_start_time,",
-            " CAST(away_score AS numeric) FROM matches",
-            " WHERE away_score IS NOT NULL",
-            if (!is.null(season)) " AND season = ?season" else "",
+            " CAST(away_score AS numeric) AS total_value",
+            " FROM matches WHERE away_score IS NOT NULL",
+            "), ranked AS (",
+            " SELECT *, RANK() OVER (ORDER BY total_value DESC) AS rank FROM all_scores",
+            ")",
+            " SELECT * FROM ranked", season_filter,
             " ORDER BY total_value DESC LIMIT 10"
           ),
-          if (!is.null(season)) list(season = as.integer(season)) else list()
+          season_params
         )
       }, error = function(e) data.frame())
     }
@@ -2023,16 +1948,20 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
           query_rows(
             conn,
             paste0(
-              "SELECT pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
+              "WITH all_rows AS (",
+              " SELECT pms.player_id, players.canonical_name AS player_name, pms.squad_name,",
               " pms.season, pms.round_number, pms.match_id, matches.local_start_time,",
-              " pms.match_value AS total_value FROM player_match_stats AS pms",
+              " pms.match_value AS total_value,",
+              " RANK() OVER (ORDER BY pms.match_value DESC) AS rank",
+              " FROM player_match_stats AS pms",
               " INNER JOIN players ON players.player_id = pms.player_id",
               " INNER JOIN matches ON matches.match_id = pms.match_id",
               " WHERE pms.stat = ?stat",
-              if (!is.null(season)) " AND pms.season = ?season" else "",
-              " ORDER BY pms.match_value DESC LIMIT 10"
+              ")",
+              " SELECT * FROM all_rows", season_filter,
+              " ORDER BY total_value DESC LIMIT 10"
             ),
-            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+            c(list(stat = stat), season_params)
           )
         }, error = function(e) data.frame())
       } else {
@@ -2040,18 +1969,22 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
           query_rows(
             conn,
             paste0(
-              "SELECT player_id, players.canonical_name AS player_name, stats.squad_name,",
+              "WITH agg AS (",
+              " SELECT stats.player_id, players.canonical_name AS player_name, stats.squad_name,",
               " stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
               " ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
               " FROM player_period_stats AS stats",
               " INNER JOIN players ON players.player_id = stats.player_id",
               " INNER JOIN matches ON matches.match_id = stats.match_id",
               " WHERE stats.stat = ?stat",
-              if (!is.null(season)) " AND stats.season = ?season" else "",
               " GROUP BY stats.player_id, players.canonical_name, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+              "), ranked AS (",
+              " SELECT *, RANK() OVER (ORDER BY total_value DESC) AS rank FROM agg",
+              ")",
+              " SELECT * FROM ranked", season_filter,
               " ORDER BY total_value DESC LIMIT 10"
             ),
-            c(list(stat = stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+            c(list(stat = stat), season_params)
           )
         }, error = function(e) data.frame())
       }
@@ -2062,15 +1995,19 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
           query_rows(
             conn,
             paste0(
-              "SELECT tms.squad_id, tms.squad_name,",
+              "WITH all_rows AS (",
+              " SELECT tms.squad_id, tms.squad_name,",
               " tms.season, tms.round_number, tms.match_id, matches.local_start_time,",
-              " tms.match_value AS total_value FROM team_match_stats AS tms",
+              " tms.match_value AS total_value,",
+              " RANK() OVER (ORDER BY tms.match_value DESC) AS rank",
+              " FROM team_match_stats AS tms",
               " INNER JOIN matches ON matches.match_id = tms.match_id",
               " WHERE tms.stat = ?source_stat",
-              if (!is.null(season)) " AND tms.season = ?season" else "",
-              " ORDER BY tms.match_value DESC LIMIT 10"
+              ")",
+              " SELECT * FROM all_rows", season_filter,
+              " ORDER BY total_value DESC LIMIT 10"
             ),
-            c(list(source_stat = source_stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+            c(list(source_stat = source_stat), season_params)
           )
         }, error = function(e) data.frame())
       } else {
@@ -2078,46 +2015,51 @@ build_record_query <- function(stat, subject_type = c("player", "team"), season 
           query_rows(
             conn,
             paste0(
-              "SELECT squad_id, stats.squad_name,",
+              "WITH agg AS (",
+              " SELECT stats.squad_id, stats.squad_name,",
               " stats.season, stats.round_number, stats.match_id, matches.local_start_time,",
               " ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS total_value",
               " FROM team_period_stats AS stats",
               " INNER JOIN matches ON matches.match_id = stats.match_id",
               " WHERE stats.stat = ?source_stat",
-              if (!is.null(season)) " AND stats.season = ?season" else "",
               " GROUP BY stats.squad_id, stats.squad_name, stats.season, stats.round_number, stats.match_id, matches.local_start_time",
+              "), ranked AS (",
+              " SELECT *, RANK() OVER (ORDER BY total_value DESC) AS rank FROM agg",
+              ")",
+              " SELECT * FROM ranked", season_filter,
               " ORDER BY total_value DESC LIMIT 10"
             ),
-            c(list(source_stat = source_stat), if (!is.null(season)) list(season = as.integer(season)) else list())
+            c(list(source_stat = source_stat), season_params)
           )
         }, error = function(e) data.frame())
       }
     }
   }
 
+  # Rank is now embedded in context_rows by the window function above;
+  # no per-row compute_archive_rank() DB calls needed.
   context_list <- if (nrow(context_rows)) {
     lapply(seq_len(nrow(context_rows)), function(i) {
-      row <- context_rows[i, ]
+      row   <- context_rows[i, ]
       value <- suppressWarnings(as.numeric(row$total_value[[1]]))
-      rank <- tryCatch({
-        compute_archive_rank(conn, subject_type, stat, ranking = "highest", total_value = value)
-      }, error = function(e) NA_integer_)
+      rank  <- suppressWarnings(as.integer(row$rank[[1]]))
+      if (is.na(rank)) rank <- NA_integer_
 
       if (identical(subject_type, "player")) {
         list(
-          rank = rank,
-          value = value,
-          date = normalize_record_value(row$local_start_time[[1]]),
+          rank   = rank,
+          value  = value,
+          date   = normalize_record_value(row$local_start_time[[1]]),
           season = suppressWarnings(as.integer(row$season[[1]])),
           player = normalize_record_value(row$player_name[[1]])
         )
       } else {
         list(
-          rank = rank,
-          value = value,
-          date = normalize_record_value(row$local_start_time[[1]]),
+          rank   = rank,
+          value  = value,
+          date   = normalize_record_value(row$local_start_time[[1]]),
           season = suppressWarnings(as.integer(row$season[[1]])),
-          team = normalize_record_value(row$squad_name[[1]])
+          team   = normalize_record_value(row$squad_name[[1]])
         )
       }
     })
@@ -5815,18 +5757,9 @@ SCOREFLOW_TEAM_SORT_KEYS <- c(
 )
 
 # Returns TRUE when match_scoreflow_summary is available.
-has_match_scoreflow_summary <- function(conn) {
-  # Cache only TRUE: once the table is confirmed present it stays present for
-  # the process lifetime. FALSE is never cached so a transient miss at startup
-  # (e.g. during a rolling deploy) does not permanently disable the endpoints.
-  if (isTRUE(getOption("netballstats.mss_available"))) return(TRUE)
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "match_scoreflow_summary"),
-    error = function(e) FALSE
-  ))
-  if (result) options(netballstats.mss_available = TRUE)
-  result
-}
+# Uses cache_table_exists_once(): cache-only-TRUE so a transient miss at
+# startup during a rolling deploy does not permanently disable the endpoint.
+has_match_scoreflow_summary <- function(conn) cache_table_exists_once(conn, "match_scoreflow_summary", "netballstats.mss_available")
 
 # Parses the metric parameter for /scoreflow-game-records.
 # Returns a validated metric column name (default: comeback_deficit_points).
@@ -6091,56 +6024,13 @@ fetch_scoreflow_featured_records <- function(conn, seasons = NULL, team_id = NUL
   })
 }
 
-# Returns TRUE when the player_reference table is available in the database.
-# Returns TRUE once player_reference is confirmed present.
-# FALSE is never cached: a transient miss (e.g. before the first DB build
-# completes, or during a rolling deploy) must not permanently suppress identity
-# enrichment in /player-profile for the lifetime of the process.
-has_player_reference <- function(conn) {
-  if (isTRUE(getOption("netballstats.pr_available"))) return(TRUE)
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "player_reference"),
-    error = function(e) FALSE
-  ))
-  if (result) options(netballstats.pr_available = TRUE)
-  result
-}
-
-# Returns TRUE once player_season_demographics is confirmed present.
-# Same cache-TRUE-only policy as has_player_reference().
-has_player_season_demographics <- function(conn) {
-  if (isTRUE(getOption("netballstats.psd_available"))) return(TRUE)
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "player_season_demographics"),
-    error = function(e) FALSE
-  ))
-  if (result) options(netballstats.psd_available = TRUE)
-  result
-}
-
-# Returns TRUE once league_composition_summary is confirmed present.
-# FALSE is never cached so a transient miss during a rolling deploy does not
-# permanently disable the endpoint.
-has_league_composition_summary <- function(conn) {
-  if (isTRUE(getOption("netballstats.lcs_available"))) return(TRUE)
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "league_composition_summary"),
-    error = function(e) FALSE
-  ))
-  if (result) options(netballstats.lcs_available = TRUE)
-  result
-}
-
-# Returns TRUE once league_composition_debut_bands is confirmed present.
-has_league_composition_debut_bands <- function(conn) {
-  if (isTRUE(getOption("netballstats.lcdb_available"))) return(TRUE)
-  result <- isTRUE(tryCatch(
-    DBI::dbExistsTable(conn, "league_composition_debut_bands"),
-    error = function(e) FALSE
-  ))
-  if (result) options(netballstats.lcdb_available = TRUE)
-  result
-}
+# cache_table_exists_once() variants: cache only TRUE so a transient miss
+# during a rolling deploy does not permanently disable these endpoints.
+# See cache_table_exists_once() for full rationale.
+has_player_reference           <- function(conn) cache_table_exists_once(conn, "player_reference",                "netballstats.pr_available")
+has_player_season_demographics <- function(conn) cache_table_exists_once(conn, "player_season_demographics",    "netballstats.psd_available")
+has_league_composition_summary <- function(conn) cache_table_exists_once(conn, "league_composition_summary",    "netballstats.lcs_available")
+has_league_composition_debut_bands <- function(conn) cache_table_exists_once(conn, "league_composition_debut_bands", "netballstats.lcdb_available")
 
 # Delegates to parse_season_filter so the composition endpoints share the same
 # season-parsing rules as every other season-filtered endpoint.
@@ -6189,7 +6079,7 @@ query_league_composition_summary <- function(conn, seasons = NULL) {
   coverage <- record_to_scalars(list(
     players_with_matches       = if (nrow(cov_rows)) cov_rows$players_with_matches[[1L]]       else NA_integer_,
     players_with_birth_date    = if (nrow(cov_rows)) cov_rows$players_with_birth_date[[1L]]    else NA_integer_,
-    players_with_import_status = if (nrow(cov_rows) && nrow(rows) > 0L && all(rows$season >= 2017L & rows$season <= 2026L)) {
+    players_with_import_status = if (nrow(cov_rows) && nrow(rows) > 0L && all(rows$season >= 2017L)) {
       cov_rows$players_with_import_status[[1L]]
     } else {
       NA_integer_
@@ -6465,9 +6355,12 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
     })
     list(success = TRUE, filters = normalized_filters)
   }, error = function(e) {
+    api_log("WARN", "combination_query_validation_failed",
+            error_class = class(e)[[1]] %||% "unknown",
+            error_message = substr(conditionMessage(e), 1L, 200L))
     list(success = FALSE, error = list(
       status = jsonlite::unbox("error"),
-      error = jsonlite::unbox(conditionMessage(e))
+      error = jsonlite::unbox("Invalid query filters.")
     ))
   })
 
@@ -6618,9 +6511,12 @@ build_combination_query <- function(filters, logical_operator = "AND", season = 
       results = results
     )
   }, error = function(e) {
+    api_log("WARN", "trend_query_failed",
+            error_class = class(e)[[1]] %||% "unknown",
+            error_message = substr(conditionMessage(e), 1L, 200L))
     list(
       status = jsonlite::unbox("error"),
-      error = jsonlite::unbox(sprintf("Query execution failed: %s", conditionMessage(e)))
+      error = jsonlite::unbox("Query execution failed.")
     )
   })
 }
@@ -6772,9 +6668,12 @@ build_comparison_query <- function(subjects, stat, season, conn) {
       )
     },
     error = function(e) {
+      api_log("WARN", "comparison_query_failed",
+              error_class = class(e)[[1]] %||% "unknown",
+              error_message = substr(conditionMessage(e), 1L, 200L))
       list(
         status = jsonlite::unbox("error"),
-        error = jsonlite::unbox(paste("Query failed:", conditionMessage(e))),
+        error = jsonlite::unbox("Query failed."),
         intent_type = jsonlite::unbox("comparison")
       )
     }

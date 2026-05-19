@@ -1047,12 +1047,22 @@ function(req, res) {
     res$status <- 202
     list(ok = jsonlite::unbox(TRUE))
   }, error = function(error) {
+    msg <- conditionMessage(error)
+    # Re-raise internal forwarding errors (httr/ingestion failures) as opaque 400s
+    # to avoid leaking infrastructure details (ingestion URLs, internal error text).
+    # Only validation errors from parse_browser_telemetry_request() carry safe,
+    # user-readable messages — everything else gets a generic response.
+    is_validation_error <- grepl(
+      "Telemetry (body|kind|name|page type|event name|payload|uri) (is|must)",
+      msg, perl = TRUE
+    )
     api_log(
       "WARN",
       "browser_telemetry_rejected",
-      error_class = class(error)[[1]] %||% "unknown"
+      error_class = class(error)[[1]] %||% "unknown",
+      error_message = substr(msg, 1L, 200L)
     )
-    json_error(res, 400, conditionMessage(error))
+    json_error(res, 400, if (is_validation_error) msg else "Telemetry request could not be processed.")
   })
 
   result

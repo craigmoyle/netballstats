@@ -220,59 +220,76 @@ extract_threshold <- function(text) {
   NULL
 }
 
-# Extract netball stat name from question text
-# Maps common aliases to canonical stat keys (goals, assists, gain, intercepts, etc.)
-# Prefers longest matching alias to avoid "goal" matching when "goals" is intended
-# Uses word boundaries to prevent partial matches ("goals" not matched in "goalAssists")
-# @param text Character: lowercased, trimmed question text
-# @return Character: canonical stat key (e.g., "goals", "goalAssists") or NULL if not found
-extract_stat <- function(text) {
-  # Define stat mappings: lowercase aliases → canonical stat key
+# Pre-compiled stat alias table for extract_stat().
+# Built once at load time: aliases sorted longest-first so the first pattern
+# match found is always the longest (most specific) alias — no need for a
+# best_length tracking loop on every call.
+.STAT_ALIAS_TABLE <- local({
   stat_mappings <- list(
-    goals = c("goals", "scored", "score", "scoring", "goal total", "goal totals"),
-    goalAttempts = c("goal attempts", "attempts", "shot attempts", "shots"),
-    goalAssists = c("assists", "assist", "goal assists", "goal assist", "ga"),
-    feeds = c("feeds", "feed", "feeds into circle"),
-    gain = c("gains", "gain", "defensive gains"),
-    intercepts = c("intercepts", "intercept", "interceptions", "interception", "int"),
-    netPoints = c("net points", "netpoints"),
+    goals                = c("goals", "scored", "score", "scoring", "goal total", "goal totals"),
+    goalAttempts         = c("goal attempts", "attempts", "shot attempts", "shots"),
+    goalAssists          = c("assists", "assist", "goal assists", "goal assist", "ga"),
+    feeds                = c("feeds", "feed", "feeds into circle"),
+    gain                 = c("gains", "gain", "defensive gains"),
+    intercepts           = c("intercepts", "intercept", "interceptions", "interception", "int"),
+    netPoints            = c("net points", "netpoints"),
     obstructionPenalties = c("obstructions", "obstruction penalties", "obstruction penalty"),
-    contactPenalties = c("contacts", "contact penalties", "contact penalty"),
+    contactPenalties     = c("contacts", "contact penalties", "contact penalty"),
     generalPlayTurnovers = c("general play turnovers", "general play turnover", "gpt"),
-    unforcedTurnovers = c("unforced turnovers", "unforced turnover", "uto"),
-    pickups = c("pickups", "pickup"),
-    centrePassReceives = c("centre pass receives", "centre pass receive", "center pass receives"),
-    deflections = c("deflections", "deflection"),
-    rebounds = c("rebounds", "rebound"),
-    goal1 = c("1 point goals", "one point goals", "1 point goal", "one point goal"),
-    goal2 = c("2 point goals", "two point goals", "2 point goal", "two point goal"),
-    attempts1 = c("1 point goal attempts", "one point goal attempts"),
-    attempts2 = c("2 point goal attempts", "two point goal attempts"),
-    disposals = c("disposals", "disposal"),
-    penalties = c("penalties", "penalty", "pen"),
-    possessions = c("possessions", "possession"),
-    points = c("points", "pts")
+    unforcedTurnovers    = c("unforced turnovers", "unforced turnover", "uto"),
+    pickups              = c("pickups", "pickup"),
+    centrePassReceives   = c("centre pass receives", "centre pass receive", "center pass receives"),
+    deflections          = c("deflections", "deflection"),
+    rebounds             = c("rebounds", "rebound"),
+    goal1                = c("1 point goals", "one point goals", "1 point goal", "one point goal"),
+    goal2                = c("2 point goals", "two point goals", "2 point goal", "two point goal"),
+    attempts1            = c("1 point goal attempts", "one point goal attempts"),
+    attempts2            = c("2 point goal attempts", "two point goal attempts"),
+    disposals            = c("disposals", "disposal"),
+    penalties            = c("penalties", "penalty", "pen"),
+    possessions          = c("possessions", "possession"),
+    points               = c("points", "pts")
   )
+  rows <- lapply(names(stat_mappings), function(stat_key) {
+    aliases <- stat_mappings[[stat_key]]
+    data.frame(
+      stat    = stat_key,
+      alias   = aliases,
+      pattern = vapply(aliases, function(a) {
+        paste0("\\b", gsub(" ", "\\\\s+", a), "\\b")
+      }, character(1L), USE.NAMES = FALSE),
+      alias_length = nchar(aliases),
+      stringsAsFactors = FALSE
+    )
+  })
+  tbl <- do.call(rbind, rows)
+  # Sort longest-first: first grepl() hit is automatically the longest match.
+  tbl[order(tbl$alias_length, decreasing = TRUE), , drop = FALSE]
+})
 
-  # Search for each stat, order by longest match (to prefer longer aliases)
-  best_match <- NULL
-  best_length <- 0
-
-  for (stat_key in names(stat_mappings)) {
-    for (alias in stat_mappings[[stat_key]]) {
-      # Use word boundaries to match only whole words
-      pattern <- paste0("\\b", gsub(" ", "\\\\s+", alias), "\\b")
-      if (grepl(pattern, text)) {
-        if (nchar(alias) > best_length) {
-          best_match <- stat_key
-          best_length <- nchar(alias)
-        }
-      }
+# Extract netball stat name from question text.
+# Uses the pre-compiled .STAT_ALIAS_TABLE (patterns built once at load time).
+# Iterates longest-to-shortest so the first match is the most specific alias.
+# @param text Character: lowercased, trimmed question text
+# @return List with $stat: canonical stat key (e.g., "goals") or NULL
+extract_stat <- function(text) {
+  for (i in seq_len(nrow(.STAT_ALIAS_TABLE))) {
+    if (grepl(.STAT_ALIAS_TABLE$pattern[[i]], text)) {
+      return(list(stat = .STAT_ALIAS_TABLE$stat[[i]]))
     }
   }
-
-  list(stat = best_match)
+  list(stat = NULL)
 }
+
+# Canonical Super Netball team names and short forms for parse_question.R matching.
+# Full alias/abbreviation resolution happens in helpers.R (resolve_query_team).
+.PARSE_QUESTION_TEAM_NAMES <- c(
+  "adelaide thunderbirds", "collingwood magpies", "gws giants",
+  "melbourne vixens", "nsw swifts", "queensland firebirds",
+  "sunshine coast lightning", "west coast fever",
+  "vixens", "swifts", "firebirds", "magpies", "fever",
+  "thunderbirds", "giants", "lightning"
+)
 
 # Extract subject (player or team name, or "players"/"teams")
 extract_subject <- function(text) {
@@ -285,15 +302,7 @@ extract_subject <- function(text) {
     }
   }
 
-  # Core 8 Super Netball teams (2024/2025 season)
-  # Note: Full team name resolution (aliases, abbreviations) happens in backend helpers.R (resolve_query_team)
-  team_names <- c(
-    "adelaide thunderbirds", "collingwood magpies", "gws giants",
-    "melbourne vixens", "nsw swifts", "queensland firebirds",
-    "sunshine coast lightning", "west coast fever",
-    "vixens", "swifts", "firebirds", "magpies", "fever",
-    "thunderbirds", "giants", "lightning"
-  )
+  team_names <- .PARSE_QUESTION_TEAM_NAMES
   teams_pattern <- paste0("\\b(", paste(gsub(" ", "\\\\s+", team_names), collapse = "|"), ")\\b")
 
   # Try matching "by a [subject]" (e.g., "by a team", "by a player")
@@ -385,15 +394,7 @@ extract_subject <- function(text) {
 
 # Extract opponent team name
 extract_opponent <- function(text) {
-  # Core 8 Super Netball teams (2024/2025 season)
-  # Note: Full team name resolution (aliases, abbreviations) happens in backend helpers.R (resolve_query_team)
-  team_names <- c(
-    "adelaide thunderbirds", "collingwood magpies", "gws giants",
-    "melbourne vixens", "nsw swifts", "queensland firebirds",
-    "sunshine coast lightning", "west coast fever",
-    "vixens", "swifts", "firebirds", "magpies", "fever",
-    "thunderbirds", "giants", "lightning"
-  )
+  team_names <- .PARSE_QUESTION_TEAM_NAMES
 
   # Look for "against [team]", "vs [team]", "versus [team]"
   for (team in sort(team_names, decreasing = TRUE)) {  # Sort by length descending to match longer names first
@@ -431,8 +432,9 @@ extract_season <- function(text) {
     year_str <- year_texts[[1]][1]
     year_int <- as.integer(year_str)
 
-    # Validate it's in reasonable range (2008-2026)
-    if (year_int >= 2008L && year_int <= 2026L) {
+    # Validate it's in reasonable range (2008 to two years ahead of current year)
+    current_year <- as.integer(format(Sys.Date(), "%Y"))
+    if (year_int >= 2008L && year_int <= current_year + 2L) {
       return(list(season = year_int))
     }
   }
