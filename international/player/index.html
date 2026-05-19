@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Player Profile | International Netball Stats</title>
+    <meta name="description" content="International netball player profile with games played, career totals, and season stats.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/international-player.js"></script>
+  </head>
+  <body class="player-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/international/">International</a>
+        <a class="page-nav__link" href="/league-composition/">League composition</a>
+        <a class="page-nav__link" href="/round/">Round recap</a>
+        <a class="page-nav__link" href="/round-preview/">Round preview</a>
+        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
+        <a class="page-nav__link" href="/international/players/">Player profiles</a>
+        <a class="page-nav__link" href="/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/compare/">Compare</a>
+        <a class="page-nav__link" href="/home-court-advantage/">Home court advantage</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel player-hero player-dossier">
+        <div class="hero-copy">
+          <p class="eyebrow">Player dossier</p>
+          <p id="player-subtitle" class="player-subtitle">Loading player record…</p>
+          <h1 id="player-name" class="player-title">Loading player profile</h1>
+          <p id="player-intro" class="intro-copy player-intro">
+            Loading career totals and season splits.
+          </p>
+          <div id="player-squads" class="tag-list" aria-label="Player clubs"></div>
+        </div>
+
+        <aside class="hero-aside" aria-label="Player profile">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Profile</span>
+            <dl id="hero-profile-list" class="hero-profile-list" aria-live="polite">
+              <div>
+                <dt>Birthday</dt>
+                <dd id="hero-profile-birthday">Not yet verified</dd>
+              </div>
+              <div>
+                <dt>Nationality</dt>
+                <dd id="hero-profile-nationality">Not yet verified</dd>
+              </div>
+              <div>
+                <dt>Debut season</dt>
+                <dd id="hero-profile-debut-season">Not yet verified</dd>
+              </div>
+            </dl>
+          </div>
+        </aside>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel reveal player-dossier__summary-panel">
+        <div id="player-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <div class="panel__heading">
+          <p class="panel__eyebrow">Reading order</p>
+          <h2>Career snapshot</h2>
+          <p class="panel__lead">Start with the career line, then move through the pillars, totals table, and season ledger for the fuller picture.</p>
+        </div>
+        <div class="summary-band player-dossier__summary">
+          <article class="summary-card summary-card--accent">
+            <span class="summary-card__label">Games played</span>
+            <span id="summary-games" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Seasons</span>
+            <span id="summary-seasons" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Clubs</span>
+            <span id="summary-teams" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Tracked stats</span>
+            <span id="summary-stats" class="summary-card__value">--</span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Primary record</span>
+            <span id="summary-primary" class="summary-card__value summary-card__value--small">--</span>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel player-dossier__pillars reveal" aria-label="Career pillars">
+        <div id="player-pillars" class="dossier-pillars"></div>
+      </section>
+
+      <section class="panel reveal">
+        <div class="player-dossier__context-grid">
+          <div>
+            <div class="panel__heading">
+              <p class="panel__eyebrow">Career frame</p>
+              <h2>Career totals</h2>
+              <p class="panel__lead">Use the totals table for the all-time record. The dossier notes alongside call out the shape of the career without forcing you to read every row first.</p>
+            </div>
+            <div class="table-wrapper table-wrapper--spotlight">
+              <table class="stack-table" aria-describedby="career-stats-caption">
+                <caption id="career-stats-caption" class="table-caption">Career totals and per-game averages.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Stat</th>
+                    <th scope="col">Total</th>
+                    <th scope="col">Avg/game</th>
+                    <th scope="col">Games</th>
+                  </tr>
+                </thead>
+                <tbody id="career-stats-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <aside class="player-dossier__marginalia" aria-label="Player dossier notes">
+            <p class="results-panel__eyebrow">Dossier notes</p>
+            <ol id="player-marginalia" class="dossier-notes"></ol>
+          </aside>
+        </div>
+      </section>
+
+      <section class="panel player-dossier__ledger reveal">
+        <div class="player-toolbar">
+          <div class="panel__heading">
+            <p class="panel__eyebrow">Season by season</p>
+            <h2>Season ledger</h2>
+            <p class="panel__lead">Read totals first, then switch to average per game when you want a fairer season-to-season comparison.</p>
+            <p id="season-ledger-notes" class="season-ledger__notes">Loading season context…</p>
+          </div>
+          <div class="view-toggle" role="group" aria-label="Season stat mode">
+            <button type="button" class="button button--small is-active" data-metric="total" aria-pressed="true">Total</button>
+            <button type="button" class="button button--small button--ghost" data-metric="average" aria-pressed="false">Avg/game</button>
+          </div>
+        </div>
+        <div class="table-wrapper">
+          <table class="season-table" aria-describedby="season-table-caption">
+            <caption id="season-table-caption" class="table-caption">Season totals for key stats.</caption>
+            <thead>
+              <tr id="season-stats-head"></tr>
+            </thead>
+            <tbody id="season-stats-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

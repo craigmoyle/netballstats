@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Compare Players | International Netball</title>
+    <meta name="description" content="Compare Australian Diamonds and international netball players side-by-side with career statistics.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/international-compare.js"></script>
+  </head>
+  <body class="compare-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/international/">International</a>
+        <a class="page-nav__link" href="/league-composition/">League composition</a>
+        <a class="page-nav__link" href="/round/">Round recap</a>
+        <a class="page-nav__link" href="/round-preview/">Round preview</a>
+        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
+        <a class="page-nav__link" href="/international/players/">Player profiles</a>
+        <a class="page-nav__link" href="/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/compare/">Super Netball Compare</a>
+        <a class="page-nav__link" href="/home-court-advantage/">Home court advantage</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel compare-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Head-to-head comparison</p>
+          <h1>Compare players</h1>
+          <p class="intro-copy">Compare Australian Diamonds and international netball players side-by-side with career statistics.</p>
+        </div>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel panel--compact reveal">
+        <div id="compare-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        
+        <form id="compare-form" class="compare-form">
+          <div class="compare-controls">
+            <div class="player-selector">
+              <label for="player-a-search" class="player-selector__label">First player</label>
+              <div class="search-form__input-wrapper">
+                <input type="text" id="player-a-search" class="search-form__input player-a-input" placeholder="Search for a player…" autocomplete="off">
+                <input type="hidden" id="player-a-id" class="player-a-id">
+              </div>
+              <div id="player-a-suggestions" class="suggestions-list" hidden></div>
+            </div>
+            
+            <div class="compare-versus">
+              <span>vs</span>
+            </div>
+            
+            <div class="player-selector">
+              <label for="player-b-search" class="player-selector__label">Second player</label>
+              <div class="search-form__input-wrapper">
+                <input type="text" id="player-b-search" class="search-form__input player-b-input" placeholder="Search for a player…" autocomplete="off">
+                <input type="hidden" id="player-b-id" class="player-b-id">
+              </div>
+              <div id="player-b-suggestions" class="suggestions-list" hidden></div>
+            </div>
+          </div>
+          
+          <div class="compare-actions">
+            <button type="submit" id="compare-submit" class="button" disabled>Compare players</button>
+            <button type="button" id="compare-clear" class="button button--ghost">Clear</button>
+          </div>
+        </form>
+        
+        <div id="compare-results" class="compare-results" hidden>
+          <div class="results-panel">
+            <div class="results-panel__heading">
+              <p class="results-panel__eyebrow">Head-to-head</p>
+              <h2 id="compare-title">Player comparison</h2>
+            </div>
+            
+            <div class="compare-summary">
+              <div class="compare-summary__player compare-summary__player--a">
+                <h3 id="player-a-name" class="compare-summary__name">Player A</h3>
+                <div id="player-a-meta" class="compare-summary__meta"></div>
+              </div>
+              
+              <div class="compare-summary__divider">
+                <span>vs</span>
+              </div>
+              
+              <div class="compare-summary__player compare-summary__player--b">
+                <h3 id="player-b-name" class="compare-summary__name">Player B</h3>
+                <div id="player-b-meta" class="compare-summary__meta"></div>
+              </div>
+            </div>
+            
+            <div class="table-wrapper">
+              <table class="stack-table compare-table" aria-describedby="compare-table-caption">
+                <caption id="compare-table-caption" class="table-caption">Comparison of player statistics.</caption>
+                <thead>
+                  <tr>
+                    <th scope="col">Stat</th>
+                    <th scope="col" id="player-a-header">Player A</th>
+                    <th scope="col">Difference</th>
+                    <th scope="col" id="player-b-header">Player B</th>
+                  </tr>
+                </thead>
+                <tbody id="compare-table-body"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

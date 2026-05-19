@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>International Netball | Netball Stats Database</title>
+    <meta name="description" content="Australian Diamonds and international netball statistics from World Cups, Constellation Cup, and other international competitions.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/international.js"></script>
+  </head>
+  <body class="archive-home-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Super Netball</a>
+        <a class="page-nav__link" href="/international/players/">Players</a>
+        <a class="page-nav__link" href="/international/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/international/compare/">Compare</a>
+        <a class="page-nav__link" href="/league-composition/">Composition</a>
+        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
+        <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
+        <a class="page-nav__link" href="/international/" aria-current="page">International</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel archive-hero">
+        <div class="hero-copy hero-copy--home">
+          <p class="eyebrow">International netball</p>
+          <h1 class="archive-hero__title">Australian Diamonds archive</h1>
+          <p class="intro-copy">Historical statistics for Australian Diamonds matches in World Cups, Constellation Cup, and other international competitions.</p>
+          <div class="hero-links">
+            <a href="/international/players/" class="button">Browse players</a>
+            <a href="/international/query/" class="button button--ghost">Ask the stats</a>
+          </div>
+        </div>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel panel--compact reveal leaders-panel">
+        <div class="panel__heading">
+          <p class="panel__eyebrow">All-time best</p>
+          <h2>Leaderboards</h2>
+          <p class="panel__lead">The players and teams with the highest career totals across tracked stats.</p>
+        </div>
+        
+        <div class="tabbed-panel">
+          <div class="tabbed-panel__tabs" role="tablist">
+            <button type="button" class="tabbed-panel__tab is-active" role="tab" aria-selected="true" aria-controls="player-leaders-tab">Player leaders</button>
+            <button type="button" class="tabbed-panel__tab" role="tab" aria-selected="false" aria-controls="team-leaders-tab">Team leaders</button>
+          </div>
+          
+          <div class="tabbed-panel__content">
+            <div id="player-leaders-tab" class="tabbed-panel__pane" role="tabpanel" tabindex="0">
+              <div id="player-leaders-loading" class="loading-placeholder">
+                <p>Loading player leaders…</p>
+              </div>
+              <div id="player-leaders-content" class="leaders-content" hidden>
+                <div class="table-wrapper table-wrapper--spotlight">
+                  <table id="player-leaders-table" class="stack-table leaders-table">
+                    <caption class="table-caption">Players ranked by total points across all international matches.</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Player</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Matches</th>
+                        <th scope="col">Avg/match</th>
+                      </tr>
+                    </thead>
+                    <tbody id="player-leaders-body"></tbody>
+                  </table>
+                </div>
+                <p class="leaders-note"><a href="/international/players/">Browse all international players</a></p>
+              </div>
+            </div>
+            
+            <div id="team-leaders-tab" class="tabbed-panel__pane" role="tabpanel" tabindex="0" hidden>
+              <div id="team-leaders-loading" class="loading-placeholder">
+                <p>Loading team leaders…</p>
+              </div>
+              <div id="team-leaders-content" class="leaders-content" hidden>
+                <div class="table-wrapper table-wrapper--spotlight">
+                  <table id="team-leaders-table" class="stack-table leaders-table">
+                    <caption class="table-caption">Teams ranked by total points across all international matches.</caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Team</th>
+                        <th scope="col">Total</th>
+                        <th scope="col">Matches</th>
+                        <th scope="col">Avg/match</th>
+                      </tr>
+                    </thead>
+                    <tbody id="team-leaders-body"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>

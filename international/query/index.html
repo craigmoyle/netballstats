@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>Ask the Stats | International Netball</title>
+    <meta name="description" content="Ask questions about Australian Diamonds and international netball statistics in plain English.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/international-query.js"></script>
+  </head>
+  <body class="query-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Super Netball</a>
+        <a class="page-nav__link" href="/international/">International</a>
+        <a class="page-nav__link" href="/international/players/">Players</a>
+        <a class="page-nav__link" href="/international/query/" aria-current="page">Ask the stats</a>
+        <a class="page-nav__link" href="/international/compare/">Compare</a>
+        <a class="page-nav__link" href="/league-composition/">Composition</a>
+        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
+        <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel query-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Natural language queries</p>
+          <h1>Ask the stats</h1>
+          <p class="intro-copy">Ask questions about Australian Diamonds and international netball statistics in plain English.</p>
+        </div>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel panel--compact reveal">
+        <div id="query-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        
+        <form id="query-form" class="query-form" role="search">
+          <label for="question-input" class="query-form__label">Ask a question</label>
+          <div class="query-form__input-wrapper">
+            <input type="text" id="question-input" class="query-form__input" placeholder="e.g. Who has the most goals for the Diamonds?" autocomplete="off" autocapitalize="sentences">
+            <button type="submit" class="query-form__submit" aria-label="Submit question">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="22" y1="2" x2="11" y2="13"></line>
+                <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+              </svg>
+            </button>
+          </div>
+        </form>
+        
+        <div id="query-help" class="query-help" hidden>
+          <p class="query-help__title">Try asking:</p>
+          <ul class="query-help__examples">
+            <li>"Who has the most goals for the Diamonds?"</li>
+            <li>"What was Liz Watson's highest scoring game?"</li>
+            <li>"Which team has the most wins against New Zealand?"</li>
+            <li>"Show me players with over 100 intercepts"</li>
+          </ul>
+        </div>
+        
+        <div id="query-results" class="query-results" hidden>
+          <div class="results-panel">
+            <div class="results-panel__heading">
+              <p class="results-panel__eyebrow">Answer</p>
+              <h2 id="results-question">Question</h2>
+            </div>
+            <div id="results-content" class="results-panel__content"></div>
+          </div>
+        </div>
+        
+        <div id="query-builder" class="query-builder" hidden>
+          <div class="results-panel">
+            <div class="results-panel__heading">
+              <p class="results-panel__eyebrow">Need help?</p>
+              <h2>We can build that query</h2>
+              <p class="results-panel__lead">Select the parts below to finish your question.</p>
+            </div>
+            <div id="query-builder-content" class="query-builder__content"></div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
