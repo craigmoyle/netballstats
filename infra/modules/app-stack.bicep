@@ -322,6 +322,11 @@ resource privateNetwork 'Microsoft.Network/virtualNetworks@2024-07-01' = if (ena
         effectiveVirtualNetworkAddressPrefix
       ]
     }
+    dhcpOptions: {
+      dnsServers: [
+        '168.63.129.16'
+      ]
+    }
   }
 }
 
