@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <script src="/assets/theme.js"></script>
+    <title>International Players | Netball Stats Database</title>
+    <meta name="description" content="Browse Australian Diamonds and international netball players with career statistics.">
+    <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/assets/styles.css">
+    <script defer src="/assets/config.js"></script>
+    <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/international-players.js"></script>
+  </head>
+  <body class="players-page">
+    <a href="#main-content" class="skip-link">Skip to content</a>
+
+    <header class="page-shell hero-shell reveal">
+      <nav class="page-nav" aria-label="Site navigation">
+        <a class="page-nav__link" href="/">Super Netball</a>
+        <a class="page-nav__link" href="/international/">International</a>
+        <a class="page-nav__link" href="/international/players/" aria-current="page">Players</a>
+        <a class="page-nav__link" href="/international/query/">Ask the stats</a>
+        <a class="page-nav__link" href="/international/compare/">Compare</a>
+        <a class="page-nav__link" href="/league-composition/">Composition</a>
+        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
+        <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
+        <a class="page-nav__link" href="/changelog/">Changelog</a>
+        <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+      </nav>
+
+      <section class="hero-panel players-hero">
+        <div class="hero-copy">
+          <p class="eyebrow">Player directory</p>
+          <h1>International players</h1>
+          <p class="intro-copy">Browse all Australian Diamonds and international players with career statistics.</p>
+        </div>
+      </section>
+    </header>
+
+    <main id="main-content" class="page-shell page-main">
+      <section class="panel panel--compact reveal">
+        <div id="players-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        
+        <form class="search-form" role="search">
+          <label for="players-search" class="search-form__label">Search players</label>
+          <div class="search-form__input-wrapper">
+            <input type="search" id="players-search" class="search-form__input" placeholder="Search by name…" autocomplete="off">
+          </div>
+        </form>
+        
+        <div class="table-wrapper">
+          <table class="stack-table players-table" aria-describedby="players-table-caption">
+            <caption id="players-table-caption" class="table-caption">List of international netball players.</caption>
+            <thead>
+              <tr>
+                <th scope="col">Player</th>
+                <th scope="col">Teams</th>
+                <th scope="col" class="num">Matches</th>
+              </tr>
+            </thead>
+            <tbody id="players-table-body"></tbody>
+          </table>
+        </div>
+        
+        <div id="players-pagination" class="pagination" hidden>
+          <button type="button" id="prev-page" class="button button--small" disabled>Previous</button>
+          <span id="page-info" class="pagination__info">Page 1 of 1</span>
+          <button type="button" id="next-page" class="button button--small" disabled>Next</button>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
