@@ -10,8 +10,34 @@ The production operating model is now **Azure + PostgreSQL first**. Legacy Rende
 - team and player leaderboard charts plus season trend lines
 - natural-language “Ask the stats” queries with parsed query explanations
 - player directory and player profile pages with career and season summaries
+- international section for Australian Diamonds and other international netball statistics
 - read-only API endpoints with validation, rate limiting, security headers, and parameterized SQL
 - scheduled database refresh jobs that rebuild the archive from Champion Data via `superNetballR`
+- separate international database refresh jobs using `netballR`
+
+## International Netball Features
+
+The site now includes a separate section for international netball statistics, focusing on Australian Diamonds matches and other international competitions. This section provides:
+
+- Player profiles for international netball athletes
+- Career statistics and season-by-season breakdowns
+- Leaderboards for players and teams
+- Natural language query interface ("Ask the Stats")
+- Player comparison tool
+
+International data is sourced from Champion Data via the `netballR` package and stored in separate database tables with an `international_` prefix to maintain clear separation from Super Netball data.
+
+### International API Endpoints
+
+- `/api/international/meta` - Metadata about international data
+- `/api/international/players` - Player listings
+- `/api/international/player-profile` - Individual player profiles
+- `/api/international/leaders` - Leaderboards
+- `/api/international/matches` - Match listings
+
+### Database Refresh
+
+International data is refreshed using the `scripts/build_international_database.R` script, which uses the `netballR` package to fetch data from Champion Data. The script creates separate tables with an `international_` prefix to keep data isolated from the main Super Netball dataset.
 
 ## Repository layout
 

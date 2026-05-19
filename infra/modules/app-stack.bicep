@@ -534,7 +534,6 @@ var containerEnvironmentProperties = union({
   vnetConfiguration: {
     infrastructureSubnetId: containerAppsInfrastructureSubnet.id
     internal: false
-    platformReservedDnsIP: '168.63.129.16'
   }
   workloadProfiles: [
     {

@@ -51,6 +51,28 @@ hooks:
         --name "$TUE_JOB" \
         --query "properties.template.containers[0].name" \
         --output tsv)
+      INTL_TUE_JOB=$(az containerapp job list \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --query "[?contains(name, '-db-intl-tue-')].name | [0]" \
+        --output tsv)
+      INTL_TUE_CONTAINER=$(az containerapp job show \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --name "$INTL_TUE_JOB" \
+        --query "properties.template.containers[0].name" \
+        --output tsv)
+      INTL_FRI_JOB=$(az containerapp job list \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --query "[?contains(name, '-db-intl-fri-')].name | [0]" \
+        --output tsv)
+      INTL_FRI_CONTAINER=$(az containerapp job show \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --resource-group "$RG" \
+        --name "$INTL_FRI_JOB" \
+        --query "properties.template.containers[0].name" \
+        --output tsv)
       
       # Update all refresh job images in parallel (background)
       az containerapp job update \
@@ -74,10 +96,24 @@ hooks:
         --image "$API_IMAGE" \
         --container-name "$TUE_CONTAINER" \
         --no-wait &
+      az containerapp job update \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --name "$INTL_TUE_JOB" \
+        --resource-group "$RG" \
+        --image "$API_IMAGE" \
+        --container-name "$INTL_TUE_CONTAINER" \
+        --no-wait &
+      az containerapp job update \
+        --subscription "$AZURE_SUBSCRIPTION_ID" \
+        --name "$INTL_FRI_JOB" \
+        --resource-group "$RG" \
+        --image "$API_IMAGE" \
+        --container-name "$INTL_FRI_CONTAINER" \
+        --no-wait &
       
       # Only trigger DB refresh if R code was modified (check for R files in git diff)
       # Skip DB refresh on frontend-only deployments to save ~2 minutes
-      if git diff --name-only HEAD~1 HEAD | grep -qE '\.(R|r)$|renv\.lock|scripts/build_database'; then
+      if git diff --name-only HEAD~1 HEAD | grep -qE '\.(R|r)$|renv\.lock|scripts/build_database|scripts/build_international_database'; then
         echo "R code detected in commit. Triggering DB refresh..."
         wait  # Wait for job updates to complete before triggering refresh
         az containerapp job start \
@@ -85,6 +121,15 @@ hooks:
           --name "$SAT_JOB" \
           --resource-group "$RG" \
           --no-wait || true
+        # Also trigger international DB refresh if international scripts were modified
+        if git diff --name-only HEAD~1 HEAD | grep -q 'scripts/build_international_database'; then
+          echo "International database script detected. Triggering international DB refresh..."
+          az containerapp job start \
+            --subscription "$AZURE_SUBSCRIPTION_ID" \
+            --name "$INTL_TUE_JOB" \
+            --resource-group "$RG" \
+            --no-wait || true
+        fi
       else
         echo "Frontend-only deploy. Skipping DB refresh."
       fi
