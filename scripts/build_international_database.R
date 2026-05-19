@@ -1,5 +1,11 @@
 #!/usr/bin/env Rscript
 
+message("=== INTERNATIONAL NETBALL DATABASE BUILD DEBUG MODE ===")
+message(sprintf("Timestamp: %s", Sys.time()))
+message(sprintf("Process ID: %s", Sys.getpid()))
+message(sprintf("Working directory: %s", getwd()))
+message(sprintf("R version: %s", R.version.string))
+
 # International Netball Database Builder
 #
 # This script builds the international netball database using the netballR package
@@ -45,11 +51,20 @@ connect_db <- function() {
   db_user <- Sys.getenv("NETBALL_STATS_DB_USER", "netballstatsadmin")
   db_password <- Sys.getenv("NETBALL_STATS_DB_PASSWORD", "")
   
+  message(sprintf("== DATABASE CONNECTION ATTEMPT =="))
+  message(sprintf("Host: %s", db_host))
+  message(sprintf("Port: %s", db_port))
+  message(sprintf("Database: %s", db_name))
+  message(sprintf("User: %s", db_user))
+  message(sprintf("Password provided: %s", ifelse(nzchar(db_password), "YES", "NO")))
+  
   # For demonstration purposes, return NULL if no password is provided
   if (nchar(db_password) == 0) {
-    message("No database password provided. Running in demonstration mode.")
+    message("❌ No database password provided. Running in demonstration mode.")
     return(NULL)
   }
+  
+  message("🔄 Attempting database connection...")
   
   tryCatch({
     con <- dbConnect(
@@ -62,6 +77,7 @@ connect_db <- function() {
       bigint = "integer",
       timezone = "UTC"
     )
+    message("✅ Database connection SUCCESSFUL")
     
     # Apply statement timeout if set
     statement_timeout_ms <- Sys.getenv("NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS", "")
@@ -69,24 +85,52 @@ connect_db <- function() {
       dbExecute(con, sprintf("SET statement_timeout = %s", statement_timeout_ms))
     }
     
-    con
+    # Test the connection with a simple query
+    test_result <- dbGetQuery(con, "SELECT current_database(), current_user")
+    message(sprintf("Connected to database: %s", test_result[1,1]))
+    message(sprintf("Connected as user: %s", test_result[1,2]))
+    
+    return(con)
   }, error = function(e) {
-    stop(sprintf("Database connection failed: %s", conditionMessage(e)))
+    message(sprintf("❌ Database connection FAILED: %s", conditionMessage(e)))
+    return(NULL)
   })
 }
 
 # Get competition IDs for Australian Diamonds
 get_diamonds_competitions <- function() {
-  message("Discovering Australian Diamonds competitions...")
-  competitions_data <- netballR::listCompetitionsNetballAus()
+  message("🔍 Discovering Australian Diamonds competitions...")
+  
+  # Log netballR package info
+  if (requireNamespace("netballR", quietly = TRUE)) {
+    message("✅ netballR package loaded successfully")
+  } else {
+    message("❌ netballR package NOT FOUND")
+    return(data.frame())
+  }
+  
+  competitions_data <- tryCatch({
+    message("🔄 Calling netballR::listCompetitionsNetballAus()...")
+    result <- netballR::listCompetitionsNetballAus()
+    message(sprintf("✅ Got %d total competitions from netballR", nrow(result)))
+    result
+  }, error = function(e) {
+    message(sprintf("❌ Error calling listCompetitionsNetballAus: %s", conditionMessage(e)))
+    return(data.frame())
+  })
+  
   diamonds_competitions <- subset(competitions_data, grepl("Diamonds", competition_name, ignore.case = TRUE))
   
   if (nrow(diamonds_competitions) > 0) {
-    message(sprintf("Found %d Australian Diamonds competitions", nrow(diamonds_competitions)))
+    message(sprintf("✅ Found %d Australian Diamonds competitions", nrow(diamonds_competitions)))
     diamonds_competitions$competition_id <- as.integer(diamonds_competitions$comp_id)
     return(diamonds_competitions)
   } else {
-    message("No Australian Diamonds competitions found.")
+    message("❌ No Australian Diamonds competitions found.")
+    if (nrow(competitions_data) > 0) {
+      message("Available competitions from netballR:")
+      print(head(competitions_data[, c("comp_id", "competition_name", "year")], 10))
+    }
     return(data.frame())
   }
 }
@@ -250,19 +294,23 @@ main <- function() {
   # Log connection status
   if (is.null(conn)) {
     message("⚠️  Database connection: NONE (running in demo mode)")
+    message("🛑 DEMO MODE: No real database operations will occur")
   } else {
     message("✅ Database connection: ESTABLISHED")
+    message("🟢 REAL MODE: Will attempt real database operations")
   }
   
   # Discover competitions
   diamonds_comps <- get_diamonds_competitions()
   
   if (nrow(diamonds_comps) == 0) {
-    message("❌ No competitions to process.")
+    message("❌ FATAL: No competitions to process. Script ending early.")
     return(invisible(0))
   }
   
   message(sprintf("Found %d Australian Diamonds competitions to process", nrow(diamonds_comps)))
+  message("🔍 Competition list:")
+  print(diamonds_comps[, c("competition_id", "competition_name", "year")])
   
   # Save to config file if it doesn't exist or is empty
   if (!file.exists(config_path) || file.size(config_path) == 0) {
@@ -293,9 +341,18 @@ main <- function() {
     # Download fixture
     message("Downloading fixture...")
     fixture <- tryCatch({
-      message("Calling netballR::downloadFixture...")
+      message(sprintf("🔄 Calling netballR::downloadFixture(%s)...", comp_id))
       result <- netballR::downloadFixture(comp_id)
       message(sprintf("✅ Download completed: %d matches returned", nrow(result)))
+      
+      # Log sample of data for verification
+      if (nrow(result) > 0) {
+        message("Sample data columns:")
+        print(names(result))
+        message("First few rows:")
+        print(head(result[, c("matchId", "homeSquadName", "awaySquadName")], min(3, nrow(result))))
+      }
+      
       result
     }, error = function(e) {
       message(sprintf("❌ Error downloading fixture: %s", conditionMessage(e)))
@@ -440,7 +497,14 @@ insert_player_stats <- function(conn, stats_df) {
   }
   
   message("\n=== International Database Build Complete ===")
-  message("To fully populate with real data, run this script with proper database credentials")
+  if (is.null(conn)) {
+    message("🛑 RESULT: Ran in DEMONSTRATION MODE only")
+    message("🛑 No real data was fetched or stored")
+    message("🛑 Execution time was fast because no real work occurred")
+  } else {
+    message("✅ RESULT: Ran in REAL MODE with database access")
+    message("✅ Real data may have been fetched and stored")
+  }
 }
 
 # Run main function
