@@ -17,19 +17,25 @@
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
-      <nav class="page-nav" aria-label="Site navigation">
-        <a class="page-nav__link" href="/">Super Netball</a>
-        <a class="page-nav__link" href="/international/players/">Players</a>
-        <a class="page-nav__link" href="/international/query/">Ask the stats</a>
-        <a class="page-nav__link" href="/international/compare/">Compare</a>
-        <a class="page-nav__link" href="/league-composition/">Composition</a>
-        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
-        <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
-        <a class="page-nav__link" href="/international/" aria-current="page">International</a>
-        <a class="page-nav__link" href="/changelog/">Changelog</a>
-        <a class="page-nav__link" href="/nwar/">nWAR</a>
-        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
-      </nav>
+        <nav class="page-nav" aria-label="Site navigation">
+          <a class="page-nav__link" href="/">Archive</a>
+          <a class="page-nav__link" href="/players/">Players</a>
+          <a class="page-nav__link" href="/query/">Ask the stats</a>
+          <a class="page-nav__link" href="/compare/">Compare</a>
+          <a class="page-nav__link" href="/round/">Round recap</a>
+          <a class="page-nav__link" href="/league-composition/">Composition</a>
+          <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
+          <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
+          <a class="page-nav__link" href="/nwar/">nWAR</a>
+          <span class="page-nav__divider" aria-hidden="true"></span>
+          <a class="page-nav__link" href="/international/" aria-current="page">Diamonds</a>
+          <a class="page-nav__link" href="/international/players/">Players</a>
+          <a class="page-nav__link" href="/international/query/">Ask the stats</a>
+          <a class="page-nav__link" href="/international/compare/">Compare</a>
+          <span class="page-nav__divider" aria-hidden="true"></span>
+          <a class="page-nav__link" href="/changelog/">Changelog</a>
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+        </nav>
 
       <section class="hero-panel archive-hero">
         <div class="hero-copy hero-copy--home">
@@ -45,6 +51,34 @@
     </header>
 
     <main id="main-content" class="page-shell page-main">
+      <section class="panel panel--compact reveal" aria-label="Recent matches">
+        <div class="panel__heading">
+          <p class="panel__eyebrow">Results</p>
+          <h2>Recent matches</h2>
+        </div>
+        <div id="matches-loading" class="loading-placeholder">
+          <p>Loading recent matches…</p>
+        </div>
+        <div id="matches-content" hidden>
+          <div class="table-wrapper">
+            <table id="matches-table" class="stack-table">
+              <caption class="table-caption">Recent Australian Diamonds matches.</caption>
+              <thead>
+                <tr>
+                  <th scope="col">Date</th>
+                  <th scope="col">Home</th>
+                  <th scope="col">Away</th>
+                  <th scope="col">Score</th>
+                  <th scope="col">Venue</th>
+                </tr>
+              </thead>
+              <tbody id="matches-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <p id="matches-empty" class="panel__lead" hidden>No match results found for this season.</p>
+      </section>
+
       <section class="panel panel--compact reveal leaders-panel">
         <div class="panel__heading">
           <p class="panel__eyebrow">All-time best</p>
@@ -52,7 +86,11 @@
           <p class="panel__lead">The players and teams with the highest career totals across tracked stats.</p>
         </div>
         
-        <div class="tabbed-panel">
+        <div id="leaders-unavailable" class="panel__lead" hidden>
+          <p>Player statistics are not yet available for international matches.</p>
+        </div>
+
+        <div id="leaders-panel" class="tabbed-panel">
           <div class="tabbed-panel__tabs" role="tablist">
             <button type="button" class="tabbed-panel__tab is-active" role="tab" aria-selected="true" aria-controls="player-leaders-tab">Player leaders</button>
             <button type="button" class="tabbed-panel__tab" role="tab" aria-selected="false" aria-controls="team-leaders-tab">Team leaders</button>

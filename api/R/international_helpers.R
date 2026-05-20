@@ -6,31 +6,31 @@
 
 # Check if international tables exist in the database
 has_international_matches <- function(conn) {
-  cache_table_exists_once(conn, "international_matches", "has_international_matches")
+  cache_table_exists_once(conn, "international_matches", "netballstats.int_matches_available")
 }
 
 has_international_teams <- function(conn) {
-  cache_table_exists_once(conn, "international_teams", "has_international_teams")
+  cache_table_exists_once(conn, "international_teams", "netballstats.int_teams_available")
 }
 
 has_international_players <- function(conn) {
-  cache_table_exists_once(conn, "international_players", "has_international_players")
+  cache_table_exists_once(conn, "international_players", "netballstats.int_players_available")
 }
 
 has_international_player_match_stats <- function(conn) {
-  cache_table_exists_once(conn, "international_player_match_stats", "has_international_player_match_stats")
+  cache_table_exists_once(conn, "international_player_match_stats", "netballstats.int_pms_available")
 }
 
 has_international_team_match_stats <- function(conn) {
-  cache_table_exists_once(conn, "international_team_match_stats", "has_international_team_match_stats")
+  cache_table_exists_once(conn, "international_team_match_stats", "netballstats.int_tms_available")
 }
 
 has_international_player_match_participation <- function(conn) {
-  cache_table_exists_once(conn, "international_player_match_participation", "has_international_player_match_participation")
+  cache_table_exists_once(conn, "international_player_match_participation", "netballstats.int_pmpart_available")
 }
 
 has_international_scoreflow_summary <- function(conn) {
-  cache_table_exists_once(conn, "international_match_scoreflow_summary", "has_international_scoreflow_summary")
+  cache_table_exists_once(conn, "international_match_scoreflow_summary", "netballstats.int_scoreflow_available")
 }
 
 # Fetch international player profile data

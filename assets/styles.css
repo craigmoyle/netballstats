@@ -2272,6 +2272,25 @@ tr[data-rank="3"] td:first-child {
   color: var(--nav-pill-active-color);
 }
 
+.page-nav__divider {
+  width: 1px;
+  align-self: stretch;
+  min-block-size: 1.75rem;
+  background: var(--nav-pill-border);
+  border-radius: 1px;
+  flex: 0 0 auto;
+  opacity: 0.5;
+}
+
+@media (max-width: 640px) {
+  .page-nav__divider {
+    width: 100%;
+    height: 1px;
+    min-block-size: 0;
+    align-self: auto;
+  }
+}
+
 .directory-search {
   max-width: 28rem;
 }

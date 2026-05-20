@@ -1119,6 +1119,8 @@ write_database <- function(tables, build_mode) {
     # nWAR season-scoped aggregates filter by season without a leading stat
     # column, so keep a season-first index available for those lookups.
     DBI::dbExecute(conn, "CREATE INDEX idx_pms_season_player ON player_match_stats(season, player_id, match_id)")
+    # Unique constraint on the natural PK: enables index-nested-loop self-joins in archive ranking
+    DBI::dbExecute(conn, "CREATE UNIQUE INDEX idx_pms_player_match_stat ON player_match_stats(player_id, match_id, stat)")
 
     # Derive per-player per-match starting position from period-level position stats.
     #

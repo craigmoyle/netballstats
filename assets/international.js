@@ -13,6 +13,12 @@ const {
 
 // DOM Elements
 const elements = {
+  matchesLoading: document.getElementById("matches-loading"),
+  matchesContent: document.getElementById("matches-content"),
+  matchesBody: document.getElementById("matches-body"),
+  matchesEmpty: document.getElementById("matches-empty"),
+  leadersUnavailable: document.getElementById("leaders-unavailable"),
+  leadersPanel: document.getElementById("leaders-panel"),
   playerLeadersLoading: document.getElementById("player-leaders-loading"),
   playerLeadersContent: document.getElementById("player-leaders-content"),
   playerLeadersBody: document.getElementById("player-leaders-body"),
@@ -28,48 +34,65 @@ const state = {
   activeTab: "player-leaders-tab"
 };
 
-// Show loading status
-function showLoadingStatus(element) {
-  if (element) {
-    element.hidden = false;
+function showEl(el) { if (el) el.hidden = false; }
+function hideEl(el) { if (el) el.hidden = true; }
+
+function formatMatchDate(dateStr) {
+  if (!dateStr) return "—";
+  try {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
+  } catch (_) {
+    return dateStr;
   }
 }
 
-// Hide loading status
-function hideLoadingStatus(element) {
-  if (element) {
-    element.hidden = true;
+function formatScore(match) {
+  if (match.match_status !== "completed" || match.home_score == null) return "—";
+  return `${match.home_score}–${match.away_score}`;
+}
+
+// Load recent matches from /api/international/matches
+async function loadRecentMatches() {
+  showEl(elements.matchesLoading);
+  hideEl(elements.matchesContent);
+  hideEl(elements.matchesEmpty);
+
+  try {
+    const response = await fetchJson("/api/international/matches");
+    hideEl(elements.matchesLoading);
+
+    const matches = (response && response.matches) ? response.matches : [];
+    if (matches.length === 0) {
+      showEl(elements.matchesEmpty);
+      return;
+    }
+
+    elements.matchesBody.replaceChildren();
+    matches.slice().reverse().forEach((match) => {
+      const row = document.createElement("tr");
+      row.innerHTML = `
+        <td data-label="Date">${formatMatchDate(match.local_start_time)}</td>
+        <td data-label="Home">${match.home_squad_name || "—"}</td>
+        <td data-label="Away">${match.away_squad_name || "—"}</td>
+        <td data-label="Score" class="num">${formatScore(match)}</td>
+        <td data-label="Venue">${match.venue_name || "—"}</td>
+      `;
+      elements.matchesBody.appendChild(row);
+    });
+
+    syncResponsiveTable(document.getElementById("matches-table"));
+    showEl(elements.matchesContent);
+  } catch (error) {
+    hideEl(elements.matchesLoading);
+    showEl(elements.matchesEmpty);
   }
 }
 
-// Show content
-function showContent(element) {
-  if (element) {
-    element.hidden = false;
-  }
-}
-
-// Hide content
-function hideContent(element) {
-  if (element) {
-    element.hidden = true;
-  }
-}
-
-// Create table cell
-function createCell(text, isNumeric = false) {
-  const cell = document.createElement("td");
-  cell.textContent = text;
-  if (isNumeric) {
-    cell.className = "num";
-  }
-  return cell;
-}
-
-// Load player leaders
+// Load player leaders (only called if stats are available)
 async function loadPlayerLeaders() {
-  showLoadingStatus(elements.playerLeadersLoading);
-  hideContent(elements.playerLeadersContent);
+  showEl(elements.playerLeadersLoading);
+  hideEl(elements.playerLeadersContent);
   
   try {
     const response = await fetchJson("/api/international/leaders", {
@@ -93,27 +116,30 @@ async function loadPlayerLeaders() {
         `;
         elements.playerLeadersBody.appendChild(row);
       });
+      syncResponsiveTable(document.getElementById("player-leaders-table"));
+      hideEl(elements.playerLeadersLoading);
+      showEl(elements.playerLeadersContent);
     } else {
-      const row = document.createElement("tr");
-      row.innerHTML = `<td colspan="4">No player leaders found.</td>`;
-      elements.playerLeadersBody.appendChild(row);
+      // Stats table exists but is empty — show unavailable state
+      hideEl(elements.playerLeadersLoading);
+      showLeadersUnavailable();
     }
-    
-    syncResponsiveTable(document.getElementById("player-leaders-table"));
-    hideLoadingStatus(elements.playerLeadersLoading);
-    showContent(elements.playerLeadersContent);
   } catch (error) {
-    console.error("Error loading player leaders:", error);
-    elements.playerLeadersBody.innerHTML = `<tr><td colspan="4">Error loading player leaders.</td></tr>`;
-    hideLoadingStatus(elements.playerLeadersLoading);
-    showContent(elements.playerLeadersContent);
+    hideEl(elements.playerLeadersLoading);
+    // 503 = stats not available; hide the whole leaderboard section
+    showLeadersUnavailable();
   }
+}
+
+function showLeadersUnavailable() {
+  hideEl(elements.leadersPanel);
+  showEl(elements.leadersUnavailable);
 }
 
 // Load team leaders
 async function loadTeamLeaders() {
-  showLoadingStatus(elements.teamLeadersLoading);
-  hideContent(elements.teamLeadersContent);
+  showEl(elements.teamLeadersLoading);
+  hideEl(elements.teamLeadersContent);
   
   try {
     const response = await fetchJson("/api/international/leaders", {
@@ -135,36 +161,29 @@ async function loadTeamLeaders() {
         `;
         elements.teamLeadersBody.appendChild(row);
       });
+      syncResponsiveTable(document.getElementById("team-leaders-table"));
+      hideEl(elements.teamLeadersLoading);
+      showEl(elements.teamLeadersContent);
     } else {
-      const row = document.createElement("tr");
-      row.innerHTML = `<td colspan="4">No team leaders found.</td>`;
-      elements.teamLeadersBody.appendChild(row);
+      hideEl(elements.teamLeadersLoading);
+      showEl(elements.teamLeadersContent);
     }
-    
-    syncResponsiveTable(document.getElementById("team-leaders-table"));
-    hideLoadingStatus(elements.teamLeadersLoading);
-    showContent(elements.teamLeadersContent);
   } catch (error) {
-    console.error("Error loading team leaders:", error);
-    elements.teamLeadersBody.innerHTML = `<tr><td colspan="4">Error loading team leaders.</td></tr>`;
-    hideLoadingStatus(elements.teamLeadersLoading);
-    showContent(elements.teamLeadersContent);
+    hideEl(elements.teamLeadersLoading);
+    showEl(elements.teamLeadersContent);
   }
 }
 
 // Switch tabs
 function switchTab(tabId) {
-  // Update state
   state.activeTab = tabId;
   
-  // Update tab buttons
   elements.tabButtons.forEach(button => {
     const isSelected = button.getAttribute("aria-controls") === tabId;
     button.classList.toggle("is-active", isSelected);
     button.setAttribute("aria-selected", isSelected.toString());
   });
   
-  // Update tab panes
   elements.tabPanes.forEach(pane => {
     const isSelected = pane.id === tabId;
     pane.hidden = !isSelected;
@@ -175,20 +194,13 @@ function switchTab(tabId) {
     }
   });
   
-  // Load data for the selected tab if needed
-  if (tabId === "player-leaders-tab") {
-    // Player leaders are loaded by default
-  } else if (tabId === "team-leaders-tab") {
-    // Load team leaders if not already loaded
-    if (elements.teamLeadersBody.children.length === 0) {
-      loadTeamLeaders();
-    }
+  if (tabId === "team-leaders-tab" && elements.teamLeadersBody && elements.teamLeadersBody.children.length === 0) {
+    loadTeamLeaders();
   }
 }
 
 // Initialize
 async function initialize() {
-  // Set up tab switching
   elements.tabButtons.forEach(button => {
     button.addEventListener("click", () => {
       const tabId = button.getAttribute("aria-controls");
@@ -196,14 +208,15 @@ async function initialize() {
     });
   });
   
-  // Load initial data
+  // Load recent matches first (always available if the DB is populated)
+  await loadRecentMatches();
+  
+  // Attempt to load player leaders; gracefully hides the section if stats are unavailable
   await loadPlayerLeaders();
   
-  // Track page view
   trackEvent("international_home_viewed");
 }
 
-// Start initialization when DOM is loaded
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initialize);
 } else {
