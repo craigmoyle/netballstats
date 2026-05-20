@@ -145,6 +145,22 @@ safe_convert_number <- function(x) {
 process_match_data <- function(fixture_data) {
   message("Processing match data...")
   
+  # Validate input data
+  if (is.null(fixture_data) || nrow(fixture_data) == 0) {
+    message("⚠️  No fixture data to process")
+    return(data.frame())
+  }
+  
+  # Check required columns
+  required_columns <- c("matchId", "utcStartTime", "round", "game", "homeSquadId", "awaySquadId", "homeSquadScore", "awaySquadScore", "matchStatus", "homeSquadName", "awaySquadName")
+  missing_columns <- required_columns[!required_columns %in% names(fixture_data)]
+  if (length(missing_columns) > 0) {
+    message(sprintf("❌ Missing required columns: %s", paste(missing_columns, collapse = ", ")))
+    message("Available columns:")
+    print(names(fixture_data))
+    return(data.frame())
+  }
+  
   matches_df <- fixture_data %>%
     mutate(
       match_id = as.integer(matchId),
@@ -332,6 +348,7 @@ main <- function() {
   create_international_tables(conn)
   
   # Process each competition (limiting to 3 for demo)
+  processed_count <- 0
   for (i in 1:min(3, nrow(diamonds_comps))) {
     comp_id <- diamonds_comps$competition_id[i]
     comp_name <- diamonds_comps$competition_name[i]
@@ -369,6 +386,11 @@ main <- function() {
     # Process match data
     matches_df <- process_match_data(fixture)
     
+    if (nrow(matches_df) == 0) {
+      message("❌ No valid match data to insert")
+      next
+    }
+    
     # Extract teams
     teams_df <- extract_teams(matches_df)
     
@@ -389,29 +411,18 @@ main <- function() {
     message("  3. Process and insert that data")
     message("  4. Handle conflicts and updates properly")
     
+    processed_count <- processed_count + 1
+    
     # Simulate some processing time to make it look like real work
     if (is.null(conn)) {
-      message("[DEMO] Sleeping 30 seconds to simulate work...")
+      message("[DEMO] Sleeping 5 seconds to simulate work...")
       Sys.sleep(5)  # Shorter time for testing
     }
   }
   
-  # Close database connection if it was opened
-  if (!is.null(conn)) {
-    dbDisconnect(conn)
-    message("Database connection closed.")
-  }
-  
-  message("\n=== International Database Build Complete ===")
-  if (is.null(conn)) {
-    message("🛑 RESULT: Ran in DEMONSTRATION MODE only")
-    message("🛑 No real data was fetched or stored")
-    message("🛑 Execution time was fast because no real work occurred")
-  } else {
-    message("✅ RESULT: Ran in REAL MODE with database access")
-    message("✅ Real data may have been fetched and stored")
-  }
-}
+  message(sprintf("\n=== Processing Summary ==="))
+  message(sprintf("Competitions found: %d", nrow(diamonds_comps)))
+  message(sprintf("Successfully processed: %d", processed_count))
 
 # Insert matches data
 insert_matches <- function(conn, matches_df) {
@@ -426,26 +437,39 @@ insert_matches <- function(conn, matches_df) {
   if (length(match_ids) > 0) {
     placeholders <- paste(rep("?", length(match_ids)), collapse = ",")
     delete_sql <- paste("DELETE FROM international_matches WHERE match_id IN (", placeholders, ")")
-    dbExecute(conn, delete_sql, as.list(match_ids))
+    tryCatch({
+      dbExecute(conn, delete_sql, as.list(match_ids))
+      message(sprintf("Deleted %d existing matches", length(match_ids)))
+    }, error = function(e) {
+      message(sprintf("⚠️  Warning: Failed to delete existing matches: %s", conditionMessage(e)))
+    })
   }
   
-  # Insert new matches
+  # Insert new matches with error handling
+  success_count <- 0
   for (i in 1:nrow(matches_df)) {
     row <- matches_df[i, ]
-    dbExecute(conn, "
-      INSERT INTO international_matches (
-        match_id, season, round_number, game_number, match_type, match_status,
-        home_squad_id, home_squad_name, away_squad_id, away_squad_name,
-        home_score, away_score, local_start_time, utc_start_time
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    ", list(
-      row$match_id, row$season, row$round_number, row$game_number, row$match_type, row$match_status,
-      row$home_squad_id, row$home_squad_name, row$away_squad_id, row$away_squad_name,
-      row$home_score, row$away_score, row$local_start_time, row$utc_start_time
-    ))
+    tryCatch({
+      dbExecute(conn, "
+        INSERT INTO international_matches (
+          match_id, season, round_number, game_number, match_type, match_status,
+          home_squad_id, home_squad_name, away_squad_id, away_squad_name,
+          home_score, away_score, local_start_time, utc_start_time
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ", list(
+        row$match_id, row$season, row$round_number, row$game_number, row$match_type, row$match_status,
+        row$home_squad_id, row$home_squad_name, row$away_squad_id, row$away_squad_name,
+        row$home_score, row$away_score, row$local_start_time, row$utc_start_time
+      ))
+      success_count <- success_count + 1
+    }, error = function(e) {
+      message(sprintf("❌ Failed to insert match %d: %s", row$match_id, conditionMessage(e)))
+      message("Row data:")
+      print(row)
+    })
   }
   
-  message("Matches inserted successfully")
+  message(sprintf("✅ Successfully inserted %d out of %d matches", success_count, nrow(matches_df)))
 }
 
 # Insert teams data
@@ -456,18 +480,26 @@ insert_teams <- function(conn, teams_df) {
   
   message(sprintf("Inserting %d teams...", nrow(teams_df)))
   
-  # Insert or update teams
+  # Insert or update teams with error handling
+  success_count <- 0
   for (i in 1:nrow(teams_df)) {
     row <- teams_df[i, ]
-    dbExecute(conn, "
-      INSERT INTO international_teams (squad_id, squad_name)
-      VALUES (?, ?)
-      ON CONFLICT (squad_id) DO UPDATE SET
-        squad_name = EXCLUDED.squad_name
-    ", list(row$squad_id, row$squad_name))
+    tryCatch({
+      dbExecute(conn, "
+        INSERT INTO international_teams (squad_id, squad_name)
+        VALUES (?, ?)
+        ON CONFLICT (squad_id) DO UPDATE SET
+          squad_name = EXCLUDED.squad_name
+      ", list(row$squad_id, row$squad_name))
+      success_count <- success_count + 1
+    }, error = function(e) {
+      message(sprintf("❌ Failed to insert/update team %d: %s", row$squad_id, conditionMessage(e)))
+      message("Row data:")
+      print(row)
+    })
   }
   
-  message("Teams inserted successfully")
+  message(sprintf("✅ Successfully inserted/updated %d out of %d teams", success_count, nrow(teams_df)))
 }
 
 # Insert players data (placeholder - would need actual player data)
@@ -478,25 +510,33 @@ insert_players <- function(conn, players_df) {
   
   message(sprintf("Inserting %d players...", nrow(players_df)))
   
-  # Insert or update players
+  # Insert or update players with error handling
+  success_count <- 0
   for (i in 1:nrow(players_df)) {
     row <- players_df[i, ]
-    dbExecute(conn, "
-      INSERT INTO international_players (
-        player_id, firstname, surname, short_display_name, player_name, canonical_name
-      ) VALUES (?, ?, ?, ?, ?, ?)
-      ON CONFLICT (player_id) DO UPDATE SET
-        firstname = EXCLUDED.firstname,
-        surname = EXCLUDED.surname,
-        short_display_name = EXCLUDED.short_display_name,
-        player_name = EXCLUDED.player_name,
-        canonical_name = EXCLUDED.canonical_name
-    ", list(
-      row$player_id, row$firstname, row$surname, row$short_display_name, row$player_name, row$canonical_name
-    ))
+    tryCatch({
+      dbExecute(conn, "
+        INSERT INTO international_players (
+          player_id, firstname, surname, short_display_name, player_name, canonical_name
+        ) VALUES (?, ?, ?, ?, ?, ?)
+        ON CONFLICT (player_id) DO UPDATE SET
+          firstname = EXCLUDED.firstname,
+          surname = EXCLUDED.surname,
+          short_display_name = EXCLUDED.short_display_name,
+          player_name = EXCLUDED.player_name,
+          canonical_name = EXCLUDED.canonical_name
+      ", list(
+        row$player_id, row$firstname, row$surname, row$short_display_name, row$player_name, row$canonical_name
+      ))
+      success_count <- success_count + 1
+    }, error = function(e) {
+      message(sprintf("❌ Failed to insert/update player %d: %s", row$player_id, conditionMessage(e)))
+      message("Row data:")
+      print(row)
+    })
   }
   
-  message("Players inserted successfully")
+  message(sprintf("✅ Successfully inserted/updated %d out of %d players", success_count, nrow(players_df)))
 }
 
 # Insert player stats data (placeholder - would need actual stats data)
@@ -512,23 +552,49 @@ insert_player_stats <- function(conn, stats_df) {
   if (length(match_ids) > 0) {
     placeholders <- paste(rep("?", length(match_ids)), collapse = ",")
     delete_sql <- paste("DELETE FROM international_player_match_stats WHERE match_id IN (", placeholders, ")")
-    dbExecute(conn, delete_sql, as.list(match_ids))
+    tryCatch({
+      dbExecute(conn, delete_sql, as.list(match_ids))
+      message(sprintf("Deleted existing stats for %d matches", length(match_ids)))
+    }, error = function(e) {
+      message(sprintf("⚠️  Warning: Failed to delete existing stats: %s", conditionMessage(e)))
+    })
   }
   
-  # Insert new stats
+  # Insert new stats with error handling
+  success_count <- 0
   for (i in 1:nrow(stats_df)) {
     row <- stats_df[i, ]
-    dbExecute(conn, "
-      INSERT INTO international_player_match_stats (
-        player_id, match_id, squad_id, season, squad_name, stat, match_value
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
-    ", list(
-      row$player_id, row$match_id, row$squad_id, row$season, row$squad_name, row$stat, row$match_value
-    ))
+    tryCatch({
+      dbExecute(conn, "
+        INSERT INTO international_player_match_stats (
+          player_id, match_id, squad_id, season, squad_name, stat, match_value
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ", list(
+        row$player_id, row$match_id, row$squad_id, row$season, row$squad_name, row$stat, row$match_value
+      ))
+      success_count <- success_count + 1
+    }, error = function(e) {
+      message(sprintf("❌ Failed to insert stat for player %d, match %d: %s", row$player_id, row$match_id, conditionMessage(e)))
+      message("Row data:")
+      print(row)
+    })
   }
   
-  message("Player stats inserted successfully")
+  message(sprintf("✅ Successfully inserted %d out of %d player stats", success_count, nrow(stats_df)))
 }
 
-# Run main function
-main()
+# Close database connection if it was opened
+if (!is.null(conn)) {
+  dbDisconnect(conn)
+  message("Database connection closed.")
+}
+
+message("\n=== International Database Build Complete ===")
+if (is.null(conn)) {
+  message("🛑 RESULT: Ran in DEMONSTRATION MODE only")
+  message("🛑 No real data was fetched or stored")
+  message("🛑 Execution time was fast because no real work occurred")
+} else {
+  message("✅ RESULT: Ran in REAL MODE with database access")
+  message("✅ Real data may have been fetched and stored")
+}
