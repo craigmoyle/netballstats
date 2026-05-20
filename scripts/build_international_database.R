@@ -373,8 +373,8 @@ insert_matches <- function(conn, matches_df) {
   # Delete existing matches for these match_ids to avoid duplicates
   match_ids <- matches_df$match_id
   if (length(match_ids) > 0) {
-    placeholders <- paste(rep("?", length(match_ids)), collapse = ",")
-    delete_sql <- paste("DELETE FROM international_matches WHERE match_id IN (", placeholders, ")")
+    param_placeholders <- paste(paste0("$", seq_along(match_ids)), collapse = ",")
+    delete_sql <- paste("DELETE FROM international_matches WHERE match_id IN (", param_placeholders, ")")
     tryCatch({
       dbExecute(conn, delete_sql, as.list(match_ids))
       message(sprintf("Deleted %d existing matches", length(match_ids)))
@@ -393,7 +393,7 @@ insert_matches <- function(conn, matches_df) {
           match_id, season, round_number, game_number, match_type, match_status,
           home_squad_id, home_squad_name, away_squad_id, away_squad_name,
           home_score, away_score, local_start_time, utc_start_time
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
       ", list(
         row$match_id, row$season, row$round_number, row$game_number, row$match_type, row$match_status,
         row$home_squad_id, row$home_squad_name, row$away_squad_id, row$away_squad_name,
@@ -425,7 +425,7 @@ insert_teams <- function(conn, teams_df) {
     tryCatch({
       dbExecute(conn, "
         INSERT INTO international_teams (squad_id, squad_name)
-        VALUES (?, ?)
+        VALUES ($1, $2)
         ON CONFLICT (squad_id) DO UPDATE SET
           squad_name = EXCLUDED.squad_name
       ", list(row$squad_id, row$squad_name))
@@ -456,7 +456,7 @@ insert_players <- function(conn, players_df) {
       dbExecute(conn, "
         INSERT INTO international_players (
           player_id, firstname, surname, short_display_name, player_name, canonical_name
-        ) VALUES (?, ?, ?, ?, ?, ?)
+        ) VALUES ($1, $2, $3, $4, $5, $6)
         ON CONFLICT (player_id) DO UPDATE SET
           firstname = EXCLUDED.firstname,
           surname = EXCLUDED.surname,
@@ -488,8 +488,8 @@ insert_player_stats <- function(conn, stats_df) {
   # Delete existing stats for these match_ids to avoid duplicates
   match_ids <- unique(stats_df$match_id)
   if (length(match_ids) > 0) {
-    placeholders <- paste(rep("?", length(match_ids)), collapse = ",")
-    delete_sql <- paste("DELETE FROM international_player_match_stats WHERE match_id IN (", placeholders, ")")
+    param_placeholders <- paste(paste0("$", seq_along(match_ids)), collapse = ",")
+    delete_sql <- paste("DELETE FROM international_player_match_stats WHERE match_id IN (", param_placeholders, ")")
     tryCatch({
       dbExecute(conn, delete_sql, as.list(match_ids))
       message(sprintf("Deleted existing stats for %d matches", length(match_ids)))
@@ -506,7 +506,7 @@ insert_player_stats <- function(conn, stats_df) {
       dbExecute(conn, "
         INSERT INTO international_player_match_stats (
           player_id, match_id, squad_id, season, squad_name, stat, match_value
-        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       ", list(
         row$player_id, row$match_id, row$squad_id, row$season, row$squad_name, row$stat, row$match_value
       ))
