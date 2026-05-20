@@ -119,18 +119,23 @@ get_diamonds_competitions <- function() {
     return(data.frame())
   })
   
-  diamonds_competitions <- subset(competitions_data, grepl("Diamonds", competition_name, ignore.case = TRUE))
+  diamonds_competitions <- subset(competitions_data, grepl("Diamonds|Australia|International", competition_name, ignore.case = TRUE))
   
   if (nrow(diamonds_competitions) > 0) {
-    message(sprintf("✅ Found %d Australian Diamonds competitions", nrow(diamonds_competitions)))
+    message(sprintf("✅ Found %d Australian/Diamonds competitions", nrow(diamonds_competitions)))
+    # Remove squad_id column for cleaner display
+    display_comps <- diamonds_competitions %>% select(comp_id, competition_name, season, competition_type)
+    message("Competition list:")
+    print(display_comps)
     diamonds_competitions$competition_id <- as.integer(diamonds_competitions$comp_id)
     return(diamonds_competitions)
   } else {
-    message("❌ No Australian Diamonds competitions found.")
-    if (nrow(competitions_data) > 0) {
-      message("Available competitions from netballR:")
-      print(head(competitions_data[, c("comp_id", "competition_name", "year")], 10))
-    }
+    message("❌ No Australian/Diamonds competitions found.")
+    message("All competitions from netballR:")
+    all_comps_display <- competitions_data %>% 
+      select(comp_id, competition_name, season, competition_type) %>%
+      head(20)
+    print(all_comps_display)
     return(data.frame())
   }
 }
@@ -326,14 +331,14 @@ main <- function() {
   
   message(sprintf("Found %d Australian Diamonds competitions to process", nrow(diamonds_comps)))
   message("🔍 Competition list:")
-  print(diamonds_comps[, c("competition_id", "competition_name", "year")])
+  print(diamonds_comps[, c("comp_id", "competition_name", "season")])
   
   # Save to config file if it doesn't exist or is empty
   if (!file.exists(config_path) || file.size(config_path) == 0) {
     message(sprintf("Creating config file: %s", config_path))
     # Extract competition IDs and save
     config_data <- diamonds_comps %>%
-      select(competition_id) %>%
+      select(competition_id = comp_id) %>%
       mutate(
         season = as.integer(format(Sys.Date(), "%Y")),
         phase = "regular"
