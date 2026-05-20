@@ -2397,7 +2397,7 @@ function(type = "player", stat = "points", seasons = "", limit = "12", res) {
     }
     
     limit <- parse_limit(limit, default = 12L, maximum = 100L)
-    parsed_seasons <- parse_season_list(seasons)
+    parsed_seasons <- parse_season_filter("", seasons)
     stat <- trimws(stat)
     
     if (!nzchar(stat)) {
