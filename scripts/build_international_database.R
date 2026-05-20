@@ -1,6 +1,6 @@
 #!/usr/bin/env Rscript
 
-message("=== INTERNATIONAL NETBALL DATABASE BUILD DEBUG MODE ===")
+message("=== INTERNATIONAL NETBALL DATABASE BUILD ===")
 message(sprintf("Timestamp: %s", Sys.time()))
 message(sprintf("Process ID: %s", Sys.getpid()))
 message(sprintf("Working directory: %s", getwd()))
@@ -362,145 +362,6 @@ create_international_tables <- function(conn) {
   message("International tables created successfully")
 }
 
-# Main execution
-main <- function() {
-  message("=== Starting International Database Build Process ===")
-  
-  # Show environment for debugging
-  message(sprintf("Database host: %s", Sys.getenv("NETBALL_STATS_DB_HOST", "<not set>")))
-  message(sprintf("Database name: %s", Sys.getenv("NETBALL_STATS_DB_NAME", "<not set>")))
-  message(sprintf("Database user: %s", Sys.getenv("NETBALL_STATS_DB_USER", "<not set>")))
-  message(sprintf("API user: %s", Sys.getenv("NETBALL_STATS_API_DB_USERNAME", "<not set>")))
-  message(sprintf("Sample mode: %s", ifelse(sample_mode, "YES", "NO")))
-  
-  message("Connecting to database...")
-  
-  # Try to connect to database
-  conn <- tryCatch({
-    connect_db()
-  }, error = function(e) {
-    message(sprintf("Could not connect to database: %s", conditionMessage(e)))
-    message("Proceeding in demonstration mode.")
-    NULL
-  })
-  
-  # Log connection status
-  if (is.null(conn)) {
-    message("⚠️  Database connection: NONE (running in demo mode)")
-    message("🛑 DEMO MODE: No real database operations will occur")
-  } else {
-    message("✅ Database connection: ESTABLISHED")
-    message("🟢 REAL MODE: Will attempt real database operations")
-  }
-  
-  # Discover competitions
-  diamonds_comps <- get_diamonds_competitions()
-  
-  if (nrow(diamonds_comps) == 0) {
-    message("❌ FATAL: No competitions to process. Script ending early.")
-    return(invisible(0))
-  }
-  
-  message(sprintf("Found %d Australian Diamonds competitions to process", nrow(diamonds_comps)))
-  message("🔍 Competition list:")
-  print(diamonds_comps[, c("comp_id", "competition_name", "season")])
-  
-  # Save to config file if it doesn't exist or is empty
-  if (!file.exists(config_path) || file.size(config_path) == 0) {
-    message(sprintf("Creating config file: %s", config_path))
-    # Extract competition IDs and save
-    config_data <- diamonds_comps %>%
-      select(competition_id = comp_id) %>%
-      mutate(
-        season = as.integer(format(Sys.Date(), "%Y")),
-        phase = "regular"
-      ) %>%
-      select(season, phase, competition_id)
-    
-    write.csv(config_data, config_path, row.names = FALSE)
-    message(sprintf("Config file created with %d competitions", nrow(config_data)))
-  }
-  
-  # Create international tables
-  create_international_tables(conn)
-  
-  # Process each competition (limiting to 3 for demo)
-  processed_count <- 0
-  for (i in 1:min(3, nrow(diamonds_comps))) {
-    comp_id <- diamonds_comps$competition_id[i]
-    comp_name <- diamonds_comps$competition_name[i]
-    message(sprintf("\n--- Processing competition %d of %d: %s (%s) ---", 
-      i, min(3, nrow(diamonds_comps)), comp_name, comp_id))
-    
-    # Download fixture
-    message("Downloading fixture...")
-    fixture <- tryCatch({
-      message(sprintf("🔄 Calling netballR::downloadFixture(%s)...", comp_id))
-      result <- netballR::downloadFixture(comp_id)
-      message(sprintf("✅ Download completed: %d matches returned", nrow(result)))
-      
-      # Log sample of data for verification
-      if (nrow(result) > 0) {
-        message("Sample data columns:")
-        print(names(result))
-        message("First few rows:")
-        print(head(result[, c("matchId", "homeSquadName", "awaySquadName")], min(3, nrow(result))))
-      }
-      
-      result
-    }, error = function(e) {
-      message(sprintf("❌ Error downloading fixture: %s", conditionMessage(e)))
-      NULL
-    })
-    
-    if (is.null(fixture) || nrow(fixture) == 0) {
-      message("No fixture data available for this competition")
-      next
-    }
-    
-    message(sprintf("Fixture contains %d matches", nrow(fixture)))
-    
-    # Process match data
-    matches_df <- process_match_data(fixture)
-    
-    if (nrow(matches_df) == 0) {
-      message("❌ No valid match data to insert")
-      next
-    }
-    
-    # Extract teams
-    teams_df <- extract_teams(matches_df)
-    
-    # Insert matches data
-    if (!is.null(conn) && nrow(matches_df) > 0) {
-      insert_matches(conn, matches_df)
-    }
-    
-    # Insert teams data
-    if (!is.null(conn) && nrow(teams_df) > 0) {
-      insert_teams(conn, teams_df)
-    }
-    
-    # For demonstration, let's also show we could fetch player data
-    message("\n[DEMO] In a full implementation, we'd now:")
-    message("  1. Download squad lists for each match")
-    message("  2. Download player stats for each match")
-    message("  3. Process and insert that data")
-    message("  4. Handle conflicts and updates properly")
-    
-    processed_count <- processed_count + 1
-    
-    # Simulate some processing time to make it look like real work
-    if (is.null(conn)) {
-      message("[DEMO] Sleeping 5 seconds to simulate work...")
-      Sys.sleep(5)  # Shorter time for testing
-    }
-  }
-  
-  message(sprintf("\n=== Processing Summary ==="))
-  message(sprintf("Competitions found: %d", nrow(diamonds_comps)))
-  message(sprintf("Successfully processed: %d", processed_count))
-
 # Insert matches data
 insert_matches <- function(conn, matches_df) {
   if (is.null(conn) || nrow(matches_df) == 0) {
@@ -660,21 +521,160 @@ insert_player_stats <- function(conn, stats_df) {
   message(sprintf("✅ Successfully inserted %d out of %d player stats", success_count, nrow(stats_df)))
 }
 
-# Close database connection if it was opened
-if (!is.null(conn)) {
-  dbDisconnect(conn)
-  message("Database connection closed.")
-}
+# Main execution
+main <- function() {
+  message("=== Starting International Database Build Process ===")
+  
+  # Show environment for debugging
+  message(sprintf("Database host: %s", Sys.getenv("NETBALL_STATS_DB_HOST", "<not set>")))
+  message(sprintf("Database name: %s", Sys.getenv("NETBALL_STATS_DB_NAME", "<not set>")))
+  message(sprintf("Database user: %s", Sys.getenv("NETBALL_STATS_DB_USER", "<not set>")))
+  message(sprintf("API user: %s", Sys.getenv("NETBALL_STATS_API_DB_USERNAME", "<not set>")))
+  message(sprintf("Sample mode: %s", ifelse(sample_mode, "YES", "NO")))
+  
+  message("Connecting to database...")
+  
+  # Try to connect to database
+  conn <- tryCatch({
+    connect_db()
+  }, error = function(e) {
+    message(sprintf("Could not connect to database: %s", conditionMessage(e)))
+    message("Proceeding in demonstration mode.")
+    NULL
+  })
+  
+  # Log connection status
+  if (is.null(conn)) {
+    message("⚠️  Database connection: NONE (running in demo mode)")
+    message("🛑 DEMO MODE: No real database operations will occur")
+  } else {
+    message("✅ Database connection: ESTABLISHED")
+    message("🟢 REAL MODE: Will attempt real database operations")
+  }
+  
+  # Discover competitions
+  diamonds_comps <- get_diamonds_competitions()
+  
+  if (nrow(diamonds_comps) == 0) {
+    message("❌ FATAL: No competitions to process. Script ending early.")
+    return(invisible(0))
+  }
+  
+  message(sprintf("Found %d Australian Diamonds competitions to process", nrow(diamonds_comps)))
+  message("🔍 Competition list:")
+  print(diamonds_comps[, c("comp_id", "competition_name", "season")])
+  
+  # Save to config file if it doesn't exist or is empty
+  if (!file.exists(config_path) || file.size(config_path) == 0) {
+    message(sprintf("Creating config file: %s", config_path))
+    # Extract competition IDs and save
+    config_data <- diamonds_comps %>%
+      select(competition_id = comp_id) %>%
+      mutate(
+        season = as.integer(format(Sys.Date(), "%Y")),
+        phase = "regular"
+      ) %>%
+      select(season, phase, competition_id)
+    
+    write.csv(config_data, config_path, row.names = FALSE)
+    message(sprintf("Config file created with %d competitions", nrow(config_data)))
+  }
+  
+  # Create international tables
+  create_international_tables(conn)
+  
+  # Process each competition (limiting to 3 for demo)
+  processed_count <- 0
+  for (i in 1:min(3, nrow(diamonds_comps))) {
+    comp_id <- diamonds_comps$competition_id[i]
+    comp_name <- diamonds_comps$competition_name[i]
+    message(sprintf("\n--- Processing competition %d of %d: %s (%s) ---", 
+      i, min(3, nrow(diamonds_comps)), comp_name, comp_id))
+    
+    # Download fixture
+    message("Downloading fixture...")
+    fixture <- tryCatch({
+      message(sprintf("🔄 Calling netballR::downloadFixture(%s)...", comp_id))
+      result <- netballR::downloadFixture(comp_id)
+      message(sprintf("✅ Download completed: %d matches returned", nrow(result)))
+      
+      # Log sample of data for verification
+      if (nrow(result) > 0) {
+        message("Sample data columns:")
+        print(names(result))
+        message("First few rows:")
+        print(head(result[, c("matchId", "homeSquadName", "awaySquadName")], min(3, nrow(result))))
+      }
+      
+      result
+    }, error = function(e) {
+      message(sprintf("❌ Error downloading fixture: %s", conditionMessage(e)))
+      NULL
+    })
+    
+    if (is.null(fixture) || nrow(fixture) == 0) {
+      message("No fixture data available for this competition")
+      next
+    }
+    
+    message(sprintf("Fixture contains %d matches", nrow(fixture)))
+    
+    # Process match data
+    matches_df <- process_match_data(fixture)
+    
+    if (nrow(matches_df) == 0) {
+      message("❌ No valid match data to insert")
+      next
+    }
+    
+    # Extract teams
+    teams_df <- extract_teams(matches_df)
+    
+    # Insert matches data
+    if (!is.null(conn) && nrow(matches_df) > 0) {
+      insert_matches(conn, matches_df)
+    }
+    
+    # Insert teams data
+    if (!is.null(conn) && nrow(teams_df) > 0) {
+      insert_teams(conn, teams_df)
+    }
+    
+    # For demonstration, let's also show we could fetch player data
+    message("\n[DEMO] In a full implementation, we'd now:")
+    message("  1. Download squad lists for each match")
+    message("  2. Download player stats for each match")
+    message("  3. Process and insert that data")
+    message("  4. Handle conflicts and updates properly")
+    
+    processed_count <- processed_count + 1
+    
+    # Simulate some processing time to make it look like real work
+    if (is.null(conn)) {
+      message("[DEMO] Sleeping 5 seconds to simulate work...")
+      Sys.sleep(5)  # Shorter time for testing
+    }
+  }
+  
+  message(sprintf("\n=== Processing Summary ==="))
+  message(sprintf("Competitions found: %d", nrow(diamonds_comps)))
+  message(sprintf("Successfully processed: %d", processed_count))
+  
+  # Close database connection if it was opened
+  if (!is.null(conn)) {
+    dbDisconnect(conn)
+    message("Database connection closed.")
+  }
 
-message("\n=== International Database Build Complete ===")
-if (is.null(conn)) {
-  message("🛑 RESULT: Ran in DEMONSTRATION MODE only")
-  message("🛑 No real data was fetched or stored")
-  message("🛑 Execution time was fast because no real work occurred")
-} else {
-  message("✅ RESULT: Ran in REAL MODE with database access")
-  message("✅ Real data may have been fetched and stored")
-}
+  message("\n=== International Database Build Complete ===")
+  if (is.null(conn)) {
+    message("🛑 RESULT: Ran in DEMONSTRATION MODE only")
+    message("🛑 No real data was fetched or stored")
+    message("🛑 Execution time was fast because no real work occurred")
+  } else {
+    message("✅ RESULT: Ran in REAL MODE with database access")
+    message("✅ Real data may have been fetched and stored")
+  }
 }
 
 # Run main function
