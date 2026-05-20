@@ -174,72 +174,82 @@ fetch_international_team_by_id <- function(conn, squad_id) {
 
 # Fetch international player leaders
 fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = NULL, stat = "points", search = "", limit = 12L) {
-  seasons_filter <- if (!is.null(seasons) && length(seasons)) as.integer(seasons) else NULL
-  stats_table <- if (has_international_player_match_stats(conn)) "international_player_match_stats" else "international_player_period_stats"
-  value_col   <- if (identical(stats_table, "international_player_match_stats")) "match_value" else "value_number"
-  
-  filters <- build_query_filters(
-    "stats",
-    seasons = seasons_filter,
-    team_id = team_id,
-    stat = stat,
-    search = search,
-    search_fields = c("player_name")
-  )
-  
-  filters$query <- paste(
-    "SELECT p.player_id, p.player_name, t.squad_id, t.squad_name,",
-    "  SUM(stats.", value_col, ") AS total_value,",
+  if (!has_international_player_match_stats(conn)) {
+    return(data.frame())
+  }
+
+  base_query <- paste(
+    "SELECT p.player_id, p.player_name, stats.squad_id,",
+    "  COALESCE(t.squad_name, stats.squad_name) AS squad_name,",
+    "  SUM(stats.match_value) AS total_value,",
     "  COUNT(stats.match_id) AS match_count,",
-    "  AVG(stats.", value_col, ") AS average_value",
-    "FROM ", stats_table, " stats",
+    "  AVG(stats.match_value) AS average_value",
+    "FROM international_player_match_stats stats",
     "JOIN international_players p ON p.player_id = stats.player_id",
     "LEFT JOIN international_teams t ON t.squad_id = stats.squad_id",
-    filters$query_from,
-    "WHERE stats.stat = ?stat AND stats.", value_col, " IS NOT NULL",
-    filters$query_where,
-    "GROUP BY p.player_id, p.player_name, t.squad_id, t.squad_name",
+    "WHERE stats.stat = ?stat"
+  )
+  params <- list(stat = stat)
+
+  if (!is.null(seasons) && length(seasons)) {
+    result <- append_integer_in_filter(base_query, params, "stats.season", as.integer(seasons), "season")
+    base_query <- result$query
+    params <- result$params
+  }
+
+  if (!is.null(team_id)) {
+    base_query <- paste0(base_query, " AND stats.squad_id = ?team_id")
+    params$team_id <- as.integer(team_id)
+  }
+
+  if (nzchar(search)) {
+    base_query <- paste0(base_query, " AND p.player_name ILIKE ?search")
+    params$search <- paste0("%", search, "%")
+  }
+
+  full_query <- paste(
+    base_query,
+    "GROUP BY p.player_id, p.player_name, stats.squad_id, COALESCE(t.squad_name, stats.squad_name)",
     "ORDER BY total_value DESC",
     "LIMIT ?limit"
   )
-  
-  filters$params$stat <- stat
-  filters$params$limit <- as.integer(limit)
-  
-  query_rows(conn, filters$query, filters$params)
+  params$limit <- as.integer(limit)
+
+  query_rows(conn, full_query, params)
 }
 
 # Fetch international team leaders
 fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "points", limit = 10L) {
-  seasons_filter <- if (!is.null(seasons) && length(seasons)) as.integer(seasons) else NULL
-  stats_table <- if (has_international_team_match_stats(conn)) "international_team_match_stats" else "international_team_period_stats"
-  value_col   <- if (identical(stats_table, "international_team_match_stats")) "match_value" else "value_number"
-  
-  filters <- build_query_filters(
-    "stats",
-    seasons = seasons_filter,
-    stat = stat
-  )
-  
-  filters$query <- paste(
+  if (!has_international_team_match_stats(conn)) {
+    return(data.frame())
+  }
+
+  base_query <- paste(
     "SELECT t.squad_id, t.squad_name,",
-    "  SUM(stats.", value_col, ") AS total_value,",
+    "  SUM(stats.match_value) AS total_value,",
     "  COUNT(stats.match_id) AS match_count,",
-    "  AVG(stats.", value_col, ") AS average_value",
-    "FROM ", stats_table, " stats",
+    "  AVG(stats.match_value) AS average_value",
+    "FROM international_team_match_stats stats",
     "JOIN international_teams t ON t.squad_id = stats.squad_id",
-    filters$query_from,
-    "WHERE stats.stat = ?stat AND stats.", value_col, " IS NOT NULL",
-    filters$query_where,
+    "WHERE stats.stat = ?stat"
+  )
+  params <- list(stat = stat)
+
+  if (!is.null(seasons) && length(seasons)) {
+    result <- append_integer_in_filter(base_query, params, "stats.season", as.integer(seasons), "season")
+    base_query <- result$query
+    params <- result$params
+  }
+
+  full_query <- paste(
+    base_query,
     "GROUP BY t.squad_id, t.squad_name",
     "ORDER BY total_value DESC",
     "LIMIT ?limit"
   )
-  
-  filters$params$stat <- stat
-  filters$params$limit <- as.integer(limit)
-  
-  query_rows(conn, filters$query, filters$params)
+  params$limit <- as.integer(limit)
+
+  query_rows(conn, full_query, params)
 }
 
 # Fetch international match data
