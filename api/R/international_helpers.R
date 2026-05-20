@@ -225,12 +225,13 @@ fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "point
   }
 
   base_query <- paste(
-    "SELECT t.squad_id, t.squad_name,",
+    "SELECT stats.squad_id,",
+    "  COALESCE(t.squad_name, stats.squad_name) AS squad_name,",
     "  SUM(stats.match_value) AS total_value,",
     "  COUNT(DISTINCT stats.match_id) AS match_count,",
     "  SUM(stats.match_value) * 1.0 / NULLIF(COUNT(DISTINCT stats.match_id), 0) AS average_value",
     "FROM international_player_match_stats stats",
-    "JOIN international_teams t ON t.squad_id = stats.squad_id",
+    "LEFT JOIN international_teams t ON t.squad_id = stats.squad_id",
     "WHERE stats.stat = ?stat"
   )
   params <- list(stat = stat)
@@ -243,7 +244,7 @@ fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "point
 
   full_query <- paste(
     base_query,
-    "GROUP BY t.squad_id, t.squad_name",
+    "GROUP BY stats.squad_id, COALESCE(t.squad_name, stats.squad_name)",
     "ORDER BY total_value DESC",
     "LIMIT ?limit"
   )
