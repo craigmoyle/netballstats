@@ -218,18 +218,18 @@ fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = N
   query_rows(conn, full_query, params)
 }
 
-# Fetch international team leaders
+# Fetch international team leaders by aggregating player stats per team
 fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "points", limit = 10L) {
-  if (!has_international_team_match_stats(conn)) {
+  if (!has_international_player_match_stats(conn)) {
     return(data.frame())
   }
 
   base_query <- paste(
     "SELECT t.squad_id, t.squad_name,",
     "  SUM(stats.match_value) AS total_value,",
-    "  COUNT(stats.match_id) AS match_count,",
-    "  AVG(stats.match_value) AS average_value",
-    "FROM international_team_match_stats stats",
+    "  COUNT(DISTINCT stats.match_id) AS match_count,",
+    "  SUM(stats.match_value) * 1.0 / NULLIF(COUNT(DISTINCT stats.match_id), 0) AS average_value",
+    "FROM international_player_match_stats stats",
     "JOIN international_teams t ON t.squad_id = stats.squad_id",
     "WHERE stats.stat = ?stat"
   )
