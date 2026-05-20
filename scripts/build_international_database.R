@@ -99,11 +99,13 @@ connect_db <- function() {
 
 # Get competition IDs for Australian Diamonds
 get_diamonds_competitions <- function() {
-  message("🔍 Discovering Australian Diamonds competitions...")
+  message("🔍 Discovering Australian Diamonds competitions by team participation...")
   
   # Log netballR package info
   if (requireNamespace("netballR", quietly = TRUE)) {
     message("✅ netballR package loaded successfully")
+    desc <- packageDescription("netballR")
+    message(sprintf("netballR version: %s", desc$Version))
   } else {
     message("❌ netballR package NOT FOUND")
     return(data.frame())
@@ -119,22 +121,92 @@ get_diamonds_competitions <- function() {
     return(data.frame())
   })
   
-  diamonds_competitions <- subset(competitions_data, grepl("Diamonds|Australia|International", competition_name, ignore.case = TRUE))
+  if (nrow(competitions_data) == 0) {
+    message("❌ No competitions returned from netballR")
+    return(data.frame())
+  }
+  
+  message(sprintf("Analyzing %d competitions for Diamonds participation...", nrow(competitions_data)))
+  
+  # Filter competitions by checking if Diamonds participate 
+  diamonds_competitions <- data.frame()
+  processed_count <- 0
+  diamonds_found_count <- 0
+  
+  # Prioritize competitions more likely to involve Diamonds
+  # Sort competitions by likelihood of being international/Diamonds-related
+  priority_indices <- c(
+    which(grepl("Diamonds|International|Series|Tour|Test|Friendly", competitions_data$competition_name, ignore.case = TRUE)),
+    which(!grepl("Diamonds|International|Series|Tour|Test|Friendly", competitions_data$competition_name, ignore.case = TRUE))
+  )
+  prioritized_competitions <- competitions_data[priority_indices, ]
+  
+  # Process more competitions to ensure we catch all Diamonds games
+  total_to_check <- min(50, nrow(prioritized_competitions))  # Increase limit
+  
+  for (i in 1:total_to_check) {  
+    comp_row <- prioritized_competitions[i, ]
+    comp_id <- comp_row$comp_id
+    comp_name <- comp_row$competition_name
+    
+    processed_count <- processed_count + 1
+    message(sprintf("  [%d/%d] Checking %s (%s)...", processed_count, total_to_check, comp_name, comp_id))
+    
+    # Skip if it's likely a domestic-only competition
+    if (!grepl("International|Test|Series|Tour|Friendly|vs|v\\s", comp_name, ignore.case = TRUE) &&
+        !grepl("Diamonds|Roses|Silver Ferns|Firebirds|Ferns|Magic|Tactix|Pulse|Steel|Lightning|Swifts|Mavericks|Thunderbirds|Fever|Giants|Vixens", comp_name, ignore.case = TRUE)) {
+      message("    ⏭️  Skipping likely domestic competition")
+      if (processed_count > 20) {  # Stop early if we've gone past priority competitions
+        break
+      }
+      next
+    }
+    
+    # Download fixture to check teams
+    fixture_data <- tryCatch({
+      netballR::downloadFixture(comp_id)
+    }, error = function(e) {
+      message(sprintf("    ❌ Failed to download fixture for %s: %s", comp_id, substr(conditionMessage(e), 1, 50)))
+      return(NULL)
+    })
+    
+    if (is.null(fixture_data) || nrow(fixture_data) == 0) {
+      next
+    }
+    
+    # Check if Diamonds appear in any team names
+    has_diamonds <- any(grepl("Diamonds", c(fixture_data$homeSquadName, fixture_data$awaySquadName), ignore.case = TRUE))
+    
+    if (has_diamonds) {
+      diamonds_found_count <- diamonds_found_count + 1
+      message(sprintf("    ✅ Diamonds found in competition! (%d found so far)", diamonds_found_count))
+      diamonds_competitions <- rbind(diamonds_competitions, comp_row)
+    } else {
+      # Check if this is still worth processing (has strong indicators)
+      if (processed_count > 30 && diamonds_found_count == 0) {
+        message("    ⏹️  Stopping early - no Diamonds found in first 30+ priority competitions")
+        break
+      }
+    }
+  }
   
   if (nrow(diamonds_competitions) > 0) {
-    message(sprintf("✅ Found %d Australian/Diamonds competitions", nrow(diamonds_competitions)))
+    message(sprintf("✅ Found %d competitions featuring Australian Diamonds (checked %d total)", nrow(diamonds_competitions), min(total_to_check, processed_count)))
     # Remove squad_id column for cleaner display
     display_comps <- diamonds_competitions %>% select(comp_id, competition_name, season, competition_type)
-    message("Competition list:")
+    message("Diamonds competitions:")
     print(display_comps)
     diamonds_competitions$competition_id <- as.integer(diamonds_competitions$comp_id)
     return(diamonds_competitions)
   } else {
-    message("❌ No Australian/Diamonds competitions found.")
-    message("All competitions from netballR:")
-    all_comps_display <- competitions_data %>% 
-      select(comp_id, competition_name, season, competition_type) %>%
-      head(20)
+    message(sprintf("❌ No competitions with Australian Diamonds found (processed %d competitions).", processed_count))
+    message("First few competitions checked:")
+    all_comps_display <- if (nrow(prioritized_competitions) > 0) {
+      prioritized_competitions[1:min(10, nrow(prioritized_competitions)), ] %>% 
+        select(comp_id, competition_name, season, competition_type)
+    } else {
+      data.frame()
+    }
     print(all_comps_display)
     return(data.frame())
   }
