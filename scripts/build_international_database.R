@@ -100,8 +100,7 @@ connect_db <- function() {
 # Get competition IDs for Australian Diamonds
 get_diamonds_competitions <- function() {
   message("🔍 Discovering Australian Diamonds competitions by team participation...")
-  
-  # Log netballR package info
+
   if (requireNamespace("netballR", quietly = TRUE)) {
     message("✅ netballR package loaded successfully")
     desc <- packageDescription("netballR")
@@ -110,7 +109,7 @@ get_diamonds_competitions <- function() {
     message("❌ netballR package NOT FOUND")
     return(data.frame())
   }
-  
+
   competitions_data <- tryCatch({
     message("🔄 Calling netballR::listCompetitionsNetballAus()...")
     result <- netballR::listCompetitionsNetballAus()
@@ -120,94 +119,59 @@ get_diamonds_competitions <- function() {
     message(sprintf("❌ Error calling listCompetitionsNetballAus: %s", conditionMessage(e)))
     return(data.frame())
   })
-  
+
   if (nrow(competitions_data) == 0) {
     message("❌ No competitions returned from netballR")
     return(data.frame())
   }
-  
-  message(sprintf("Analyzing %d competitions for Diamonds participation...", nrow(competitions_data)))
-  
-  # Filter competitions by checking if Diamonds participate 
+
+  # Exclude men's and youth competitions — the Diamonds are women's senior team only
+  womens_competitions <- competitions_data %>%
+    dplyr::filter(!grepl("Men's|Mens|U19|U-19|Under.19", competition_name, ignore.case = TRUE))
+
+  message(sprintf("Checking all %d women's competitions for Diamonds participation...", nrow(womens_competitions)))
+
   diamonds_competitions <- data.frame()
-  processed_count <- 0
-  diamonds_found_count <- 0
-  
-  # Prioritize competitions more likely to involve Diamonds
-  # Sort competitions by likelihood of being international/Diamonds-related
-  priority_indices <- c(
-    which(grepl("Diamonds|International|Series|Tour|Test|Friendly", competitions_data$competition_name, ignore.case = TRUE)),
-    which(!grepl("Diamonds|International|Series|Tour|Test|Friendly", competitions_data$competition_name, ignore.case = TRUE))
-  )
-  prioritized_competitions <- competitions_data[priority_indices, ]
-  
-  # Process more competitions to ensure we catch all Diamonds games
-  total_to_check <- min(100, nrow(prioritized_competitions))  # Check more competitions
-  
-  for (i in 1:total_to_check) {  
-    comp_row <- prioritized_competitions[i, ]
-    comp_id <- comp_row$comp_id
+
+  for (i in seq_len(nrow(womens_competitions))) {
+    comp_row <- womens_competitions[i, ]
+    comp_id  <- comp_row$comp_id
     comp_name <- comp_row$competition_name
-    
-    processed_count <- processed_count + 1
-    message(sprintf("  [%d/%d] Checking %s (%s)...", processed_count, total_to_check, comp_name, comp_id))
-    
-    # Skip if it's likely a domestic-only competition
-    if (!grepl("International|Test|Series|Tour|Friendly|vs|v\\s", comp_name, ignore.case = TRUE) &&
-        !grepl("Diamonds|Roses|Silver Ferns|Firebirds|Ferns|Magic|Tactix|Pulse|Steel|Lightning|Swifts|Mavericks|Thunderbirds|Fever|Giants|Vixens", comp_name, ignore.case = TRUE)) {
-      message("    ⏭️  Skipping likely domestic competition")
-      if (processed_count > 20) {  # Stop early if we've gone past priority competitions
-        break
+
+    message(sprintf("  [%d/%d] Checking %s (%s)...", i, nrow(womens_competitions), comp_name, comp_id))
+
+    fixture_data <- tryCatch(
+      netballR::downloadFixture(comp_id),
+      error = function(e) {
+        message(sprintf("    ❌ Failed: %s", substr(conditionMessage(e), 1, 60)))
+        NULL
       }
-      next
-    }
-    
-    # Download fixture to check teams
-    fixture_data <- tryCatch({
-      netballR::downloadFixture(comp_id)
-    }, error = function(e) {
-      message(sprintf("    ❌ Failed to download fixture for %s: %s", comp_id, substr(conditionMessage(e), 1, 50)))
-      return(NULL)
-    })
-    
+    )
+
     if (is.null(fixture_data) || nrow(fixture_data) == 0) {
+      message("    ⏭️  No fixture data")
       next
     }
-    
-    # Check if Diamonds appear in any team names
+
     has_diamonds <- any(grepl("Diamonds", c(fixture_data$homeSquadName, fixture_data$awaySquadName), ignore.case = TRUE))
-    
+
     if (has_diamonds) {
-      diamonds_found_count <- diamonds_found_count + 1
-      message(sprintf("    ✅ Diamonds found in competition! (%d found so far)", diamonds_found_count))
+      message(sprintf("    ✅ Diamonds found! (%d total so far)", nrow(diamonds_competitions) + 1L))
       diamonds_competitions <- rbind(diamonds_competitions, comp_row)
     } else {
-      # Check if this is still worth processing (has strong indicators)
-      if (processed_count > 60 && diamonds_found_count == 0) {
-        message("    ⏹️  Stopping early - no Diamonds found in first 60+ priority competitions")
-        break
-      }
+      message(sprintf("    — No Diamonds (teams: %s)",
+        paste(unique(c(fixture_data$homeSquadName, fixture_data$awaySquadName)), collapse = ", ")))
     }
   }
-  
+
   if (nrow(diamonds_competitions) > 0) {
-    message(sprintf("✅ Found %d competitions featuring Australian Diamonds (checked %d total)", nrow(diamonds_competitions), min(total_to_check, processed_count)))
-    # Remove squad_id column for cleaner display
-    display_comps <- diamonds_competitions %>% select(comp_id, competition_name, season, competition_type)
+    message(sprintf("✅ Found %d competitions featuring Australian Diamonds (checked %d)", nrow(diamonds_competitions), nrow(womens_competitions)))
     message("Diamonds competitions:")
-    print(display_comps)
+    print(diamonds_competitions %>% dplyr::select(comp_id, competition_name))
     diamonds_competitions$competition_id <- as.integer(diamonds_competitions$comp_id)
     return(diamonds_competitions)
   } else {
-    message(sprintf("❌ No competitions with Australian Diamonds found (processed %d competitions).", processed_count))
-    message("First few competitions checked:")
-    all_comps_display <- if (nrow(prioritized_competitions) > 0) {
-      prioritized_competitions[1:min(10, nrow(prioritized_competitions)), ] %>% 
-        select(comp_id, competition_name, season, competition_type)
-    } else {
-      data.frame()
-    }
-    print(all_comps_display)
+    message(sprintf("❌ No Diamonds competitions found after checking %d competitions.", nrow(womens_competitions)))
     return(data.frame())
   }
 }
