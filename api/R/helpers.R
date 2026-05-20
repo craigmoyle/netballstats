@@ -203,6 +203,11 @@ get_db_conn <- function() {
   .persistent_conn
 }
 
+json_success <- function(res, data) {
+  res$status <- 200L
+  data
+}
+
 json_error <- function(res, status, message) {
   res$status <- status
   list(error = message)
