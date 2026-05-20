@@ -247,9 +247,8 @@ fetch_international_match_by_id <- function(conn, match_id) {
   query_rows(
     conn,
     paste(
-      "SELECT match_id, season, competition_id, competition_phase,",
-      "  round_number, game_number, match_type, match_status,",
-      "  venue_name, local_start_time, utc_start_time,",
+      "SELECT match_id, season, round_number, game_number,",
+      "  match_type, match_status, local_start_time, utc_start_time,",
       "  home_squad_id, home_squad_name, away_squad_id, away_squad_name,",
       "  home_score, away_score",
       "FROM international_matches",
@@ -266,7 +265,7 @@ fetch_international_matches_by_season <- function(conn, season, limit = 100L) {
     conn,
     paste(
       "SELECT match_id, season, round_number, game_number,",
-      "  local_start_time, utc_start_time, venue_name,",
+      "  local_start_time, utc_start_time,",
       "  home_squad_id, home_squad_name, away_squad_id, away_squad_name,",
       "  home_score, away_score, match_status",
       "FROM international_matches",

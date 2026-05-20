@@ -2456,7 +2456,7 @@ function(season = "", limit = "100", res) {
     limit <- parse_limit(limit, default = 100L, maximum = 1000L)
     
     if (nzchar(season)) {
-      season <- parse_int(season, "season", minimum = 2000L, maximum = 2030L)
+      season <- parse_optional_int(season, "season", minimum = 2000L, maximum = 2030L)
       matches <- fetch_international_matches_by_season(conn, season, limit = limit)
     } else {
       # Use most recent season with data rather than current calendar year,
