@@ -16,7 +16,7 @@ This file captures the repo-specific context, decisions, and operating guidance 
 - Frontend: static HTML and vanilla JS, built into `dist/` and deployed to Azure Static Web Apps.
 - API: read-only R Plumber service in `api/plumber.R`, deployed to Azure Container Apps.
 - Database: Azure Database for PostgreSQL Flexible Server.
-- Data refresh: scheduled Azure Container Apps jobs rebuild the database from Champion Data via `superNetballR`.
+- Data refresh: scheduled Azure Container Apps jobs rebuild the database from Champion Data via `superNetballR` and `netballR`.
 - Infra and deploy: `azure.yaml` plus Bicep under `infra/`.
 
 ## Operating model decisions
@@ -148,6 +148,11 @@ This file captures the repo-specific context, decisions, and operating guidance 
 - `api/plumber.R`: API entry point and telemetry forwarding endpoint
 - `api/R/helpers.R`: query parsing, validation, and response helpers
 - `scripts/test_api_regression.R`: endpoint smoke/regression coverage
+- **International additions**:
+  - `api/R/international_helpers.R`: international data query and validation functions
+  - `international/`: dedicated international frontend pages and assets
+  - `scripts/build_international_database.R`: international data pipeline implementation
+
 - `scripts/usage-telemetry.kql`: starter usage and product analytics queries
 - `azure.yaml` and `infra/`: Azure deployment definitions
 - `Dockerfile.azure`: Azure runtime image for the API
@@ -179,3 +184,39 @@ This file captures the repo-specific context, decisions, and operating guidance 
 - The `_headers` file duplicates `staticwebapp.config.json` and may contain stale CSP origins (e.g. Render API).
 - `buildUrl()` and `fetchJson()` should be used from the shared `window.NetballStatsUI` module, not redefined per page script.
 - The Saturday DB refresh job (`dbRefreshJobSat`) should have explicit `resources` (cpu/memory) matching the Sunday job.
+The Saturday DB refresh job (`dbRefreshJobSat`) should have explicit `resources` (cpu/memory) matching the Sunday job.
+
+## International Data Integration
+
+The netballstats system now includes a complete international data integration for Australian Diamonds matches alongside the existing Super Netball data.
+
+### Architecture Overview
+
+- **Separate Tables**: International data is stored in dedicated `international_*` tables to maintain clear separation from Super Netball data
+- **Dedicated API Endpoints**: Separate `/api/international/*` endpoints handle international data queries
+- **Independent Data Pipeline**: Dedicated Azure Container App jobs manage international data refresh on Tuesday and Friday schedules
+- **Unified Interface**: International data is presented through dedicated UI sections while maintaining consistent design language
+
+### Data Sources
+
+- **Primary Package**: `netballR` R package for accessing Champion Data international netball fixtures and results
+- **Competition Discovery**: Dynamic identification of Australian Diamonds competitions by analyzing fixture team participation
+- **Data Scope**: Match data, team information, and framework for player and statistics integration
+
+### Database Structure
+
+- `international_matches`: Complete match fixture and result data
+- `international_teams`: Team information and identifiers  
+- `international_players`: Player roster data (framework implemented)
+- `international_player_match_stats`: Player performance statistics (framework implemented)
+
+### Implementation Patterns
+
+Follow the same validation, parameterization, and error handling patterns used for Super Netball data when extending international functionality.
+
+### API Conventions
+
+- Use dedicated international helper functions in `api/R/international_helpers.R`
+- Maintain consistent response structures with Super Netball endpoints
+- Apply same strict validation and result limiting practices
+- Leverage existing telemetry and error logging mechanisms
