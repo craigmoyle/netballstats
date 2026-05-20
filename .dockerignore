@@ -3,6 +3,15 @@
 .worktrees/
 .DS_Store
 
+# Agent/tool config directories (large, not needed in container)
+.claude/
+.gemini/
+.antigravitycli/
+agents/
+commands/
+contexts/
+rules/
+
 # Frontend build output and sources (not needed in API container)
 dist/
 assets/
