@@ -76,7 +76,6 @@ async function loadRecentMatches() {
         <td data-label="Home">${match.home_squad_name || "—"}</td>
         <td data-label="Away">${match.away_squad_name || "—"}</td>
         <td data-label="Score" class="num">${formatScore(match)}</td>
-        <td data-label="Venue">${match.venue_name || "—"}</td>
       `;
       elements.matchesBody.appendChild(row);
     });

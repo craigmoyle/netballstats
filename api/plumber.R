@@ -2459,13 +2459,7 @@ function(season = "", limit = "100", res) {
       season <- parse_optional_int(season, "season", minimum = 2000L, maximum = 2030L)
       matches <- fetch_international_matches_by_season(conn, season, limit = limit)
     } else {
-      # Use most recent season with data rather than current calendar year,
-      # so the page still shows results between competitions.
-      latest_season <- tryCatch({
-        r <- query_rows(conn, "SELECT MAX(season) AS s FROM international_matches", list())
-        if (nrow(r) && !is.na(r$s[[1]])) as.integer(r$s[[1]]) else as.integer(format(Sys.Date(), "%Y"))
-      }, error = function(e) as.integer(format(Sys.Date(), "%Y")))
-      matches <- fetch_international_matches_by_season(conn, latest_season, limit = limit)
+      matches <- fetch_recent_international_matches(conn, limit = limit)
     }
     
     json_success(res, list(matches = matches))

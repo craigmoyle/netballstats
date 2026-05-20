@@ -277,6 +277,24 @@ fetch_international_matches_by_season <- function(conn, season, limit = 100L) {
   )
 }
 
+# Fetch most recent international matches across all seasons, ordered by date desc
+fetch_recent_international_matches <- function(conn, limit = 20L) {
+  query_rows(
+    conn,
+    paste(
+      "SELECT match_id, season, round_number, game_number,",
+      "  local_start_time, utc_start_time,",
+      "  home_squad_id, home_squad_name, away_squad_id, away_squad_name,",
+      "  home_score, away_score, match_status",
+      "FROM international_matches",
+      "WHERE match_status = 'complete'",
+      "ORDER BY utc_start_time DESC",
+      "LIMIT ?limit"
+    ),
+    list(limit = as.integer(limit))
+  )
+}
+
 # Build international player profile payload
 build_international_player_profile_payload <- function(player_row, stats_rows, identity_row = NULL) {
   available_stats <- if (nrow(stats_rows)) {
