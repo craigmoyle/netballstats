@@ -78,10 +78,10 @@ param postgresStorageSizeGb int = 32
   'Enabled'
   'Disabled'
 ])
-param postgresPublicNetworkAccess string = 'Enabled'
+param postgresPublicNetworkAccess string = 'Disabled'
 
 @description('Whether to create the broad Allow Azure Services firewall rule for PostgreSQL. Disabled — private networking handles connectivity.')
-param allowAzureServicesPostgresFirewallRule bool = true
+param allowAzureServicesPostgresFirewallRule bool = false
 
 @description('CPU allocation for the API container app.')
 param apiCpu int = 1
@@ -109,7 +109,7 @@ param customFrontendHostname string = ''
   'disabled'
   'enabled'
 ])
-param privatePostgresNetworkingMode string = 'disabled'
+param privatePostgresNetworkingMode string = 'enabled'
 
 @description('Optional override for the VNet CIDR used when private PostgreSQL networking is enabled.')
 param virtualNetworkAddressPrefix string = ''
