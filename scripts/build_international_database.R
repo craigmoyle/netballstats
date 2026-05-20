@@ -675,3 +675,7 @@ if (is.null(conn)) {
   message("✅ RESULT: Ran in REAL MODE with database access")
   message("✅ Real data may have been fetched and stored")
 }
+}
+
+# Run main function
+main()
