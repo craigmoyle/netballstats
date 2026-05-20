@@ -142,7 +142,7 @@ get_diamonds_competitions <- function() {
   prioritized_competitions <- competitions_data[priority_indices, ]
   
   # Process more competitions to ensure we catch all Diamonds games
-  total_to_check <- min(50, nrow(prioritized_competitions))  # Increase limit
+  total_to_check <- min(100, nrow(prioritized_competitions))  # Check more competitions
   
   for (i in 1:total_to_check) {  
     comp_row <- prioritized_competitions[i, ]
@@ -183,8 +183,8 @@ get_diamonds_competitions <- function() {
       diamonds_competitions <- rbind(diamonds_competitions, comp_row)
     } else {
       # Check if this is still worth processing (has strong indicators)
-      if (processed_count > 30 && diamonds_found_count == 0) {
-        message("    ⏹️  Stopping early - no Diamonds found in first 30+ priority competitions")
+      if (processed_count > 60 && diamonds_found_count == 0) {
+        message("    ⏹️  Stopping early - no Diamonds found in first 60+ priority competitions")
         break
       }
     }
