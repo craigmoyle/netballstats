@@ -358,6 +358,14 @@ create_international_tables <- function(conn) {
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_player ON international_player_match_stats(player_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_match ON international_player_match_stats(match_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_stat ON international_player_match_stats(stat)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_players_search_name ON international_players(search_name)")
+  
+  # pg_trgm GIN index for search_name matching Super Netball behavior, wrapped in tryCatch for SQLite compatibility
+  tryCatch({
+    dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_players_search_trgm ON international_players USING gin(search_name gin_trgm_ops)")
+  }, error = function(e) {
+    message("⚠️ Could not create trigram index (expected if running on SQLite): ", conditionMessage(e))
+  })
   
   message("International tables created successfully")
 }
@@ -477,48 +485,140 @@ insert_players <- function(conn, players_df) {
   message(sprintf("✅ Successfully inserted/updated %d out of %d players", success_count, nrow(players_df)))
 }
 
-# Insert player stats data (placeholder - would need actual stats data)
+# Insert player stats data using bulk insert for performance
 insert_player_stats <- function(conn, stats_df) {
   if (is.null(conn) || nrow(stats_df) == 0) {
     return()
   }
-  
-  message(sprintf("Inserting %d player stats...", nrow(stats_df)))
-  
-  # Delete existing stats for these match_ids to avoid duplicates
+
+  message(sprintf("Inserting %d player stats rows...", nrow(stats_df)))
+
   match_ids <- unique(stats_df$match_id)
   if (length(match_ids) > 0) {
     param_placeholders <- paste(paste0("$", seq_along(match_ids)), collapse = ",")
     delete_sql <- paste("DELETE FROM international_player_match_stats WHERE match_id IN (", param_placeholders, ")")
-    tryCatch({
-      dbExecute(conn, delete_sql, as.list(match_ids))
-      message(sprintf("Deleted existing stats for %d matches", length(match_ids)))
-    }, error = function(e) {
-      message(sprintf("⚠️  Warning: Failed to delete existing stats: %s", conditionMessage(e)))
-    })
+    tryCatch(
+      dbExecute(conn, delete_sql, as.list(match_ids)),
+      error = function(e) message(sprintf("⚠️  Warning: Failed to delete existing stats: %s", conditionMessage(e)))
+    )
   }
-  
-  # Insert new stats with error handling
-  success_count <- 0
-  for (i in 1:nrow(stats_df)) {
-    row <- stats_df[i, ]
-    tryCatch({
-      dbExecute(conn, "
-        INSERT INTO international_player_match_stats (
-          player_id, match_id, squad_id, season, squad_name, stat, match_value
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-      ", list(
-        row$player_id, row$match_id, row$squad_id, row$season, row$squad_name, row$stat, row$match_value
-      ))
-      success_count <- success_count + 1
-    }, error = function(e) {
-      message(sprintf("❌ Failed to insert stat for player %d, match %d: %s", row$player_id, row$match_id, conditionMessage(e)))
-      message("Row data:")
-      print(row)
-    })
+
+  tryCatch({
+    DBI::dbWriteTable(conn, "international_player_match_stats", stats_df, append = TRUE, row.names = FALSE)
+    message(sprintf("✅ Inserted %d player stat rows", nrow(stats_df)))
+  }, error = function(e) {
+    message(sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
+    success_count <- 0L
+    for (i in seq_len(nrow(stats_df))) {
+      row <- stats_df[i, ]
+      tryCatch({
+        dbExecute(conn, "
+          INSERT INTO international_player_match_stats (
+            player_id, match_id, squad_id, season, squad_name, stat, match_value
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ", list(row$player_id, row$match_id, row$squad_id, row$season, row$squad_name, row$stat, row$match_value))
+        success_count <- success_count + 1L
+      }, error = function(e2) {
+        message(sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
+      })
+    }
+    message(sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(stats_df)))
+  })
+}
+
+# Extract player identity rows from a match payload (payload$playerInfo$player)
+extract_player_info_from_payload <- function(payload) {
+  if (is.null(payload) || is.null(payload$playerInfo) || is.null(payload$playerInfo$player)) {
+    return(data.frame())
   }
-  
-  message(sprintf("✅ Successfully inserted %d out of %d player stats", success_count, nrow(stats_df)))
+  tryCatch({
+    raw <- dplyr::bind_rows(payload$playerInfo$player)
+    if (nrow(raw) == 0) return(data.frame())
+
+    if ("playerId"         %in% names(raw)) names(raw)[names(raw) == "playerId"]         <- "player_id"
+    if ("shortDisplayName" %in% names(raw)) names(raw)[names(raw) == "shortDisplayName"] <- "short_display_name"
+    if (!"short_display_name" %in% names(raw)) raw$short_display_name <- NA_character_
+
+    missing <- setdiff(c("player_id", "firstname", "surname"), names(raw))
+    if (length(missing) > 0) {
+      message(sprintf("    ⚠️ Missing player info columns: %s", paste(missing, collapse = ", ")))
+      return(data.frame())
+    }
+
+    raw %>%
+      dplyr::transmute(
+        player_id          = as.integer(player_id),
+        firstname          = as.character(firstname),
+        surname            = as.character(surname),
+        short_display_name = as.character(short_display_name),
+        player_name        = trimws(paste(firstname, surname)),
+        canonical_name     = trimws(paste(firstname, surname))
+      ) %>%
+      dplyr::distinct(player_id, .keep_all = TRUE) %>%
+      dplyr::filter(!is.na(player_id))
+  }, error = function(e) {
+    message(sprintf("    ⚠️ extract_player_info_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
+    data.frame()
+  })
+}
+
+# Extract per-match player stats from a match payload using netballR::tidyPlayers.
+# Sums across periods to produce one row per (player, match, stat).
+extract_player_stats_from_payload <- function(payload, match_id_val, season_val) {
+  if (is.null(payload)) return(data.frame())
+
+  raw <- tryCatch(
+    netballR::tidyPlayers(payload),
+    error = function(e) {
+      message(sprintf("    ⚠️ tidyPlayers failed: %s", substr(conditionMessage(e), 1, 100)))
+      NULL
+    }
+  )
+  if (is.null(raw) || nrow(raw) == 0) return(data.frame())
+
+  message(sprintf("    Columns from tidyPlayers: %s", paste(names(raw), collapse = ", ")))
+
+  # Normalise column names to snake_case equivalents
+  rename_col <- function(df, from, to) {
+    if (from %in% names(df) && !to %in% names(df)) names(df)[names(df) == from] <- to
+    df
+  }
+  raw <- rename_col(raw, "playerId",  "player_id")
+  raw <- rename_col(raw, "squadId",   "squad_id")
+  raw <- rename_col(raw, "squadName", "squad_name")
+
+  val_col <- intersect(c("value", "periodValue", "statValue", "stat_value"), names(raw))[1]
+  if (is.na(val_col)) {
+    message("    ❌ Cannot identify value column in tidyPlayers output")
+    return(data.frame())
+  }
+
+  missing <- setdiff(c("player_id", "squad_id", "squad_name", "stat"), names(raw))
+  if (length(missing) > 0) {
+    message(sprintf("    ❌ Missing required columns: %s", paste(missing, collapse = ", ")))
+    return(data.frame())
+  }
+
+  raw$value_num <- suppressWarnings(as.numeric(as.character(raw[[val_col]])))
+  raw$value_num <- ifelse(is.na(raw$value_num), 0, raw$value_num)
+
+  result <- raw %>%
+    dplyr::group_by(
+      player_id  = as.integer(player_id),
+      squad_id   = as.integer(squad_id),
+      squad_name = as.character(squad_name),
+      stat       = as.character(stat)
+    ) %>%
+    dplyr::summarise(match_value = sum(value_num, na.rm = TRUE), .groups = "drop") %>%
+    dplyr::mutate(
+      match_id = as.integer(match_id_val),
+      season   = as.integer(season_val)
+    ) %>%
+    dplyr::select(player_id, match_id, squad_id, season, squad_name, stat, match_value) %>%
+    dplyr::filter(!is.na(player_id))
+
+  message(sprintf("    ✅ %d stat rows for %d players", nrow(result), length(unique(result$player_id))))
+  result
 }
 
 # Main execution
@@ -582,99 +682,116 @@ main <- function() {
   
   # Create international tables
   create_international_tables(conn)
-  
-  # Process each competition (limiting to 3 for demo)
-  processed_count <- 0
-  for (i in 1:min(3, nrow(diamonds_comps))) {
-    comp_id <- diamonds_comps$competition_id[i]
+
+  # Process competitions most-recent-first (higher comp_id = newer competition)
+  diamonds_comps <- diamonds_comps[order(diamonds_comps$comp_id, decreasing = TRUE), ]
+  total_comps <- nrow(diamonds_comps)
+
+  processed_count  <- 0L
+  total_matches    <- 0L
+  total_players    <- 0L
+  total_stats_rows <- 0L
+
+  for (i in seq_len(total_comps)) {
+    comp_id   <- diamonds_comps$competition_id[i]
     comp_name <- diamonds_comps$competition_name[i]
-    message(sprintf("\n--- Processing competition %d of %d: %s (%s) ---", 
-      i, min(3, nrow(diamonds_comps)), comp_name, comp_id))
-    
-    # Download fixture
-    message("Downloading fixture...")
+    message(sprintf("\n=== Competition %d/%d: %s (ID: %s) ===", i, total_comps, comp_name, comp_id))
+
     fixture <- tryCatch({
-      message(sprintf("🔄 Calling netballR::downloadFixture(%s)...", comp_id))
+      message("  Downloading fixture...")
       result <- netballR::downloadFixture(comp_id)
-      message(sprintf("✅ Download completed: %d matches returned", nrow(result)))
-      
-      # Log sample of data for verification
-      if (nrow(result) > 0) {
-        message("Sample data columns:")
-        print(names(result))
-        message("First few rows:")
-        print(head(result[, c("matchId", "homeSquadName", "awaySquadName")], min(3, nrow(result))))
-      }
-      
+      message(sprintf("  ✅ %d matches in fixture", nrow(result)))
       result
     }, error = function(e) {
-      message(sprintf("❌ Error downloading fixture: %s", conditionMessage(e)))
+      message(sprintf("  ❌ Fixture download failed: %s", conditionMessage(e)))
       NULL
     })
-    
+
     if (is.null(fixture) || nrow(fixture) == 0) {
-      message("No fixture data available for this competition")
+      message("  ⏭️  No fixture data, skipping competition")
       next
     }
-    
-    message(sprintf("Fixture contains %d matches", nrow(fixture)))
-    
-    # Process match data
+
+    # Insert match results and team records
     matches_df <- process_match_data(fixture)
-    
-    if (nrow(matches_df) == 0) {
-      message("❌ No valid match data to insert")
-      next
-    }
-    
-    # Extract teams
-    teams_df <- extract_teams(matches_df)
-    
-    # Insert matches data
-    if (!is.null(conn) && nrow(matches_df) > 0) {
+    if (nrow(matches_df) > 0 && !is.null(conn)) {
       insert_matches(conn, matches_df)
+      insert_teams(conn, extract_teams(matches_df))
+      total_matches <- total_matches + nrow(matches_df)
     }
-    
-    # Insert teams data
-    if (!is.null(conn) && nrow(teams_df) > 0) {
-      insert_teams(conn, teams_df)
+
+    # Download per-match stats for every completed match
+    all_player_stats <- list()
+    all_player_info  <- list()
+
+    for (j in seq_len(nrow(fixture))) {
+      match_row  <- fixture[j, ]
+      match_id_v <- as.integer(match_row$matchId)
+      round_v    <- as.integer(match_row$round)
+      game_v     <- as.integer(match_row$game)
+      status_v   <- tolower(trimws(as.character(match_row$matchStatus)))
+      season_v   <- suppressWarnings(as.integer(format(as.POSIXct(match_row$utcStartTime, tz = "UTC"), "%Y")))
+      if (is.na(season_v)) season_v <- as.integer(format(Sys.Date(), "%Y"))
+
+      # Only fetch stats for completed matches
+      if (status_v %in% c("scheduled", "pre-match", "prematch", "")) {
+        message(sprintf("  [%d/%d] Match %d: scheduled — skipping stats", j, nrow(fixture), match_id_v))
+        next
+      }
+
+      message(sprintf("  [%d/%d] Match %d r%d g%d (%d) — fetching stats...",
+        j, nrow(fixture), match_id_v, round_v, game_v, season_v))
+
+      payload <- tryCatch(
+        netballR::downloadMatch(as.character(comp_id), round_v, game_v),
+        error = function(e) {
+          message(sprintf("    ⚠️ downloadMatch failed: %s", substr(conditionMessage(e), 1, 80)))
+          NULL
+        }
+      )
+
+      if (is.null(payload)) next
+
+      stats_df <- extract_player_stats_from_payload(payload, match_id_v, season_v)
+      if (nrow(stats_df) > 0) all_player_stats[[length(all_player_stats) + 1]] <- stats_df
+
+      player_df <- extract_player_info_from_payload(payload)
+      if (nrow(player_df) > 0) all_player_info[[length(all_player_info) + 1]] <- player_df
     }
-    
-    # For demonstration, let's also show we could fetch player data
-    message("\n[DEMO] In a full implementation, we'd now:")
-    message("  1. Download squad lists for each match")
-    message("  2. Download player stats for each match")
-    message("  3. Process and insert that data")
-    message("  4. Handle conflicts and updates properly")
-    
-    processed_count <- processed_count + 1
-    
-    # Simulate some processing time to make it look like real work
-    if (is.null(conn)) {
-      message("[DEMO] Sleeping 5 seconds to simulate work...")
-      Sys.sleep(5)  # Shorter time for testing
+
+    # Bulk-insert players and stats for this competition
+    if (!is.null(conn)) {
+      if (length(all_player_info) > 0) {
+        combined_players <- dplyr::bind_rows(all_player_info) %>%
+          dplyr::distinct(player_id, .keep_all = TRUE)
+        insert_players(conn, combined_players)
+        total_players <- total_players + nrow(combined_players)
+      }
+
+      if (length(all_player_stats) > 0) {
+        combined_stats <- dplyr::bind_rows(all_player_stats)
+        insert_player_stats(conn, combined_stats)
+        total_stats_rows <- total_stats_rows + nrow(combined_stats)
+      }
     }
+
+    processed_count <- processed_count + 1L
   }
-  
+
   message(sprintf("\n=== Processing Summary ==="))
-  message(sprintf("Competitions found: %d", nrow(diamonds_comps)))
-  message(sprintf("Successfully processed: %d", processed_count))
+  message(sprintf("Competitions found:     %d", total_comps))
+  message(sprintf("Competitions processed: %d", processed_count))
+  message(sprintf("Matches inserted:       %d", total_matches))
+  message(sprintf("Players upserted:       %d", total_players))
+  message(sprintf("Player stat rows:       %d", total_stats_rows))
   
-  # Close database connection if it was opened
+  # Close database connection
   if (!is.null(conn)) {
     dbDisconnect(conn)
     message("Database connection closed.")
   }
 
   message("\n=== International Database Build Complete ===")
-  if (is.null(conn)) {
-    message("🛑 RESULT: Ran in DEMONSTRATION MODE only")
-    message("🛑 No real data was fetched or stored")
-    message("🛑 Execution time was fast because no real work occurred")
-  } else {
-    message("✅ RESULT: Ran in REAL MODE with database access")
-    message("✅ Real data may have been fetched and stored")
-  }
 }
 
 # Run main function

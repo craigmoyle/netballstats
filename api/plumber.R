@@ -145,7 +145,15 @@ allowed_browser_page_types <- c(
   "compare",
   "player-directory",
   "player-profile",
-  "round-recap"
+  "round-recap",
+  "scoreflow-archive",
+  "league-composition",
+  "round-preview",
+  "international",
+  "international-query",
+  "international-compare",
+  "international-players",
+  "international-player-:id"
 )
 
 allowed_browser_event_names <- c(
@@ -158,7 +166,20 @@ allowed_browser_event_names <- c(
   "compare_completed",
   "compare_reset",
   "player_profile_loaded",
-  "player_directory_loaded"
+  "player_directory_loaded",
+  "home_edge_loaded",
+  "nwar_loaded",
+  "scoreflow_loaded",
+  "ask_stats_template_selected",
+  "international_compare_completed",
+  "international_compare_error",
+  "international_compare_viewed",
+  "international_player_profile_loaded",
+  "international_players_viewed",
+  "international_query_submitted",
+  "international_query_error",
+  "international_query_viewed",
+  "international_home_viewed"
 )
 
 allowed_browser_traffic_classes <- c("public", "internal", "testing")
@@ -1285,18 +1306,10 @@ function(season = "", seasons = "", team_id = "", round = "", limit = "12", res)
 #* @get /round-summary
 #* @get /api/round-summary
 function(season = "", round = "", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
-  DBI::dbExecute(
-    conn,
-    sprintf(
-      "SET statement_timeout TO %d",
-      parse_nonnegative_env_int("NETBALL_STATS_ROUND_SUMMARY_TIMEOUT_MS", 15000L)
-    )
-  )
 
   tryCatch({
     season <- parse_optional_int(season, "season", minimum = 2017L, maximum = 2100L)
@@ -1306,7 +1319,12 @@ function(season = "", round = "", res) {
       stop("season is required when round is provided.", call. = FALSE)
     }
 
-    payload <- build_round_summary_payload(conn, season = season, round = round)
+    timeout_ms <- parse_nonnegative_env_int("NETBALL_STATS_ROUND_SUMMARY_TIMEOUT_MS", 15000L)
+    payload <- with_statement_timeout(
+      conn,
+      timeout_ms,
+      build_round_summary_payload(conn, season = season, round = round)
+    )
     if (is.null(payload)) {
       return(json_error(res, 404, "No completed round is available for that selection."))
     }
@@ -1320,17 +1338,21 @@ function(season = "", round = "", res) {
 #* @get /round-preview-summary
 #* @get /api/round-preview-summary
 function(season = "", res) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   tryCatch({
     season <- parse_optional_int(season, "season", minimum = 2017L, maximum = 2100L)
 
     payload <- tryCatch({
-      build_round_preview_payload(conn, season = season)
+      timeout_ms <- parse_nonnegative_env_int("NETBALL_STATS_ROUND_PREVIEW_TIMEOUT_MS", 15000L)
+      with_statement_timeout(
+        conn,
+        timeout_ms,
+        build_round_preview_payload(conn, season = season)
+      )
     }, error = function(e) {
       api_log("ERROR", "round_preview_build_failed",
         error_message = substr(conditionMessage(e), 1L, 500L),
@@ -2437,9 +2459,13 @@ function(season = "", limit = "100", res) {
       season <- parse_int(season, "season", minimum = 2000L, maximum = 2030L)
       matches <- fetch_international_matches_by_season(conn, season, limit = limit)
     } else {
-      # Get matches from current season
-      current_season <- as.integer(format(Sys.Date(), "%Y"))
-      matches <- fetch_international_matches_by_season(conn, current_season, limit = limit)
+      # Use most recent season with data rather than current calendar year,
+      # so the page still shows results between competitions.
+      latest_season <- tryCatch({
+        r <- query_rows(conn, "SELECT MAX(season) AS s FROM international_matches", list())
+        if (nrow(r) && !is.na(r$s[[1]])) as.integer(r$s[[1]]) else as.integer(format(Sys.Date(), "%Y"))
+      }, error = function(e) as.integer(format(Sys.Date(), "%Y")))
+      matches <- fetch_international_matches_by_season(conn, latest_season, limit = limit)
     }
     
     json_success(res, list(matches = matches))
