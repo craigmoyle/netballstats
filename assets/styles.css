@@ -3080,6 +3080,17 @@ caption.table-caption {
     rgba(9, 17, 23, 0.84);
 }
 
+.archive-home-page .hero-panel {
+  padding: 1.35rem 1.45rem;
+  background:
+    linear-gradient(160deg, color-mix(in srgb, var(--accent-cool) 10%, transparent), transparent 48%),
+    linear-gradient(220deg, color-mix(in srgb, var(--accent) 6%, transparent), transparent 44%),
+    var(--bg-mid);
+  border: 1px solid color-mix(in srgb, var(--accent-cool) 18%, var(--border));
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-card);
+}
+
 .query-page .hero-copy h1 {
   max-width: none;
   font-size: clamp(2.4rem, 5.5vw, 3.8rem);
@@ -3088,7 +3099,8 @@ caption.table-caption {
 .round-page .hero-copy h1,
 .compare-page .hero-copy h1,
 .players-page .hero-copy h1,
-.player-page .hero-copy h1 {
+.player-page .hero-copy h1,
+.archive-home-page .hero-copy h1 {
   max-width: none;
   font-size: clamp(2.4rem, 5vw, 4.2rem);
 }
@@ -4937,7 +4949,8 @@ caption.table-caption {
 [data-theme="light"] .round-preview-page .hero-panel,
 [data-theme="light"] .home-edge-page .hero-panel,
 [data-theme="light"] .changelog-page .hero-panel,
-[data-theme="light"] .changelog-summary {
+[data-theme="light"] .changelog-summary,
+[data-theme="light"] .archive-home-page .hero-panel {
   background:
     linear-gradient(180deg, rgba(184, 112, 32, 0.06), transparent 44%),
     linear-gradient(180deg, rgba(26, 138, 122, 0.04), transparent 76%),
@@ -5864,4 +5877,55 @@ caption.table-caption {
     flex: 1;
     min-width: auto;
   }
+}
+
+/* ─── International archive: tabbed leader panels ─── */
+
+.tabbed-panel__tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 0.75rem;
+}
+
+.tabbed-panel__tab {
+  appearance: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  padding: 0.5rem 1rem;
+  margin-bottom: -1px;
+  font-family: inherit;
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: color 0.15s ease, border-color 0.15s ease;
+}
+
+.tabbed-panel__tab:hover {
+  color: var(--text);
+}
+
+.tabbed-panel__tab.is-active {
+  color: var(--text);
+  border-bottom-color: var(--accent);
+}
+
+.tabbed-panel__pane[hidden] {
+  display: none;
+}
+
+/* Filter row inside the leaders panel */
+.int-leaders-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+  margin-bottom: 1rem;
+}
+
+.leaders-note {
+  margin-top: 0.75rem;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  text-align: center;
 }
