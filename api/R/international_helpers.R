@@ -447,7 +447,7 @@ build_international_player_profile_payload <- function(player_row, stats_rows, i
       player_name = player_row$player_name[[1]],
       canonical_name = player_row$canonical_name[[1]]
     ),
-    identity = if (nrow(identity_row)) as.list(identity_row[1, ]) else list(),
+    identity = if (!is.null(identity_row) && nrow(identity_row)) as.list(identity_row[1, ]) else list(),
     stats = list(
       available = available_stats,
       career = career_stats,

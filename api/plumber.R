@@ -2413,7 +2413,10 @@ function(player_id = "", res) {
     }
 
     stats_rows <- fetch_international_player_stats(conn, player_id)
-    identity_row <- fetch_international_player_identity(conn, player_id)
+    identity_row <- tryCatch(
+      fetch_international_player_identity(conn, player_id),
+      error = function(e) NULL
+    )
 
     payload <- build_international_player_profile_payload(player, stats_rows, identity_row)
     json_success(res, payload)
