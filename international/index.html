@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <script src="/assets/theme.js"></script>
-    <title>International Netball | Netball Stats Database</title>
+    <title>Australian Diamonds | Netball Stats Database</title>
     <meta name="description" content="Australian Diamonds and international netball statistics from World Cups, Constellation Cup, and other international competitions.">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
@@ -41,114 +41,176 @@
         <div class="hero-copy hero-copy--home">
           <p class="eyebrow">International netball</p>
           <h1 class="archive-hero__title">Australian Diamonds archive</h1>
-          <p class="intro-copy">Historical statistics for Australian Diamonds matches in World Cups, Constellation Cup, and other international competitions.</p>
+          <p class="intro-copy">Historical statistics for Australian Diamonds matches across World Cups, Constellation Cup, and other international competitions.</p>
+        </div>
+      </section>
 
+      <section class="home-overview reveal" aria-label="Archive overview">
+        <div class="home-overview__intro">
+          <p class="panel__eyebrow">Archive at a glance</p>
+          <h2>See the archive before you narrow it</h2>
+        </div>
+        <div class="home-overview__stats">
+          <section class="summary-band" aria-label="Archive totals">
+            <article class="summary-card summary-card--accent">
+              <span class="summary-card__label">Matches</span>
+              <span id="int-summary-matches" class="summary-card__value">–</span>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Players</span>
+              <span id="int-summary-players" class="summary-card__value">–</span>
+            </article>
+            <article class="summary-card">
+              <span class="summary-card__label">Nations</span>
+              <span id="int-summary-teams" class="summary-card__value">–</span>
+            </article>
+          </section>
         </div>
       </section>
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel panel--compact reveal" aria-label="Recent matches">
-        <div class="panel__heading">
-          <p class="panel__eyebrow">Results</p>
-          <h2>Recent matches</h2>
-        </div>
-        <div id="matches-loading" class="loading-placeholder">
-          <p>Loading recent matches…</p>
-        </div>
-        <div id="matches-content" hidden>
-          <div class="table-wrapper">
-            <table id="matches-table" class="stack-table">
-              <caption class="table-caption">Recent Australian Diamonds matches.</caption>
-              <thead>
-                <tr>
-                  <th scope="col">Date</th>
-                  <th scope="col">Home</th>
-                  <th scope="col">Away</th>
-                  <th scope="col">Score</th>
-                </tr>
-              </thead>
-              <tbody id="matches-body"></tbody>
-            </table>
+      <section class="panel query-panel query-panel--home archive-control-desk reveal">
+        <div id="int-status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <div class="archive-control-desk__header">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <p class="panel__eyebrow">Start here</p>
+              <h2>Choose the slice</h2>
+            </div>
+            <p id="int-active-filter-summary" class="muted filter-summary">Loading query options…</p>
           </div>
         </div>
-        <p id="matches-empty" class="panel__lead" hidden>No match results found for this season.</p>
+
+        <form id="int-filters-form" class="filters filters--dashboard" novalidate>
+          <div class="field field--wide field--season-block field--season-hub">
+            <div class="field__label-row">
+              <span class="field-label">Seasons</span>
+              <div class="season-actions" role="group" aria-label="Season quick actions">
+                <button type="button" class="button button--ghost button--small" data-int-season-action="latest">Latest</button>
+                <button type="button" class="button button--ghost button--small" data-int-season-action="all">All</button>
+                <button type="button" class="button button--ghost button--small" data-int-season-action="clear">Clear</button>
+              </div>
+            </div>
+            <div id="int-season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
+          </div>
+
+          <div class="field field--stat-picker">
+            <label for="int-team-stat">Team stat</label>
+            <select id="int-team-stat" name="int-team-stat"></select>
+          </div>
+          <div class="field field--stat-picker">
+            <label for="int-player-stat">Player stat</label>
+            <select id="int-player-stat" name="int-player-stat"></select>
+          </div>
+
+          <details id="int-archive-advanced" class="archive-advanced field--wide">
+            <summary class="archive-advanced__summary">
+              <span>Need a tighter slice?</span>
+              <small>Change how the leaderboards read.</small>
+            </summary>
+            <div class="archive-advanced__grid">
+              <div class="field field--secondary field--compact">
+                <label for="int-stat-mode">Stat mode</label>
+                <select id="int-stat-mode" name="int-stat-mode">
+                  <option value="total" selected>Total</option>
+                  <option value="average">Average per match</option>
+                </select>
+              </div>
+              <div class="field field--secondary field--compact field--toggle">
+                <span class="field-label">Leaderboard order</span>
+                <input id="int-ranking-mode" name="int-ranking-mode" type="hidden" value="highest">
+                <div class="view-toggle" role="group" aria-label="Leaderboard order">
+                  <button type="button" class="button button--small is-active" data-int-ranking-mode="highest" aria-pressed="true">Highest</button>
+                  <button type="button" class="button button--small button--ghost" data-int-ranking-mode="lowest" aria-pressed="false">Lowest</button>
+                </div>
+                <div class="field-hint-wrap">
+                  <small class="field-hint">Use Lowest for error stats such as general play turnovers.</small>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <div class="filter-actions filter-actions--primary field--wide">
+            <div class="filter-actions__buttons">
+              <button type="submit">Apply filters</button>
+              <button type="button" id="int-reset-filters" class="button button--ghost">Reset</button>
+            </div>
+          </div>
+        </form>
       </section>
 
-      <section class="panel panel--compact reveal leaders-panel">
-        <div class="panel__heading">
-          <p class="panel__eyebrow">All-time best</p>
-          <h2>Leaderboards</h2>
-          <p class="panel__lead">The players and teams with the highest career totals across tracked stats.</p>
-        </div>
-        
-        <div id="leaders-unavailable" class="panel__lead" hidden>
-          <p>Player statistics are not yet available for international matches.</p>
-        </div>
+      <section class="results-grid results-grid--home" aria-label="Stat leaderboards">
+        <section class="panel results-panel results-panel--lead reveal">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <p class="results-panel__eyebrow">Player leaders</p>
+              <h2 id="int-player-panel-title">Player leaderboard</h2>
+            </div>
+            <p id="int-player-panel-summary" class="muted">Top player lines for Points across selected seasons.</p>
+          </div>
+          <div class="table-wrapper">
+            <table id="int-player-leaders-table" class="stack-table">
+              <thead id="int-player-leaders-head">
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Player</th>
+                  <th scope="col">Nation</th>
+                  <th id="int-player-value-heading" scope="col">Total</th>
+                  <th scope="col">Matches</th>
+                </tr>
+              </thead>
+              <tbody id="int-player-leaders-body"></tbody>
+            </table>
+          </div>
+          <p id="int-player-leaders-unavailable" class="panel__lead" hidden>Player statistics not available for this filter.</p>
+        </section>
 
-        <div id="leaders-panel" class="tabbed-panel">
-          <form class="filters filters--dashboard int-leaders-filters" novalidate>
-            <div class="field field--stat-picker">
-              <label for="int-player-stat">Player stat</label>
-              <select id="int-player-stat" name="player-stat"></select>
+        <section class="panel results-panel results-panel--anchor reveal">
+          <div class="panel__heading panel__heading--split">
+            <div>
+              <p class="results-panel__eyebrow">National teams</p>
+              <h2 id="int-team-panel-title">Team leaderboard</h2>
             </div>
-            <div class="field field--stat-picker">
-              <label for="int-team-stat">Team stat</label>
-              <select id="int-team-stat" name="team-stat"></select>
-            </div>
-          </form>
-          <div class="tabbed-panel__tabs" role="tablist">
-            <button type="button" class="tabbed-panel__tab is-active" role="tab" aria-selected="true" aria-controls="player-leaders-tab">Player leaders</button>
-            <button type="button" class="tabbed-panel__tab" role="tab" aria-selected="false" aria-controls="team-leaders-tab">Team leaders</button>
+            <p id="int-team-panel-summary" class="muted">Team view of Points across selected seasons.</p>
           </div>
-          
-          <div class="tabbed-panel__content">
-            <div id="player-leaders-tab" class="tabbed-panel__pane" role="tabpanel" tabindex="0">
-              <div id="player-leaders-loading" class="loading-placeholder">
-                <p>Loading player leaders…</p>
-              </div>
-              <div id="player-leaders-content" class="leaders-content" hidden>
-                <div class="table-wrapper table-wrapper--spotlight">
-                  <table id="player-leaders-table" class="stack-table leaders-table">
-                    <caption class="table-caption">Players ranked by total points across all international matches.</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Player</th>
-                        <th scope="col">Total</th>
-                        <th scope="col">Matches</th>
-                        <th scope="col">Avg/match</th>
-                      </tr>
-                    </thead>
-                    <tbody id="player-leaders-body"></tbody>
-                  </table>
-                </div>
-                <p class="leaders-note"><a href="/international/players/">Browse all international players</a></p>
-              </div>
-            </div>
-            
-            <div id="team-leaders-tab" class="tabbed-panel__pane" role="tabpanel" tabindex="0" hidden>
-              <div id="team-leaders-loading" class="loading-placeholder">
-                <p>Loading team leaders…</p>
-              </div>
-              <div id="team-leaders-content" class="leaders-content" hidden>
-                <div class="table-wrapper table-wrapper--spotlight">
-                  <table id="team-leaders-table" class="stack-table leaders-table">
-                    <caption class="table-caption">Teams ranked by total points across all international matches.</caption>
-                    <thead>
-                      <tr>
-                        <th scope="col">Team</th>
-                        <th scope="col">Total</th>
-                        <th scope="col">Matches</th>
-                        <th scope="col">Avg/match</th>
-                      </tr>
-                    </thead>
-                    <tbody id="team-leaders-body"></tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
+          <div class="table-wrapper">
+            <table id="int-team-leaders-table" class="stack-table">
+              <thead id="int-team-leaders-head">
+                <tr>
+                  <th scope="col">Rank</th>
+                  <th scope="col">Nation</th>
+                  <th id="int-team-value-heading" scope="col">Total</th>
+                  <th scope="col">Matches</th>
+                </tr>
+              </thead>
+              <tbody id="int-team-leaders-body"></tbody>
+            </table>
+          </div>
+          <p id="int-team-leaders-unavailable" class="panel__lead" hidden>Team statistics not available for this filter.</p>
+        </section>
+      </section>
+
+      <section class="panel results-panel results-panel--wide results-panel--spotlight reveal" aria-label="Recent matches">
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <p class="results-panel__eyebrow">Match log</p>
+            <h2>Recent results</h2>
           </div>
         </div>
+        <div class="table-wrapper table-wrapper--spotlight">
+          <table id="int-matches-table" class="stack-table">
+            <thead>
+              <tr>
+                <th scope="col">Season</th>
+                <th scope="col">Date</th>
+                <th scope="col">Result</th>
+              </tr>
+            </thead>
+            <tbody id="int-matches-body"></tbody>
+          </table>
+        </div>
+        <p id="int-matches-empty" class="panel__lead" hidden>No matches found for this filter.</p>
       </section>
     </main>
   </body>

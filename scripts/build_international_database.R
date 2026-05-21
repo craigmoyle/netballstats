@@ -263,6 +263,7 @@ create_international_tables <- function(conn) {
       round_number INTEGER NOT NULL,
       game_number INTEGER NOT NULL,
       match_type VARCHAR(50) NOT NULL,
+      competition_name TEXT,
       match_status VARCHAR(50) NOT NULL,
       home_squad_id INTEGER NOT NULL,
       home_squad_name VARCHAR(100) NOT NULL,
@@ -319,6 +320,14 @@ create_international_tables <- function(conn) {
   
   # Create indexes for better query performance
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_matches_season ON international_matches(season)")
+
+  # Migration: add competition_name column to existing tables
+  tryCatch({
+    dbExecute(conn, "ALTER TABLE international_matches ADD COLUMN IF NOT EXISTS competition_name TEXT")
+    message("  ✅ competition_name column ensured on international_matches")
+  }, error = function(e) {
+    message("  ℹ️ competition_name migration skipped: ", conditionMessage(e))
+  })
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_player ON international_player_match_stats(player_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_match ON international_player_match_stats(match_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_stat ON international_player_match_stats(stat)")
@@ -362,12 +371,14 @@ insert_matches <- function(conn, matches_df) {
     tryCatch({
       dbExecute(conn, "
         INSERT INTO international_matches (
-          match_id, season, round_number, game_number, match_type, match_status,
+          match_id, season, round_number, game_number, match_type, competition_name, match_status,
           home_squad_id, home_squad_name, away_squad_id, away_squad_name,
           home_score, away_score, local_start_time, utc_start_time
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       ", list(
-        row$match_id, row$season, row$round_number, row$game_number, row$match_type, row$match_status,
+        row$match_id, row$season, row$round_number, row$game_number, row$match_type,
+        if ("competition_name" %in% names(row)) row$competition_name else NA_character_,
+        row$match_status,
         row$home_squad_id, row$home_squad_name, row$away_squad_id, row$away_squad_name,
         row$home_score, row$away_score, row$local_start_time, row$utc_start_time
       ))
@@ -679,6 +690,7 @@ main <- function() {
     # Insert match results and team records
     matches_df <- process_match_data(fixture)
     if (nrow(matches_df) > 0 && !is.null(conn)) {
+      matches_df$competition_name <- comp_name
       insert_matches(conn, matches_df)
       insert_teams(conn, extract_teams(matches_df))
       total_matches <- total_matches + nrow(matches_df)

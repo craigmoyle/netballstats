@@ -2335,6 +2335,26 @@ function(res) {
   })
 }
 
+#* @get /international/meta
+#* @get /api/international/meta
+function(res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_matches(conn)) {
+      return(json_error(res, 503, "International data not available."))
+    }
+
+    meta <- fetch_international_meta(conn)
+    json_success(res, meta)
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
 #* @get /international/players
 #* @get /api/international/players
 function(search = "", limit = "2000", res) {
@@ -2407,7 +2427,7 @@ function(player_id = "", res) {
 
 #* @get /international/leaders
 #* @get /api/international/leaders
-function(type = "player", stat = "points", seasons = "", limit = "12", res) {
+function(type = "player", stat = "points", seasons = "", stat_mode = "total", ranking = "highest", limit = "12", res) {
   conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
@@ -2421,17 +2441,25 @@ function(type = "player", stat = "points", seasons = "", limit = "12", res) {
     limit <- parse_limit(limit, default = 12L, maximum = 100L)
     parsed_seasons <- parse_season_filter("", seasons)
     stat <- trimws(stat)
+    parsed_stat_mode <- parse_metric(stat_mode, "stat_mode")
+    parsed_ranking <- parse_ranking_mode(ranking, "ranking")
     
     if (!nzchar(stat)) {
       stop("stat is required.", call. = FALSE)
     }
 
     if (identical(type, "player")) {
-      leaders <- fetch_international_player_leaders(conn, seasons = parsed_seasons, stat = stat, limit = limit)
-      json_success(res, list(type = "player", stat = stat, leaders = leaders))
+      leaders <- fetch_international_player_leaders(
+        conn, seasons = parsed_seasons, stat = stat, limit = limit,
+        stat_mode = parsed_stat_mode, ranking = parsed_ranking
+      )
+      json_success(res, list(type = "player", stat = stat, stat_mode = parsed_stat_mode, ranking = parsed_ranking, leaders = leaders))
     } else if (identical(type, "team")) {
-      leaders <- fetch_international_team_leaders(conn, seasons = parsed_seasons, stat = stat, limit = limit)
-      json_success(res, list(type = "team", stat = stat, leaders = leaders))
+      leaders <- fetch_international_team_leaders(
+        conn, seasons = parsed_seasons, stat = stat, limit = limit,
+        stat_mode = parsed_stat_mode, ranking = parsed_ranking
+      )
+      json_success(res, list(type = "team", stat = stat, stat_mode = parsed_stat_mode, ranking = parsed_ranking, leaders = leaders))
     } else {
       stop("type must be 'player' or 'team'.", call. = FALSE)
     }
@@ -2442,7 +2470,7 @@ function(type = "player", stat = "points", seasons = "", limit = "12", res) {
 
 #* @get /international/matches
 #* @get /api/international/matches
-function(season = "", limit = "100", res) {
+function(season = "", seasons = "", limit = "20", res) {
   conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
@@ -2453,11 +2481,14 @@ function(season = "", limit = "100", res) {
       return(json_error(res, 503, "International match data not available."))
     }
     
-    limit <- parse_limit(limit, default = 100L, maximum = 1000L)
-    
-    if (nzchar(season)) {
-      season <- parse_optional_int(season, "season", minimum = 2000L, maximum = 2030L)
-      matches <- fetch_international_matches_by_season(conn, season, limit = limit)
+    limit <- parse_limit(limit, default = 20L, maximum = 200L)
+
+    # seasons= (comma-separated, plural) takes priority; fall back to season= (singular, legacy)
+    seasons_param <- if (nzchar(trimws(seasons))) seasons else season
+    parsed_seasons <- parse_season_filter("", seasons_param)
+
+    if (!is.null(parsed_seasons) && length(parsed_seasons) > 0) {
+      matches <- fetch_international_matches_filtered(conn, seasons = parsed_seasons, limit = limit)
     } else {
       matches <- fetch_recent_international_matches(conn, limit = limit)
     }

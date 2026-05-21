@@ -173,10 +173,13 @@ fetch_international_team_by_id <- function(conn, squad_id) {
 }
 
 # Fetch international player leaders
-fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = NULL, stat = "points", search = "", limit = 12L) {
+fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = NULL, stat = "points", search = "", limit = 12L, stat_mode = "total", ranking = "highest") {
   if (!has_international_player_match_stats(conn)) {
     return(data.frame())
   }
+
+  sort_col <- if (identical(stat_mode, "average")) "average_value" else "total_value"
+  sort_dir <- ranking_order_sql(ranking)
 
   base_query <- paste(
     "SELECT p.player_id, p.player_name, stats.squad_id,",
@@ -210,7 +213,7 @@ fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = N
   full_query <- paste(
     base_query,
     "GROUP BY p.player_id, p.player_name, stats.squad_id, COALESCE(t.squad_name, stats.squad_name)",
-    "ORDER BY total_value DESC",
+    sprintf("ORDER BY %s %s, match_count DESC, p.player_name ASC", sort_col, sort_dir),
     "LIMIT ?limit"
   )
   params$limit <- as.integer(limit)
@@ -219,10 +222,13 @@ fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = N
 }
 
 # Fetch international team leaders by aggregating player stats per team
-fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "points", limit = 10L) {
+fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "points", limit = 10L, stat_mode = "total", ranking = "highest") {
   if (!has_international_player_match_stats(conn)) {
     return(data.frame())
   }
+
+  sort_col <- if (identical(stat_mode, "average")) "average_value" else "total_value"
+  sort_dir <- ranking_order_sql(ranking)
 
   base_query <- paste(
     "SELECT stats.squad_id,",
@@ -245,7 +251,7 @@ fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "point
   full_query <- paste(
     base_query,
     "GROUP BY stats.squad_id, COALESCE(t.squad_name, stats.squad_name)",
-    "ORDER BY total_value DESC",
+    sprintf("ORDER BY %s %s, match_count DESC, squad_name ASC", sort_col, sort_dir),
     "LIMIT ?limit"
   )
   params$limit <- as.integer(limit)
@@ -303,6 +309,81 @@ fetch_recent_international_matches <- function(conn, limit = 20L) {
       "LIMIT ?limit"
     ),
     list(limit = as.integer(limit))
+  )
+}
+
+# Fetch international matches filtered by seasons (ordered newest first)
+fetch_international_matches_filtered <- function(conn, seasons = NULL, limit = 20L) {
+  base_query <- paste(
+    "SELECT match_id, season, round_number, game_number,",
+    "  local_start_time, utc_start_time, match_status,",
+    "  home_squad_id, home_squad_name, away_squad_id, away_squad_name,",
+    "  home_score, away_score",
+    "FROM international_matches",
+    "WHERE 1 = 1"
+  )
+  params <- list()
+
+  if (!is.null(seasons) && length(seasons) > 0) {
+    result <- append_integer_in_filter(base_query, params, "season", as.integer(seasons), "season")
+    base_query <- result$query
+    params <- result$params
+  }
+
+  full_query <- paste(base_query, "ORDER BY utc_start_time DESC LIMIT ?limit")
+  params$limit <- as.integer(limit)
+  query_rows(conn, full_query, params)
+}
+
+# Fetch international metadata: available seasons, stats, and summary counts
+fetch_international_meta <- function(conn) {
+  seasons <- tryCatch(
+    as.integer(query_rows(conn,
+      "SELECT DISTINCT season FROM international_matches ORDER BY season DESC", list())$season),
+    error = function(e) integer(0)
+  )
+
+  player_stats <- tryCatch({
+    if (has_international_player_match_stats(conn)) {
+      as.character(query_rows(conn,
+        "SELECT DISTINCT stat FROM international_player_match_stats ORDER BY stat", list())$stat)
+    } else {
+      character(0)
+    }
+  }, error = function(e) character(0))
+
+  match_count <- tryCatch(
+    as.integer(query_rows(conn,
+      "SELECT COUNT(*) AS n FROM international_matches WHERE match_status = 'complete'", list())$n[1]),
+    error = function(e) NA_integer_
+  )
+
+  player_count <- tryCatch({
+    if (has_international_players(conn)) {
+      as.integer(query_rows(conn,
+        "SELECT COUNT(DISTINCT player_id) AS n FROM international_players", list())$n[1])
+    } else {
+      NA_integer_
+    }
+  }, error = function(e) NA_integer_)
+
+  team_count <- tryCatch(
+    as.integer(query_rows(conn,
+      paste(
+        "SELECT COUNT(DISTINCT t) AS n FROM",
+        "(SELECT home_squad_name AS t FROM international_matches",
+        " UNION SELECT away_squad_name FROM international_matches) q"
+      ), list())$n[1]),
+    error = function(e) NA_integer_
+  )
+
+  list(
+    seasons      = seasons,
+    player_stats = player_stats,
+    team_stats   = player_stats,
+    match_count  = match_count,
+    player_count = player_count,
+    team_count   = team_count
   )
 }
 
