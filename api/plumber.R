@@ -2351,22 +2351,22 @@ function(search = "", limit = "2000", res) {
     limit <- parse_limit(limit, default = 2000L, maximum = 2000L)
     parsed_search <- parse_search(search, name = "search")
 
-    player_rows <- query_rows(
-      conn,
-      paste(
-        "SELECT player_id, firstname, surname, short_display_name, player_name, canonical_name",
-        "FROM international_players",
-        if (nzchar(parsed_search)) "WHERE search_name LIKE ?search_pattern" else "",
-        "ORDER BY player_name",
-        "LIMIT ?limit"
-      ),
-      c(
-        list(limit = limit),
-        if (nzchar(parsed_search)) list(search_pattern = paste0("%", parsed_search, "%")) else list()
-      )
+    query <- paste(
+      "SELECT player_id, firstname, surname, short_display_name, player_name, canonical_name",
+      "FROM international_players",
+      "WHERE 1 = 1"
     )
+    params <- list()
 
-    json_success(res, list(players = player_rows))
+    if (!is.null(parsed_search)) {
+      params$search_pattern <- paste0("%", parsed_search, "%")
+      query <- paste(query, "AND search_name LIKE ?search_pattern")
+    }
+
+    query <- paste(query, "ORDER BY player_name LIMIT ?limit")
+    params$limit <- limit
+
+    json_success(res, list(players = query_rows(conn, query, params)))
   }, error = function(error) {
     handle_request_error(error, res)
   })
