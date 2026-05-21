@@ -59,7 +59,7 @@ async function loadRecentMatches() {
   hideEl(elements.matchesEmpty);
 
   try {
-    const response = await fetchJson("/api/international/matches");
+    const response = await fetchJson("/international/matches");
     hideEl(elements.matchesLoading);
 
     const matches = (response && response.matches) ? response.matches : [];
@@ -94,7 +94,7 @@ async function loadPlayerLeaders() {
   hideEl(elements.playerLeadersContent);
   
   try {
-    const response = await fetchJson("/api/international/leaders", {
+    const response = await fetchJson("/international/leaders", {
       type: "player",
       stat: "points",
       limit: "10"
@@ -141,7 +141,7 @@ async function loadTeamLeaders() {
   hideEl(elements.teamLeadersContent);
   
   try {
-    const response = await fetchJson("/api/international/leaders", {
+    const response = await fetchJson("/international/leaders", {
       type: "team",
       stat: "points",
       limit: "10"

@@ -114,7 +114,7 @@ async function searchPlayers(query, inputField, suggestionsList, hiddenField) {
   }
   
   try {
-    const response = await fetchJson("/api/international/players", {
+    const response = await fetchJson("/international/players", {
       search: query,
       limit: "10"
     });
@@ -169,7 +169,7 @@ function clearSelections() {
 // Load player profile
 async function loadPlayerProfile(playerId) {
   try {
-    const profile = await fetchJson("/api/international/player-profile", { player_id: playerId });
+    const profile = await fetchJson("/international/player-profile", { player_id: playerId });
     return profile;
   } catch (error) {
     console.error(`Error loading player profile ${playerId}:`, error);
