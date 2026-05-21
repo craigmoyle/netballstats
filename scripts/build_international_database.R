@@ -97,83 +97,49 @@ connect_db <- function() {
   })
 }
 
-# Get competition IDs for Australian Diamonds
-get_diamonds_competitions <- function() {
-  message("🔍 Discovering Australian Diamonds competitions by team participation...")
+# Get competitions across all supported international sources
+get_all_international_competitions <- function() {
+  message("🔍 Discovering all international netball competitions...")
 
-  if (requireNamespace("netballR", quietly = TRUE)) {
-    message("✅ netballR package loaded successfully")
-    desc <- packageDescription("netballR")
-    message(sprintf("netballR version: %s", desc$Version))
-  } else {
+  if (!requireNamespace("netballR", quietly = TRUE)) {
     message("❌ netballR package NOT FOUND")
     return(data.frame())
   }
+  desc <- packageDescription("netballR")
+  message(sprintf("netballR version: %s", desc$Version))
 
-  competitions_data <- tryCatch({
-    message("🔄 Calling netballR::listCompetitionsNetballAus()...")
-    result <- netballR::listCompetitionsNetballAus()
-    message(sprintf("✅ Got %d total competitions from netballR", nrow(result)))
+  # All 5 international sources plus netball_aus for Diamonds
+  sources <- c("netball_aus", "netball_nz", "england_netball", "nwc2015", "nwc2019", "nwc2023")
+
+  all_comps <- tryCatch({
+    message(sprintf("🔄 Fetching competitions from %d sources...", length(sources)))
+    result <- netballR::listAllCompetitions(
+      sources     = sources,
+      deduplicate = TRUE,
+      on_error    = "warn"
+    )
+    message(sprintf("✅ Got %d unique competitions across all sources", nrow(result)))
     result
   }, error = function(e) {
-    message(sprintf("❌ Error calling listCompetitionsNetballAus: %s", conditionMessage(e)))
-    return(data.frame())
+    message(sprintf("❌ Error fetching competitions: %s", conditionMessage(e)))
+    data.frame()
   })
 
-  if (nrow(competitions_data) == 0) {
-    message("❌ No competitions returned from netballR")
+  if (nrow(all_comps) == 0) {
+    message("❌ No competitions returned")
     return(data.frame())
   }
 
-  # Exclude men's and youth competitions — the Diamonds are women's senior team only
-  womens_competitions <- competitions_data %>%
-    dplyr::filter(!grepl("Men's|Mens|U19|U-19|Under.19", competition_name, ignore.case = TRUE))
+  # Exclude men's and youth competitions
+  filtered <- all_comps %>%
+    dplyr::filter(!grepl("Men's|Mens|U19|U-19|Under.19|Boys", competition_name, ignore.case = TRUE))
 
-  message(sprintf("Checking all %d women's competitions for Diamonds participation...", nrow(womens_competitions)))
+  message(sprintf("After filtering: %d competitions to process", nrow(filtered)))
+  message("Competitions list:")
+  print(filtered %>% dplyr::select(comp_id, competition_name, application_source, season))
 
-  diamonds_competitions <- data.frame()
-
-  for (i in seq_len(nrow(womens_competitions))) {
-    comp_row <- womens_competitions[i, ]
-    comp_id  <- comp_row$comp_id
-    comp_name <- comp_row$competition_name
-
-    message(sprintf("  [%d/%d] Checking %s (%s)...", i, nrow(womens_competitions), comp_name, comp_id))
-
-    fixture_data <- tryCatch(
-      netballR::downloadFixture(comp_id),
-      error = function(e) {
-        message(sprintf("    ❌ Failed: %s", substr(conditionMessage(e), 1, 60)))
-        NULL
-      }
-    )
-
-    if (is.null(fixture_data) || nrow(fixture_data) == 0) {
-      message("    ⏭️  No fixture data")
-      next
-    }
-
-    has_diamonds <- any(grepl("Diamonds", c(fixture_data$homeSquadName, fixture_data$awaySquadName), ignore.case = TRUE))
-
-    if (has_diamonds) {
-      message(sprintf("    ✅ Diamonds found! (%d total so far)", nrow(diamonds_competitions) + 1L))
-      diamonds_competitions <- rbind(diamonds_competitions, comp_row)
-    } else {
-      message(sprintf("    — No Diamonds (teams: %s)",
-        paste(unique(c(fixture_data$homeSquadName, fixture_data$awaySquadName)), collapse = ", ")))
-    }
-  }
-
-  if (nrow(diamonds_competitions) > 0) {
-    message(sprintf("✅ Found %d competitions featuring Australian Diamonds (checked %d)", nrow(diamonds_competitions), nrow(womens_competitions)))
-    message("Diamonds competitions:")
-    print(diamonds_competitions %>% dplyr::select(comp_id, competition_name))
-    diamonds_competitions$competition_id <- as.integer(diamonds_competitions$comp_id)
-    return(diamonds_competitions)
-  } else {
-    message(sprintf("❌ No Diamonds competitions found after checking %d competitions.", nrow(womens_competitions)))
-    return(data.frame())
-  }
+  filtered$competition_id <- as.integer(filtered$comp_id)
+  filtered
 }
 
 # Safe number conversion
@@ -370,6 +336,12 @@ create_international_tables <- function(conn) {
   }, error = function(e) {
     message("  ℹ️ competition_name migration skipped: ", conditionMessage(e))
   })
+  tryCatch({
+    dbExecute(conn, "ALTER TABLE international_matches ADD COLUMN IF NOT EXISTS application_source TEXT")
+    message("  ✅ application_source column ensured on international_matches")
+  }, error = function(e) {
+    message("  ℹ️ application_source migration skipped: ", conditionMessage(e))
+  })
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_player ON international_player_match_stats(player_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_match ON international_player_match_stats(match_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_stat ON international_player_match_stats(stat)")
@@ -419,14 +391,15 @@ insert_matches <- function(conn, matches_df) {
         INSERT INTO international_matches (
           match_id, season, round_number, game_number, match_type, competition_name, match_status,
           home_squad_id, home_squad_name, away_squad_id, away_squad_name,
-          home_score, away_score, local_start_time, utc_start_time
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+          home_score, away_score, local_start_time, utc_start_time, application_source
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
       ", list(
         row$match_id, row$season, row$round_number, row$game_number, row$match_type,
         if ("competition_name" %in% names(row)) row$competition_name else NA_character_,
         row$match_status,
         row$home_squad_id, row$home_squad_name, row$away_squad_id, row$away_squad_name,
-        row$home_score, row$away_score, row$local_start_time, row$utc_start_time
+        row$home_score, row$away_score, row$local_start_time, row$utc_start_time,
+        if ("application_source" %in% names(row)) row$application_source else NA_character_
       ))
       success_count <- success_count + 1
     }, error = function(e) {
@@ -892,14 +865,14 @@ main <- function() {
   }
   
   # Discover competitions
-  diamonds_comps <- get_diamonds_competitions()
+  diamonds_comps <- get_all_international_competitions()
   
   if (nrow(diamonds_comps) == 0) {
     message("❌ FATAL: No competitions to process. Script ending early.")
     return(invisible(0))
   }
   
-  message(sprintf("Found %d Australian Diamonds competitions to process", nrow(diamonds_comps)))
+  message(sprintf("Found %d international competitions to process", nrow(diamonds_comps)))
   message("🔍 Competition list:")
   print(diamonds_comps[, c("comp_id", "competition_name", "season")])
   
@@ -934,8 +907,9 @@ main <- function() {
   total_team_stats_rows     <- 0L
 
   for (i in seq_len(total_comps)) {
-    comp_id   <- diamonds_comps$competition_id[i]
-    comp_name <- diamonds_comps$competition_name[i]
+    comp_row  <- diamonds_comps[i, , drop = FALSE]
+    comp_id   <- comp_row$competition_id[[1]]
+    comp_name <- comp_row$competition_name[[1]]
     message(sprintf("\n=== Competition %d/%d: %s (ID: %s) ===", i, total_comps, comp_name, comp_id))
 
     fixture <- tryCatch({
@@ -957,6 +931,7 @@ main <- function() {
     matches_df <- process_match_data(fixture)
     if (nrow(matches_df) > 0 && !is.null(conn)) {
       matches_df$competition_name <- comp_name
+      matches_df$application_source <- if ("application_source" %in% names(comp_row)) comp_row$application_source else NA_character_
       insert_matches(conn, matches_df)
       insert_teams(conn, extract_teams(matches_df))
       total_matches <- total_matches + nrow(matches_df)
