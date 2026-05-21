@@ -25,17 +25,34 @@ const elements = {
   teamLeadersLoading: document.getElementById("team-leaders-loading"),
   teamLeadersContent: document.getElementById("team-leaders-content"),
   teamLeadersBody: document.getElementById("team-leaders-body"),
+  playerStat: document.getElementById("int-player-stat"),
+  teamStat: document.getElementById("int-team-stat"),
   tabButtons: Array.from(document.querySelectorAll(".tabbed-panel__tab")),
   tabPanes: Array.from(document.querySelectorAll(".tabbed-panel__pane"))
 };
 
 // State
 const state = {
-  activeTab: "player-leaders-tab"
+  activeTab: "player-leaders-tab",
+  playerStat: "points",
+  teamStat: "points"
 };
 
 function showEl(el) { if (el) el.hidden = false; }
 function hideEl(el) { if (el) el.hidden = true; }
+
+function populateSelect(select, options) {
+  if (!select) return;
+  const prev = select.value;
+  select.replaceChildren();
+  options.forEach(({ value, label }) => {
+    const opt = document.createElement("option");
+    opt.value = value;
+    opt.textContent = label;
+    select.appendChild(opt);
+  });
+  if ([...select.options].some((o) => o.value === prev)) select.value = prev;
+}
 
 function formatMatchDate(dateStr) {
   if (!dateStr) return "—";
@@ -59,7 +76,7 @@ async function loadRecentMatches() {
   hideEl(elements.matchesEmpty);
 
   try {
-    const response = await fetchJson("/international/matches");
+    const response = await fetchJson("/international/matches", { limit: "10" });
     hideEl(elements.matchesLoading);
 
     const matches = (response && response.matches) ? response.matches : [];
@@ -90,13 +107,14 @@ async function loadRecentMatches() {
 
 // Load player leaders (only called if stats are available)
 async function loadPlayerLeaders() {
+  const stat = state.playerStat;
   showEl(elements.playerLeadersLoading);
   hideEl(elements.playerLeadersContent);
   
   try {
     const response = await fetchJson("/international/leaders", {
       type: "player",
-      stat: "points",
+      stat,
       limit: "10"
     });
     
@@ -137,13 +155,14 @@ function showLeadersUnavailable() {
 
 // Load team leaders
 async function loadTeamLeaders() {
+  const stat = state.teamStat;
   showEl(elements.teamLeadersLoading);
   hideEl(elements.teamLeadersContent);
   
   try {
     const response = await fetchJson("/international/leaders", {
       type: "team",
-      stat: "points",
+      stat,
       limit: "10"
     });
     
@@ -206,7 +225,33 @@ async function initialize() {
       switchTab(tabId);
     });
   });
-  
+
+  // Populate stat selects from /api/meta (same stat lists as Super Netball homepage)
+  try {
+    const meta = await fetchJson("/meta");
+    if (meta) {
+      const playerStats = (meta.player_stats || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
+      const teamStats = (meta.team_stats || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
+      populateSelect(elements.playerStat, playerStats);
+      populateSelect(elements.teamStat, teamStats);
+      if (elements.playerStat) elements.playerStat.value = "points";
+      if (elements.teamStat) elements.teamStat.value = "points";
+    }
+  } catch (_) { /* non-fatal — selects stay empty */ }
+
+  if (elements.playerStat) {
+    elements.playerStat.addEventListener("change", () => {
+      state.playerStat = elements.playerStat.value;
+      loadPlayerLeaders();
+    });
+  }
+  if (elements.teamStat) {
+    elements.teamStat.addEventListener("change", () => {
+      state.teamStat = elements.teamStat.value;
+      loadTeamLeaders();
+    });
+  }
+
   // Load recent matches first (always available if the DB is populated)
   await loadRecentMatches();
   
