@@ -1780,6 +1780,8 @@ tr[data-rank="3"] td:first-child {
   #int-player-leaders-table th,
   #int-team-leaders-table td,
   #int-team-leaders-table th,
+  #int-players-table td,
+  #int-players-table th,
   #nwar-table td,
   #nwar-table th {
     white-space: nowrap;
