@@ -48,7 +48,7 @@ function formatMatchDate(dateStr) {
 }
 
 function formatScore(match) {
-  if (match.match_status !== "completed" || match.home_score == null) return "—";
+  if (match.match_status !== "complete" || match.home_score == null) return "—";
   return `${match.home_score}–${match.away_score}`;
 }
 
@@ -69,7 +69,7 @@ async function loadRecentMatches() {
     }
 
     elements.matchesBody.replaceChildren();
-    matches.slice().reverse().forEach((match) => {
+    matches.forEach((match) => {
       const row = document.createElement("tr");
       row.innerHTML = `
         <td data-label="Date">${formatMatchDate(match.local_start_time)}</td>
