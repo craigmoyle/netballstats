@@ -82,7 +82,7 @@ async function loadPlayers() {
       limit: "100"
     };
     
-    const response = await fetchJson("/api/international/players", params);
+    const response = await fetchJson("/international/players", params);
     
     elements.tableBody.replaceChildren();
     

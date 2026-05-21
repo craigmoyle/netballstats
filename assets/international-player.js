@@ -423,7 +423,7 @@ async function initialise() {
   showLoadingStatus(PLAYER_LOADING_MESSAGES, "Loading profile");
 
   try {
-    const profile = await fetchJson("/api/international/player-profile", { player_id: playerId });
+    const profile = await fetchJson("/international/player-profile", { player_id: playerId });
     renderProfile(profile);
     trackEvent("international_player_profile_loaded", {
       metric: state.metric,
