@@ -172,14 +172,34 @@ fetch_international_team_by_id <- function(conn, squad_id) {
   )
 }
 
+# Append a string IN filter to an existing parameterised query fragment.
+# Works like append_integer_in_filter but for character values.
+append_string_in_filter <- function(query, params, column_name, values, prefix) {
+  if (is.null(values) || !length(values)) {
+    return(list(query = query, params = params))
+  }
+  placeholders <- character(length(values))
+  for (index in seq_along(values)) {
+    key <- sprintf("%s_%s", prefix, index)
+    placeholders[[index]] <- paste0("?", key)
+    params[[key]] <- as.character(values[[index]])
+  }
+  list(
+    query = paste0(query, " AND ", column_name, " IN (", paste(placeholders, collapse = ", "), ")"),
+    params = params
+  )
+}
+
 # Fetch international player leaders
-fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = NULL, stat = "points", search = "", limit = 12L, stat_mode = "total", ranking = "highest") {
+fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = NULL, stat = "points", search = "", limit = 12L, stat_mode = "total", ranking = "highest", competition_names = NULL) {
   if (!has_international_player_match_stats(conn)) {
     return(data.frame())
   }
 
   sort_col <- if (identical(stat_mode, "average")) "average_value" else "total_value"
   sort_dir <- ranking_order_sql(ranking)
+
+  need_match_join <- !is.null(competition_names) && length(competition_names) > 0
 
   base_query <- paste(
     "SELECT p.player_id, p.player_name, stats.squad_id,",
@@ -190,9 +210,16 @@ fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = N
     "FROM international_player_match_stats stats",
     "JOIN international_players p ON p.player_id = stats.player_id",
     "LEFT JOIN international_teams t ON t.squad_id = stats.squad_id",
+    if (need_match_join) "JOIN international_matches m ON m.match_id = stats.match_id" else "",
     "WHERE stats.stat = ?stat"
   )
   params <- list(stat = stat)
+
+  if (need_match_join) {
+    result <- append_string_in_filter(base_query, params, "m.competition_name", competition_names, "comp")
+    base_query <- result$query
+    params <- result$params
+  }
 
   if (!is.null(seasons) && length(seasons)) {
     result <- append_integer_in_filter(base_query, params, "stats.season", as.integer(seasons), "season")
@@ -222,13 +249,15 @@ fetch_international_player_leaders <- function(conn, seasons = NULL, team_id = N
 }
 
 # Fetch international team leaders by aggregating player stats per team
-fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "points", limit = 10L, stat_mode = "total", ranking = "highest") {
+fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "points", limit = 10L, stat_mode = "total", ranking = "highest", competition_names = NULL) {
   if (!has_international_player_match_stats(conn)) {
     return(data.frame())
   }
 
   sort_col <- if (identical(stat_mode, "average")) "average_value" else "total_value"
   sort_dir <- ranking_order_sql(ranking)
+
+  need_match_join <- !is.null(competition_names) && length(competition_names) > 0
 
   base_query <- paste(
     "SELECT stats.squad_id,",
@@ -238,9 +267,16 @@ fetch_international_team_leaders <- function(conn, seasons = NULL, stat = "point
     "  SUM(stats.match_value) * 1.0 / NULLIF(COUNT(DISTINCT stats.match_id), 0) AS average_value",
     "FROM international_player_match_stats stats",
     "LEFT JOIN international_teams t ON t.squad_id = stats.squad_id",
+    if (need_match_join) "JOIN international_matches m ON m.match_id = stats.match_id" else "",
     "WHERE stats.stat = ?stat"
   )
   params <- list(stat = stat)
+
+  if (need_match_join) {
+    result <- append_string_in_filter(base_query, params, "m.competition_name", competition_names, "comp")
+    base_query <- result$query
+    params <- result$params
+  }
 
   if (!is.null(seasons) && length(seasons)) {
     result <- append_integer_in_filter(base_query, params, "stats.season", as.integer(seasons), "season")
@@ -382,8 +418,26 @@ fetch_international_meta <- function(conn) {
     }
   }, error = function(e) NA_integer_)
 
+  competitions <- tryCatch({
+    rows <- query_rows(conn,
+      "SELECT DISTINCT competition_name, season FROM international_matches WHERE competition_name IS NOT NULL ORDER BY competition_name, season DESC",
+      list())
+    if (nrow(rows)) {
+      comp_seasons <- split(as.integer(rows$season), rows$competition_name)
+      lapply(names(comp_seasons), function(name) {
+        list(
+          competition_name = jsonlite::unbox(name),
+          seasons = sort(unique(comp_seasons[[name]]), decreasing = TRUE)
+        )
+      })
+    } else {
+      list()
+    }
+  }, error = function(e) list())
+
   list(
     seasons      = seasons,
+    competitions = competitions,
     player_stats = player_stats,
     team_stats   = player_stats,
     match_count  = jsonlite::unbox(match_count),
