@@ -354,14 +354,14 @@ fetch_international_meta <- function(conn) {
 
   match_count <- tryCatch(
     as.integer(query_rows(conn,
-      "SELECT COUNT(*) AS n FROM international_matches WHERE match_status = 'complete'", list())$n[1]),
+      "SELECT COUNT(*) AS n FROM international_matches", list())$n[1]),
     error = function(e) NA_integer_
   )
 
   player_count <- tryCatch({
     if (has_international_players(conn)) {
       as.integer(query_rows(conn,
-        "SELECT COUNT(DISTINCT player_id) AS n FROM international_players", list())$n[1])
+        "SELECT COUNT(*) AS n FROM international_players", list())$n[1])
     } else {
       NA_integer_
     }
@@ -369,11 +369,7 @@ fetch_international_meta <- function(conn) {
 
   team_count <- tryCatch(
     as.integer(query_rows(conn,
-      paste(
-        "SELECT COUNT(DISTINCT t) AS n FROM",
-        "(SELECT home_squad_name AS t FROM international_matches",
-        " UNION SELECT away_squad_name FROM international_matches) q"
-      ), list())$n[1]),
+      "SELECT COUNT(DISTINCT home_squad_id) AS n FROM international_matches", list())$n[1]),
     error = function(e) NA_integer_
   )
 

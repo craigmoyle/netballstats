@@ -2320,7 +2320,7 @@ function(res) {
       return(json_error(res, 503, "International data not available."))
     }
 
-    meta <- fetch_international_meta(conn)
+    meta <- with_statement_timeout(conn, meta_statement_timeout_ms(), fetch_international_meta(conn))
     json_success(res, meta)
   }, error = function(error) {
     handle_request_error(error, res)
