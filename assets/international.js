@@ -5,6 +5,7 @@ const {
   formatDate,
   formatStatLabel = (stat) => stat,
   renderSeasonCheckboxes = () => {},
+  renderCheckboxChoices = () => {},
   getCheckedValues = () => [],
   setCheckedValues = () => {},
   syncResponsiveTable = () => {},
@@ -90,39 +91,42 @@ function resolveInternationalColour(name, index) {
 const state = {
   meta: null,
   filters: {
-    seasons:     [],
-    playerStat:  "points",
-    teamStat:    "points",
-    statMode:    "total",
-    rankingMode: "highest",
+    seasons:      [],
+    competitions: [],
+    playerStat:   "points",
+    teamStat:     "points",
+    statMode:     "total",
+    rankingMode:  "highest",
   },
 };
 
 const elements = {
-  statusBanner:           document.getElementById("int-status-banner"),
-  seasonChoices:          document.getElementById("int-season-choices"),
-  filterSummary:          document.getElementById("int-active-filter-summary"),
-  playerStat:             document.getElementById("int-player-stat"),
-  teamStat:               document.getElementById("int-team-stat"),
-  statMode:               document.getElementById("int-stat-mode"),
-  rankingModeHidden:      document.getElementById("int-ranking-mode"),
-  filtersForm:            document.getElementById("int-filters-form"),
-  resetBtn:               document.getElementById("int-reset-filters"),
-  summaryMatches:         document.getElementById("int-summary-matches"),
-  summaryPlayers:         document.getElementById("int-summary-players"),
-  summaryTeams:           document.getElementById("int-summary-teams"),
-  playerPanelTitle:       document.getElementById("int-player-panel-title"),
-  playerPanelSummary:     document.getElementById("int-player-panel-summary"),
-  playerValueHeading:     document.getElementById("int-player-value-heading"),
-  playerLeadersBody:      document.getElementById("int-player-leaders-body"),
-  playerLeadersUnavail:   document.getElementById("int-player-leaders-unavailable"),
-  teamPanelTitle:         document.getElementById("int-team-panel-title"),
-  teamPanelSummary:       document.getElementById("int-team-panel-summary"),
-  teamValueHeading:       document.getElementById("int-team-value-heading"),
-  teamLeadersBody:        document.getElementById("int-team-leaders-body"),
-  teamLeadersUnavail:     document.getElementById("int-team-leaders-unavailable"),
-  matchesBody:            document.getElementById("int-matches-body"),
-  matchesEmpty:           document.getElementById("int-matches-empty"),
+  statusBanner:             document.getElementById("int-status-banner"),
+  seasonChoices:            document.getElementById("int-season-choices"),
+  competitionFilterField:   document.getElementById("int-competition-filter-field"),
+  competitionChoices:       document.getElementById("int-competition-choices"),
+  filterSummary:            document.getElementById("int-active-filter-summary"),
+  playerStat:               document.getElementById("int-player-stat"),
+  teamStat:                 document.getElementById("int-team-stat"),
+  statMode:                 document.getElementById("int-stat-mode"),
+  rankingModeHidden:        document.getElementById("int-ranking-mode"),
+  filtersForm:              document.getElementById("int-filters-form"),
+  resetBtn:                 document.getElementById("int-reset-filters"),
+  summaryMatches:           document.getElementById("int-summary-matches"),
+  summaryPlayers:           document.getElementById("int-summary-players"),
+  summaryTeams:             document.getElementById("int-summary-teams"),
+  playerPanelTitle:         document.getElementById("int-player-panel-title"),
+  playerPanelSummary:       document.getElementById("int-player-panel-summary"),
+  playerValueHeading:       document.getElementById("int-player-value-heading"),
+  playerLeadersBody:        document.getElementById("int-player-leaders-body"),
+  playerLeadersUnavail:     document.getElementById("int-player-leaders-unavailable"),
+  teamPanelTitle:           document.getElementById("int-team-panel-title"),
+  teamPanelSummary:         document.getElementById("int-team-panel-summary"),
+  teamValueHeading:         document.getElementById("int-team-value-heading"),
+  teamLeadersBody:          document.getElementById("int-team-leaders-body"),
+  teamLeadersUnavail:       document.getElementById("int-team-leaders-unavailable"),
+  matchesBody:              document.getElementById("int-matches-body"),
+  matchesEmpty:             document.getElementById("int-matches-empty"),
 };
 
 function showEl(el) { if (el) el.hidden = false; }
@@ -194,10 +198,45 @@ function getSelectedSeasons() {
 }
 
 function syncFiltersFromForm() {
-  state.filters.seasons    = getSelectedSeasons();
-  state.filters.playerStat = elements.playerStat?.value || "points";
-  state.filters.teamStat   = elements.teamStat?.value || "points";
-  state.filters.statMode   = elements.statMode?.value || "total";
+  state.filters.seasons      = getSelectedSeasons();
+  state.filters.competitions = getCheckedValues(elements.competitionChoices);
+  state.filters.playerStat   = elements.playerStat?.value || "points";
+  state.filters.teamStat     = elements.teamStat?.value || "points";
+  state.filters.statMode     = elements.statMode?.value || "total";
+}
+
+function updateCompetitionFilter() {
+  const allComps = state.meta?.competitions || [];
+  if (allComps.length <= 1) {
+    if (elements.competitionFilterField) elements.competitionFilterField.hidden = true;
+    state.filters.competitions = [];
+    return;
+  }
+
+  const selectedSeasons = getSelectedSeasons();
+  const availableComps = selectedSeasons.length === 0
+    ? allComps
+    : allComps.filter((c) => c.seasons.some((s) => selectedSeasons.includes(String(s))));
+
+  if (availableComps.length <= 1) {
+    if (elements.competitionFilterField) elements.competitionFilterField.hidden = true;
+    state.filters.competitions = [];
+    return;
+  }
+
+  if (elements.competitionFilterField) elements.competitionFilterField.hidden = false;
+
+  const prevSelected = new Set(
+    state.filters.competitions.length
+      ? state.filters.competitions
+      : availableComps.map((c) => c.competition_name)
+  );
+
+  renderCheckboxChoices(elements.competitionChoices, availableComps.map((c) => c.competition_name), {
+    className: "season-choice",
+    inputName: "int-competition",
+    selectedValues: [...prevSelected],
+  });
 }
 
 function describeSeasons(seasons) {
@@ -247,6 +286,8 @@ function applyMeta(meta) {
   setCheckedValues(elements.seasonChoices, latestSeason);
   state.filters.seasons = latestSeason;
 
+  updateCompetitionFilter();
+
   // Summary cards
   if (elements.summaryMatches) elements.summaryMatches.textContent = formatNumber(meta.match_count) ?? "–";
   if (elements.summaryPlayers) elements.summaryPlayers.textContent = formatNumber(meta.player_count) ?? "–";
@@ -256,7 +297,7 @@ function applyMeta(meta) {
 }
 
 async function loadPlayerLeaders() {
-  const { seasons, playerStat, statMode, rankingMode } = state.filters;
+  const { seasons, competitions, playerStat, statMode, rankingMode } = state.filters;
   hideEl(elements.playerLeadersUnavail);
 
   const statLabel  = formatStatLabel(playerStat);
@@ -273,6 +314,7 @@ async function loadPlayerLeaders() {
 
   const params = { type: "player", stat: playerStat, stat_mode: statMode, ranking: rankingMode, limit: "12" };
   if (seasons.length > 0) params.seasons = seasons.join(",");
+  if (competitions.length > 0) params.competitions = competitions.join(",");
 
   try {
     const response = await fetchJson("/international/leaders", params);
@@ -327,7 +369,7 @@ async function loadPlayerLeaders() {
 }
 
 async function loadTeamLeaders() {
-  const { seasons, teamStat, statMode, rankingMode } = state.filters;
+  const { seasons, competitions, teamStat, statMode, rankingMode } = state.filters;
   hideEl(elements.teamLeadersUnavail);
 
   const statLabel  = formatStatLabel(teamStat);
@@ -344,6 +386,7 @@ async function loadTeamLeaders() {
 
   const params = { type: "team", stat: teamStat, stat_mode: statMode, ranking: rankingMode, limit: "10" };
   if (seasons.length > 0) params.seasons = seasons.join(",");
+  if (competitions.length > 0) params.competitions = competitions.join(",");
 
   try {
     const response = await fetchJson("/international/leaders", params);
@@ -487,8 +530,18 @@ async function initialize() {
       } else if (action === "clear") {
         setCheckedValues(elements.seasonChoices, []);
       }
+      state.filters.competitions = [];
+      updateCompetitionFilter();
     });
   });
+
+  // Update competition filter when season selection changes
+  if (elements.seasonChoices) {
+    elements.seasonChoices.addEventListener("change", () => {
+      state.filters.competitions = [];
+      updateCompetitionFilter();
+    });
+  }
 
   // Ranking mode toggle buttons
   document.querySelectorAll("[data-int-ranking-mode]").forEach((btn) => {
@@ -514,10 +567,12 @@ async function initialize() {
       if (elements.teamStat)   elements.teamStat.value   = defaultStat(state.meta.team_stats);
       if (elements.statMode)   elements.statMode.value   = "total";
       setRankingMode("highest");
-      state.filters.seasons    = latest;
-      state.filters.playerStat = defaultStat(state.meta.player_stats);
-      state.filters.teamStat   = defaultStat(state.meta.team_stats);
-      state.filters.statMode   = "total";
+      state.filters.seasons      = latest;
+      state.filters.competitions = [];
+      state.filters.playerStat   = defaultStat(state.meta.player_stats);
+      state.filters.teamStat     = defaultStat(state.meta.team_stats);
+      state.filters.statMode     = "total";
+      updateCompetitionFilter();
       renderFilterSummary();
       applyFilters();
     });

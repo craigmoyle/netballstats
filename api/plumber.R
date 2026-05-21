@@ -2427,7 +2427,7 @@ function(player_id = "", res) {
 
 #* @get /international/leaders
 #* @get /api/international/leaders
-function(type = "player", stat = "points", seasons = "", stat_mode = "total", ranking = "highest", limit = "12", res) {
+function(type = "player", stat = "points", seasons = "", competitions = "", stat_mode = "total", ranking = "highest", limit = "12", res) {
   conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
@@ -2443,6 +2443,11 @@ function(type = "player", stat = "points", seasons = "", stat_mode = "total", ra
     stat <- trimws(stat)
     parsed_stat_mode <- parse_metric(stat_mode, "stat_mode")
     parsed_ranking <- parse_ranking_mode(ranking, "ranking")
+    parsed_competitions <- if (nzchar(trimws(competitions))) {
+      Filter(nzchar, trimws(strsplit(competitions, ",", fixed = TRUE)[[1]]))
+    } else {
+      NULL
+    }
     
     if (!nzchar(stat)) {
       stop("stat is required.", call. = FALSE)
@@ -2451,13 +2456,15 @@ function(type = "player", stat = "points", seasons = "", stat_mode = "total", ra
     if (identical(type, "player")) {
       leaders <- fetch_international_player_leaders(
         conn, seasons = parsed_seasons, stat = stat, limit = limit,
-        stat_mode = parsed_stat_mode, ranking = parsed_ranking
+        stat_mode = parsed_stat_mode, ranking = parsed_ranking,
+        competition_names = parsed_competitions
       )
       json_success(res, list(type = "player", stat = stat, stat_mode = parsed_stat_mode, ranking = parsed_ranking, leaders = leaders))
     } else if (identical(type, "team")) {
       leaders <- fetch_international_team_leaders(
         conn, seasons = parsed_seasons, stat = stat, limit = limit,
-        stat_mode = parsed_stat_mode, ranking = parsed_ranking
+        stat_mode = parsed_stat_mode, ranking = parsed_ranking,
+        competition_names = parsed_competitions
       )
       json_success(res, list(type = "team", stat = stat, stat_mode = parsed_stat_mode, ranking = parsed_ranking, leaders = leaders))
     } else {
