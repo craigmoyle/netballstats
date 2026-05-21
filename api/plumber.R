@@ -2343,19 +2343,40 @@ function(search = "", limit = "2000", res) {
     limit <- parse_limit(limit, default = 2000L, maximum = 2000L)
     parsed_search <- parse_search(search, name = "search")
 
-    query <- paste(
-      "SELECT player_id, firstname, surname, short_display_name, player_name, canonical_name",
-      "FROM international_players",
-      "WHERE 1 = 1"
-    )
+    has_stats <- has_international_player_match_stats(conn)
+
+    if (has_stats) {
+      query <- paste(
+        "SELECT p.player_id, p.player_name,",
+        "  MAX(s.squad_name) AS squad_name,",
+        "  COUNT(DISTINCT s.match_id) AS matches_played",
+        "FROM international_players p",
+        "LEFT JOIN international_player_match_stats s ON s.player_id = p.player_id",
+        "WHERE 1 = 1"
+      )
+    } else {
+      query <- paste(
+        "SELECT player_id, player_name,",
+        "  NULL AS squad_name,",
+        "  0 AS matches_played",
+        "FROM international_players",
+        "WHERE 1 = 1"
+      )
+    }
     params <- list()
 
     if (!is.null(parsed_search)) {
       params$search_pattern <- paste0("%", parsed_search, "%")
-      query <- paste(query, "AND search_name LIKE ?search_pattern")
+      query <- paste(query, if (has_stats) "AND p.search_name LIKE ?search_pattern"
+                             else "AND search_name LIKE ?search_pattern")
     }
 
-    query <- paste(query, "ORDER BY player_name LIMIT ?limit")
+    if (has_stats) {
+      query <- paste(query, "GROUP BY p.player_id, p.player_name")
+    }
+
+    order_col <- if (has_stats) "p.player_name" else "player_name"
+    query <- paste(query, sprintf("ORDER BY %s LIMIT ?limit", order_col))
     params$limit <- limit
 
     json_success(res, list(players = query_rows(conn, query, params)))

@@ -13,7 +13,7 @@
     <script defer src="/assets/telemetry.js"></script>
     <script defer src="/assets/international-players.js"></script>
   </head>
-  <body class="players-page">
+  <body class="players-page archive-home-page">
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
@@ -37,33 +37,40 @@
           <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
         </nav>
 
-      <section class="hero-panel players-hero">
-        <div class="hero-copy">
+      <section class="hero-panel archive-hero">
+        <div class="hero-copy hero-copy--home">
           <p class="eyebrow">Player directory</p>
-          <h1>International players</h1>
+          <h1 class="archive-hero__title">International players</h1>
           <p class="intro-copy">Browse all Australian Diamonds and international players with career statistics.</p>
         </div>
       </section>
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel panel--compact reveal">
+      <section class="panel query-panel query-panel--home reveal">
         <div id="players-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+        <div class="panel__heading panel__heading--split">
+          <div>
+            <p class="panel__eyebrow">Directory</p>
+            <h2>All players</h2>
+          </div>
+          <p id="players-results-meta" class="muted" aria-live="polite" aria-atomic="true">Loading players…</p>
+        </div>
         
-        <form class="search-form" role="search">
-          <label for="players-search" class="search-form__label">Search players</label>
-          <div class="search-form__input-wrapper">
+        <form class="search-form filters filters--dashboard" role="search" novalidate>
+          <div class="field field--wide">
+            <label for="players-search" class="field-label">Find a player</label>
             <input type="search" id="players-search" class="search-form__input" placeholder="Search by name…" autocomplete="off">
           </div>
         </form>
         
         <div class="table-wrapper">
-          <table class="stack-table players-table" aria-describedby="players-table-caption">
+          <table id="int-players-table" class="stack-table" aria-describedby="players-table-caption">
             <caption id="players-table-caption" class="table-caption">List of international netball players.</caption>
             <thead>
               <tr>
                 <th scope="col">Player</th>
-                <th scope="col">Teams</th>
+                <th scope="col">Nation</th>
                 <th scope="col" class="num">Matches</th>
               </tr>
             </thead>
@@ -71,11 +78,7 @@
           </table>
         </div>
         
-        <div id="players-pagination" class="pagination" hidden>
-          <button type="button" id="prev-page" class="button button--small" disabled>Previous</button>
-          <span id="page-info" class="pagination__info">Page 1 of 1</span>
-          <button type="button" id="next-page" class="button button--small" disabled>Next</button>
-        </div>
+        <p id="players-empty" class="panel__lead" hidden>No players found for this search.</p>
       </section>
     </main>
   </body>
