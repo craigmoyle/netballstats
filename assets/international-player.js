@@ -60,8 +60,11 @@ const elements = {
   playerIntro: document.getElementById("player-intro"),
   playerSquads: document.getElementById("player-squads"),
   heroProfileBirthday: document.getElementById("hero-profile-birthday"),
+  heroProfileBirthdayRow: document.getElementById("hero-profile-birthday-row"),
   heroProfileNationality: document.getElementById("hero-profile-nationality"),
+  heroProfileNationalityRow: document.getElementById("hero-profile-nationality-row"),
   heroProfileDebutSeason: document.getElementById("hero-profile-debut-season"),
+  heroProfileDebutRow: document.getElementById("hero-profile-debut-row"),
   summaryGames: document.getElementById("summary-games"),
   summarySeasons: document.getElementById("summary-seasons"),
   summaryTeams: document.getElementById("summary-teams"),
@@ -369,9 +372,23 @@ function setMetric(nextMetric) {
 }
 
 function renderHeroProfile(identity) {
-  elements.heroProfileBirthday.textContent = identity?.date_of_birth || "Not yet verified";
-  elements.heroProfileNationality.textContent = identity?.nationality || "Not yet verified";
-  elements.heroProfileDebutSeason.textContent = identity?.debut_season != null ? `${identity.debut_season}` : "Not yet verified";
+  const fields = [
+    { row: elements.heroProfileBirthdayRow, el: elements.heroProfileBirthday, value: identity?.date_of_birth || null },
+    { row: elements.heroProfileNationalityRow, el: elements.heroProfileNationality, value: identity?.nationality || null },
+    { row: elements.heroProfileDebutRow, el: elements.heroProfileDebutSeason, value: identity?.debut_season != null ? String(identity.debut_season) : null },
+  ];
+  let visible = 0;
+  fields.forEach(({ row, el, value }) => {
+    if (value && row && el) {
+      el.textContent = value;
+      row.hidden = false;
+      visible++;
+    } else if (row) {
+      row.hidden = true;
+    }
+  });
+  const aside = elements.heroProfileBirthday?.closest(".hero-aside");
+  if (aside) aside.hidden = visible === 0;
 }
 
 function renderProfile(profile) {
