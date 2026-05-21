@@ -317,6 +317,48 @@ create_international_tables <- function(conn) {
       PRIMARY KEY (player_id, match_id, stat)
     )
   ")
+
+  # Create international_player_match_participation table
+  dbExecute(conn, "
+    CREATE TABLE IF NOT EXISTS international_player_match_participation (
+      player_id INTEGER NOT NULL,
+      match_id INTEGER NOT NULL,
+      squad_id INTEGER NOT NULL,
+      season INTEGER NOT NULL,
+      starting_position_code VARCHAR(5),
+      current_position_code VARCHAR(5),
+      quarters_played INTEGER,
+      minutes_played NUMERIC,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (player_id, match_id)
+    )
+  ")
+
+  # Create international_team_match_stats table
+  dbExecute(conn, "
+    CREATE TABLE IF NOT EXISTS international_team_match_stats (
+      squad_id INTEGER NOT NULL,
+      match_id INTEGER NOT NULL,
+      season INTEGER NOT NULL,
+      squad_name VARCHAR(100) NOT NULL,
+      stat VARCHAR(50) NOT NULL,
+      match_value NUMERIC,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      PRIMARY KEY (squad_id, match_id, stat)
+    )
+  ")
+
+  # Create international_player_reference table
+  dbExecute(conn, "
+    CREATE TABLE IF NOT EXISTS international_player_reference (
+      player_id INTEGER PRIMARY KEY,
+      date_of_birth TEXT,
+      nationality TEXT,
+      debut_season INTEGER,
+      notes TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+  ")
   
   # Create indexes for better query performance
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_matches_season ON international_matches(season)")
@@ -331,6 +373,10 @@ create_international_tables <- function(conn) {
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_player ON international_player_match_stats(player_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_match ON international_player_match_stats(match_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_stat ON international_player_match_stats(stat)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_participation_player ON international_player_match_participation(player_id)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_participation_match ON international_player_match_participation(match_id)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_team_stats_match ON international_team_match_stats(match_id)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_team_stats_stat ON international_team_match_stats(stat)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_players_search_name ON international_players(search_name)")
   
   # pg_trgm GIN index for search_name matching Super Netball behavior, wrapped in tryCatch for SQLite compatibility
@@ -501,6 +547,92 @@ insert_player_stats <- function(conn, stats_df) {
   })
 }
 
+# Insert player participation data using bulk insert for performance
+insert_player_participation <- function(conn, participation_df) {
+  if (is.null(conn) || nrow(participation_df) == 0) {
+    return()
+  }
+
+  message(sprintf("Inserting %d participation rows...", nrow(participation_df)))
+
+  match_ids <- unique(participation_df$match_id)
+  if (length(match_ids) > 0) {
+    param_placeholders <- paste(paste0("$", seq_along(match_ids)), collapse = ",")
+    delete_sql <- paste("DELETE FROM international_player_match_participation WHERE match_id IN (", param_placeholders, ")")
+    tryCatch(
+      dbExecute(conn, delete_sql, as.list(match_ids)),
+      error = function(e) message(sprintf("⚠️  Warning: Failed to delete existing participation: %s", conditionMessage(e)))
+    )
+  }
+
+  tryCatch({
+    DBI::dbWriteTable(conn, "international_player_match_participation", participation_df, append = TRUE, row.names = FALSE)
+    message(sprintf("✅ Inserted %d participation rows", nrow(participation_df)))
+  }, error = function(e) {
+    message(sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
+    success_count <- 0L
+    for (i in seq_len(nrow(participation_df))) {
+      row <- participation_df[i, ]
+      tryCatch({
+        dbExecute(conn, "
+          INSERT INTO international_player_match_participation (
+            player_id, match_id, squad_id, season, starting_position_code, current_position_code,
+            quarters_played, minutes_played
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        ", list(
+          row$player_id, row$match_id, row$squad_id, row$season, row$starting_position_code,
+          row$current_position_code, row$quarters_played, row$minutes_played
+        ))
+        success_count <- success_count + 1L
+      }, error = function(e2) {
+        message(sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
+      })
+    }
+    message(sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(participation_df)))
+  })
+}
+
+# Insert team stats data using bulk insert for performance
+insert_team_stats <- function(conn, team_stats_df) {
+  if (is.null(conn) || nrow(team_stats_df) == 0) {
+    return()
+  }
+
+  message(sprintf("Inserting %d team stats rows...", nrow(team_stats_df)))
+
+  match_ids <- unique(team_stats_df$match_id)
+  if (length(match_ids) > 0) {
+    param_placeholders <- paste(paste0("$", seq_along(match_ids)), collapse = ",")
+    delete_sql <- paste("DELETE FROM international_team_match_stats WHERE match_id IN (", param_placeholders, ")")
+    tryCatch(
+      dbExecute(conn, delete_sql, as.list(match_ids)),
+      error = function(e) message(sprintf("⚠️  Warning: Failed to delete existing team stats: %s", conditionMessage(e)))
+    )
+  }
+
+  tryCatch({
+    DBI::dbWriteTable(conn, "international_team_match_stats", team_stats_df, append = TRUE, row.names = FALSE)
+    message(sprintf("✅ Inserted %d team stats rows", nrow(team_stats_df)))
+  }, error = function(e) {
+    message(sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
+    success_count <- 0L
+    for (i in seq_len(nrow(team_stats_df))) {
+      row <- team_stats_df[i, ]
+      tryCatch({
+        dbExecute(conn, "
+          INSERT INTO international_team_match_stats (
+            squad_id, match_id, season, squad_name, stat, match_value
+          ) VALUES ($1, $2, $3, $4, $5, $6)
+        ", list(row$squad_id, row$match_id, row$season, row$squad_name, row$stat, row$match_value))
+        success_count <- success_count + 1L
+      }, error = function(e2) {
+        message(sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
+      })
+    }
+    message(sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(team_stats_df)))
+  })
+}
+
 # Extract player identity rows from a match payload (payload$playerInfo$player)
 extract_player_info_from_payload <- function(payload) {
   if (is.null(payload) || is.null(payload$playerInfo) || is.null(payload$playerInfo$player)) {
@@ -596,6 +728,138 @@ extract_player_stats_from_payload <- function(payload, match_id_val, season_val)
   result
 }
 
+extract_player_participation_from_payload <- function(payload, match_id_val, season_val) {
+  if (is.null(payload) || is.null(payload$playerStats) || is.null(payload$playerStats$player)) {
+    return(data.frame())
+  }
+
+  tryCatch({
+    raw <- dplyr::bind_rows(payload$playerStats$player)
+    if (nrow(raw) == 0) return(data.frame())
+
+    rename_col <- function(df, from, to) {
+      if (from %in% names(df) && !to %in% names(df)) names(df)[names(df) == from] <- to
+      df
+    }
+    raw <- rename_col(raw, "playerId", "player_id")
+    raw <- rename_col(raw, "squadId", "squad_id")
+    raw <- rename_col(raw, "startingPositionCode", "starting_position_code")
+    raw <- rename_col(raw, "currentPositionCode", "current_position_code")
+    raw <- rename_col(raw, "quartersPlayed", "quarters_played")
+    raw <- rename_col(raw, "minutesPlayed", "minutes_played")
+
+    missing <- setdiff(c("player_id", "squad_id"), names(raw))
+    if (length(missing) > 0) {
+      message(sprintf("    ⚠️ Missing participation columns: %s", paste(missing, collapse = ", ")))
+      return(data.frame())
+    }
+
+    result <- raw %>%
+      dplyr::transmute(
+        player_id = as.integer(player_id),
+        match_id = as.integer(match_id_val),
+        squad_id = as.integer(squad_id),
+        season = as.integer(season_val),
+        starting_position_code = if ("starting_position_code" %in% names(raw)) as.character(starting_position_code) else NA_character_,
+        current_position_code = if ("current_position_code" %in% names(raw)) as.character(current_position_code) else NA_character_,
+        quarters_played = if ("quarters_played" %in% names(raw)) suppressWarnings(as.integer(quarters_played)) else NA_integer_,
+        minutes_played = if ("minutes_played" %in% names(raw)) suppressWarnings(as.numeric(as.character(minutes_played))) else NA_real_
+      ) %>%
+      dplyr::distinct(player_id, match_id, .keep_all = TRUE) %>%
+      dplyr::filter(!is.na(player_id), !is.na(squad_id))
+
+    message(sprintf("    ✅ %d participation rows for %d players", nrow(result), length(unique(result$player_id))))
+    result
+  }, error = function(e) {
+    message(sprintf("    ⚠️ extract_player_participation_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
+    data.frame()
+  })
+}
+
+extract_team_stats_from_payload <- function(payload, match_id_val, season_val) {
+  if (is.null(payload) || is.null(payload$playerStats) || is.null(payload$playerStats$player)) {
+    return(data.frame())
+  }
+
+  tryCatch({
+    raw <- dplyr::bind_rows(payload$playerStats$player)
+    if (nrow(raw) == 0) return(data.frame())
+
+    rename_col <- function(df, from, to) {
+      if (from %in% names(df) && !to %in% names(df)) names(df)[names(df) == from] <- to
+      df
+    }
+    raw <- rename_col(raw, "playerId", "player_id")
+    raw <- rename_col(raw, "squadId", "squad_id")
+    raw <- rename_col(raw, "quartersPlayed", "quarters_played")
+    raw <- rename_col(raw, "minutesPlayed", "minutes_played")
+    raw <- rename_col(raw, "startingPositionCode", "starting_position_code")
+    raw <- rename_col(raw, "currentPositionCode", "current_position_code")
+
+    if (!"squad_id" %in% names(raw)) {
+      message("    ⚠️ Missing team stats column: squad_id")
+      return(data.frame())
+    }
+
+    team_lookup <- data.frame(squad_id = integer(), squad_name = character(), stringsAsFactors = FALSE)
+    if (!is.null(payload$teamInfo) && !is.null(payload$teamInfo$team)) {
+      team_lookup <- dplyr::bind_rows(payload$teamInfo$team)
+      if (nrow(team_lookup) > 0) {
+        team_lookup <- rename_col(team_lookup, "squadId", "squad_id")
+        team_lookup <- rename_col(team_lookup, "squadName", "squad_name")
+        if (!"squad_name" %in% names(team_lookup)) team_lookup$squad_name <- NA_character_
+        team_lookup <- team_lookup %>%
+          dplyr::transmute(
+            squad_id = as.integer(squad_id),
+            squad_name = as.character(squad_name)
+          ) %>%
+          dplyr::distinct(squad_id, .keep_all = TRUE)
+      }
+    }
+
+    excluded_cols <- c("player_id", "squad_id", "quarters_played", "minutes_played", "starting_position_code", "current_position_code")
+    candidate_cols <- setdiff(names(raw), excluded_cols)
+    stat_cols <- candidate_cols[vapply(candidate_cols, function(col) {
+      values <- raw[[col]]
+      if (is.list(values)) return(FALSE)
+      coerced <- suppressWarnings(as.numeric(as.character(values)))
+      any(!is.na(coerced)) || all(is.na(values))
+    }, logical(1))]
+
+    if (length(stat_cols) == 0) {
+      message("    ⚠️ No team stats columns found in playerStats payload")
+      return(data.frame())
+    }
+
+    long_stats <- purrr::map_dfr(stat_cols, function(stat_col) {
+      data.frame(
+        squad_id = suppressWarnings(as.integer(raw$squad_id)),
+        stat = stat_col,
+        value = suppressWarnings(as.numeric(as.character(raw[[stat_col]]))),
+        stringsAsFactors = FALSE
+      )
+    })
+
+    result <- long_stats %>%
+      dplyr::filter(!is.na(squad_id)) %>%
+      dplyr::group_by(squad_id, stat) %>%
+      dplyr::summarise(match_value = sum(value, na.rm = TRUE), .groups = "drop") %>%
+      dplyr::left_join(team_lookup, by = "squad_id") %>%
+      dplyr::mutate(
+        match_id = as.integer(match_id_val),
+        season = as.integer(season_val),
+        squad_name = as.character(squad_name)
+      ) %>%
+      dplyr::select(squad_id, match_id, season, squad_name, stat, match_value)
+
+    message(sprintf("    ✅ %d team stat rows for %d squads", nrow(result), length(unique(result$squad_id))))
+    result
+  }, error = function(e) {
+    message(sprintf("    ⚠️ extract_team_stats_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
+    data.frame()
+  })
+}
+
 # Main execution
 main <- function() {
   message("=== Starting International Database Build Process ===")
@@ -662,10 +926,12 @@ main <- function() {
   diamonds_comps <- diamonds_comps[order(diamonds_comps$comp_id, decreasing = TRUE), ]
   total_comps <- nrow(diamonds_comps)
 
-  processed_count  <- 0L
-  total_matches    <- 0L
-  total_players    <- 0L
-  total_stats_rows <- 0L
+  processed_count           <- 0L
+  total_matches             <- 0L
+  total_players             <- 0L
+  total_stats_rows          <- 0L
+  total_participation_rows  <- 0L
+  total_team_stats_rows     <- 0L
 
   for (i in seq_len(total_comps)) {
     comp_id   <- diamonds_comps$competition_id[i]
@@ -697,8 +963,10 @@ main <- function() {
     }
 
     # Download per-match stats for every completed match
-    all_player_stats <- list()
-    all_player_info  <- list()
+    all_player_stats         <- list()
+    all_player_participation <- list()
+    all_team_stats           <- list()
+    all_player_info          <- list()
 
     for (j in seq_len(nrow(fixture))) {
       match_row  <- fixture[j, ]
@@ -731,6 +999,12 @@ main <- function() {
       stats_df <- extract_player_stats_from_payload(payload, match_id_v, season_v)
       if (nrow(stats_df) > 0) all_player_stats[[length(all_player_stats) + 1]] <- stats_df
 
+      participation_df <- extract_player_participation_from_payload(payload, match_id_v, season_v)
+      if (nrow(participation_df) > 0) all_player_participation[[length(all_player_participation) + 1]] <- participation_df
+
+      team_stats_df <- extract_team_stats_from_payload(payload, match_id_v, season_v)
+      if (nrow(team_stats_df) > 0) all_team_stats[[length(all_team_stats) + 1]] <- team_stats_df
+
       player_df <- extract_player_info_from_payload(payload)
       if (nrow(player_df) > 0) all_player_info[[length(all_player_info) + 1]] <- player_df
     }
@@ -749,6 +1023,18 @@ main <- function() {
         insert_player_stats(conn, combined_stats)
         total_stats_rows <- total_stats_rows + nrow(combined_stats)
       }
+
+      if (length(all_player_participation) > 0) {
+        combined_participation <- dplyr::bind_rows(all_player_participation)
+        insert_player_participation(conn, combined_participation)
+        total_participation_rows <- total_participation_rows + nrow(combined_participation)
+      }
+
+      if (length(all_team_stats) > 0) {
+        combined_team_stats <- dplyr::bind_rows(all_team_stats)
+        insert_team_stats(conn, combined_team_stats)
+        total_team_stats_rows <- total_team_stats_rows + nrow(combined_team_stats)
+      }
     }
 
     processed_count <- processed_count + 1L
@@ -760,6 +1046,8 @@ main <- function() {
   message(sprintf("Matches inserted:       %d", total_matches))
   message(sprintf("Players upserted:       %d", total_players))
   message(sprintf("Player stat rows:       %d", total_stats_rows))
+  message(sprintf("Participation rows:     %d", total_participation_rows))
+  message(sprintf("Team stat rows:         %d", total_team_stats_rows))
   
   # Close database connection
   if (!is.null(conn)) {
