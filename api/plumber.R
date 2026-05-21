@@ -2348,7 +2348,11 @@ function(search = "", limit = "2000", res) {
     if (has_stats) {
       query <- paste(
         "SELECT p.player_id, p.player_name,",
-        "  MAX(s.squad_name) AS squad_name,",
+        "  (SELECT s2.squad_name FROM international_player_match_stats s2",
+        "   WHERE s2.player_id = p.player_id",
+        "   GROUP BY s2.squad_name",
+        "   ORDER BY COUNT(DISTINCT s2.match_id) DESC",
+        "   LIMIT 1) AS squad_name,",
         "  COUNT(DISTINCT s.match_id) AS matches_played",
         "FROM international_players p",
         "LEFT JOIN international_player_match_stats s ON s.player_id = p.player_id",
