@@ -80,8 +80,8 @@ function renderPlayers(players) {
       ? `${player.first_season} to ${player.last_season}`
       : "";
     meta.textContent = spanText
-      ? `${formatNumber(player.games_played)} games • ${spanText}`
-      : "Open the profile for career totals and season splits.";
+      ? `${formatNumber(player.games_played)} games · ${spanText}`
+      : "";
 
     const footer = document.createElement("div");
     footer.className = "directory-card__footer";

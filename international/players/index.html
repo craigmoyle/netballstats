@@ -13,7 +13,7 @@
     <script defer src="/assets/telemetry.js"></script>
     <script defer src="/assets/international-players.js"></script>
   </head>
-  <body class="players-page archive-home-page">
+  <body class="players-page">
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
@@ -37,47 +37,41 @@
           <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
         </nav>
 
-      <section class="hero-panel archive-hero">
-        <div class="hero-copy hero-copy--home">
-          <p class="eyebrow">Player directory</p>
-          <h1 class="archive-hero__title">International players</h1>
-          <p class="intro-copy">Browse all Australian Diamonds and international players with career statistics.</p>
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Player profiles</p>
+          <h1>International players</h1>
         </div>
+
+        <aside class="hero-aside" aria-label="Player directory status">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Directory size</span>
+            <strong id="int-directory-total">–</strong>
+            <p id="int-directory-summary">Loading player records.</p>
+          </div>
+        </aside>
       </section>
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel query-panel query-panel--home reveal">
+      <section class="panel reveal">
         <div id="players-status" class="status-banner" role="status" aria-live="polite" hidden></div>
         <div class="panel__heading panel__heading--split">
           <div>
             <p class="panel__eyebrow">Directory</p>
             <h2>All players</h2>
           </div>
-          <p id="players-results-meta" class="muted" aria-live="polite" aria-atomic="true">Loading players…</p>
+          <p id="players-results-meta" class="directory-results-meta" aria-live="polite" aria-atomic="true">Loading players…</p>
         </div>
-        
-        <form class="search-form filters filters--dashboard" role="search" novalidate>
-          <div class="field field--wide">
-            <label for="players-search" class="field-label">Find a player</label>
-            <input type="search" id="players-search" class="search-form__input" placeholder="Search by name…" autocomplete="off">
-          </div>
-        </form>
-        
-        <div class="table-wrapper">
-          <table id="int-players-table" class="stack-table" aria-describedby="players-table-caption">
-            <caption id="players-table-caption" class="table-caption">List of international netball players.</caption>
-            <thead>
-              <tr>
-                <th scope="col">Player</th>
-                <th scope="col">Nation</th>
-                <th scope="col" class="num">Matches</th>
-              </tr>
-            </thead>
-            <tbody id="players-table-body"></tbody>
-          </table>
+
+        <div class="field directory-search">
+          <label for="players-search">Find a player</label>
+          <input type="search" id="players-search" placeholder="Search by player name" autocomplete="off">
         </div>
-        
+      </section>
+
+      <section class="panel reveal">
+        <div id="int-directory-grid" class="directory-grid"></div>
         <p id="players-empty" class="panel__lead" hidden>No players found for this search.</p>
       </section>
     </main>
