@@ -2,42 +2,89 @@ const {
   buildUrl,
   fetchJson,
   formatNumber,
+  formatDate,
   formatStatLabel = (stat) => stat,
-  showElementLoadingStatus = () => {},
-  showElementStatus = () => {},
-  syncResponsiveTable = () => {}
+  renderSeasonCheckboxes = () => {},
+  getCheckedValues = () => [],
+  setCheckedValues = () => {},
+  syncResponsiveTable = () => {},
 } = window.NetballStatsUI || {};
+
 const {
-  trackEvent = () => {}
+  trackEvent = () => {},
 } = window.NetballStatsTelemetry || {};
 
-// DOM Elements
-const elements = {
-  matchesLoading: document.getElementById("matches-loading"),
-  matchesContent: document.getElementById("matches-content"),
-  matchesBody: document.getElementById("matches-body"),
-  matchesEmpty: document.getElementById("matches-empty"),
-  leadersUnavailable: document.getElementById("leaders-unavailable"),
-  leadersPanel: document.getElementById("leaders-panel"),
-  playerLeadersLoading: document.getElementById("player-leaders-loading"),
-  playerLeadersContent: document.getElementById("player-leaders-content"),
-  playerLeadersBody: document.getElementById("player-leaders-body"),
-  playerLeadersCaption: document.querySelector("#player-leaders-table caption"),
-  teamLeadersLoading: document.getElementById("team-leaders-loading"),
-  teamLeadersContent: document.getElementById("team-leaders-content"),
-  teamLeadersBody: document.getElementById("team-leaders-body"),
-  teamLeadersCaption: document.querySelector("#team-leaders-table caption"),
-  playerStat: document.getElementById("int-player-stat"),
-  teamStat: document.getElementById("int-team-stat"),
-  tabButtons: Array.from(document.querySelectorAll(".tabbed-panel__tab")),
-  tabPanes: Array.from(document.querySelectorAll(".tabbed-panel__pane"))
+// National team colour map — keyed on lowercase name fragments
+const INTERNATIONAL_TEAM_COLOURS = {
+  australia:      "#00843D",
+  diamonds:       "#00843D",
+  "silver ferns": "#2D6A4F",
+  "new zealand":  "#2D6A4F",
+  england:        "#C60C30",
+  roses:          "#C60C30",
+  "south africa": "#E36B11",
+  proteas:        "#E36B11",
+  jamaica:        "#D4A017",
+  uganda:         "#D90000",
+  "she-cranes":   "#D90000",
+  malawi:         "#BB0000",
+  scotland:       "#005EB8",
+  fiji:           "#1A6FA8",
+  samoa:          "#8B1C1C",
+  zimbabwe:       "#007A33",
+  wales:          "#C8102E",
+  tonga:          "#8B1C1C",
+  trinidad:       "#C60C30",
 };
 
-// State
+const FALLBACK_PALETTE = ["#C38B59", "#5BA8A0", "#7A6EA0", "#D9705D", "#6FA86B", "#A06B6B"];
+
+function resolveInternationalColour(name, index) {
+  if (name) {
+    const lower = name.toLowerCase();
+    for (const [key, colour] of Object.entries(INTERNATIONAL_TEAM_COLOURS)) {
+      if (lower.includes(key)) return colour;
+    }
+  }
+  return FALLBACK_PALETTE[index % FALLBACK_PALETTE.length];
+}
+
 const state = {
-  activeTab: "player-leaders-tab",
-  playerStat: "points",
-  teamStat: "points"
+  meta: null,
+  filters: {
+    seasons:     [],
+    playerStat:  "points",
+    teamStat:    "points",
+    statMode:    "total",
+    rankingMode: "highest",
+  },
+};
+
+const elements = {
+  statusBanner:           document.getElementById("int-status-banner"),
+  seasonChoices:          document.getElementById("int-season-choices"),
+  filterSummary:          document.getElementById("int-active-filter-summary"),
+  playerStat:             document.getElementById("int-player-stat"),
+  teamStat:               document.getElementById("int-team-stat"),
+  statMode:               document.getElementById("int-stat-mode"),
+  rankingModeHidden:      document.getElementById("int-ranking-mode"),
+  filtersForm:            document.getElementById("int-filters-form"),
+  resetBtn:               document.getElementById("int-reset-filters"),
+  summaryMatches:         document.getElementById("int-summary-matches"),
+  summaryPlayers:         document.getElementById("int-summary-players"),
+  summaryTeams:           document.getElementById("int-summary-teams"),
+  playerPanelTitle:       document.getElementById("int-player-panel-title"),
+  playerPanelSummary:     document.getElementById("int-player-panel-summary"),
+  playerValueHeading:     document.getElementById("int-player-value-heading"),
+  playerLeadersBody:      document.getElementById("int-player-leaders-body"),
+  playerLeadersUnavail:   document.getElementById("int-player-leaders-unavailable"),
+  teamPanelTitle:         document.getElementById("int-team-panel-title"),
+  teamPanelSummary:       document.getElementById("int-team-panel-summary"),
+  teamValueHeading:       document.getElementById("int-team-value-heading"),
+  teamLeadersBody:        document.getElementById("int-team-leaders-body"),
+  teamLeadersUnavail:     document.getElementById("int-team-leaders-unavailable"),
+  matchesBody:            document.getElementById("int-matches-body"),
+  matchesEmpty:           document.getElementById("int-matches-empty"),
 };
 
 function showEl(el) { if (el) el.hidden = false; }
@@ -56,216 +103,342 @@ function populateSelect(select, options) {
   if ([...select.options].some((o) => o.value === prev)) select.value = prev;
 }
 
-function formatMatchDate(dateStr) {
-  if (!dateStr) return "—";
+function createCell(text, className) {
+  const td = document.createElement("td");
+  if (className) td.className = className;
+  td.textContent = text ?? "–";
+  return td;
+}
+
+function createTeamCell(name, colour) {
+  const td = document.createElement("td");
+  const swatch = document.createElement("span");
+  swatch.className = "team-swatch";
+  swatch.setAttribute("aria-hidden", "true");
+  swatch.style.setProperty("--swatch-color", colour || "var(--muted)");
+  td.appendChild(swatch);
+  td.appendChild(document.createTextNode(name ?? "–"));
+  return td;
+}
+
+function getSelectedSeasons() {
+  return getCheckedValues(elements.seasonChoices)
+    .sort((a, b) => Number(b) - Number(a));
+}
+
+function syncFiltersFromForm() {
+  state.filters.seasons    = getSelectedSeasons();
+  state.filters.playerStat = elements.playerStat?.value || "points";
+  state.filters.teamStat   = elements.teamStat?.value || "points";
+  state.filters.statMode   = elements.statMode?.value || "total";
+}
+
+function describeSeasons(seasons) {
+  if (!seasons.length) return "all seasons";
+  if (seasons.length === 1) return `season ${seasons[0]}`;
+  return `${seasons.length} seasons selected`;
+}
+
+function renderFilterSummary() {
+  if (!elements.filterSummary) return;
+  const { seasons, playerStat, statMode, rankingMode } = state.filters;
+  const modeLabel = statMode === "average" ? "averages" : "totals";
+  const rankLabel = rankingMode === "lowest" ? "lowest" : "highest";
+  elements.filterSummary.textContent =
+    `${describeSeasons(seasons)} · ${formatStatLabel(playerStat)} ${modeLabel} · ${rankLabel}`;
+}
+
+function setRankingMode(mode = "highest") {
+  state.filters.rankingMode = mode;
+  if (elements.rankingModeHidden) elements.rankingModeHidden.value = mode;
+  document.querySelectorAll("[data-int-ranking-mode]").forEach((btn) => {
+    const isActive = btn.dataset.intRankingMode === mode;
+    btn.classList.toggle("is-active", isActive);
+    btn.classList.toggle("button--ghost", !isActive);
+    btn.setAttribute("aria-pressed", String(isActive));
+  });
+}
+
+function applyMeta(meta) {
+  state.meta = meta;
+
+  renderSeasonCheckboxes(elements.seasonChoices, meta.seasons || [], { inputName: "int-season" });
+
+  const playerStats = (meta.player_stats || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
+  const teamStats   = (meta.team_stats   || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
+  populateSelect(elements.playerStat, playerStats);
+  populateSelect(elements.teamStat, teamStats);
+
+  const defaultStat = (list) => list.some((s) => s.value === "points") ? "points" : (list[0]?.value || "points");
+  if (elements.playerStat) elements.playerStat.value = defaultStat(playerStats);
+  if (elements.teamStat)   elements.teamStat.value   = defaultStat(teamStats);
+  state.filters.playerStat = defaultStat(playerStats);
+  state.filters.teamStat   = defaultStat(teamStats);
+
+  // Default to latest season
+  const latestSeason = meta.seasons?.length ? [`${meta.seasons[0]}`] : [];
+  setCheckedValues(elements.seasonChoices, latestSeason);
+  state.filters.seasons = latestSeason;
+
+  // Summary cards
+  if (elements.summaryMatches) elements.summaryMatches.textContent = formatNumber(meta.match_count) ?? "–";
+  if (elements.summaryPlayers) elements.summaryPlayers.textContent = formatNumber(meta.player_count) ?? "–";
+  if (elements.summaryTeams)   elements.summaryTeams.textContent   = formatNumber(meta.team_count) ?? "–";
+
+  renderFilterSummary();
+}
+
+async function loadPlayerLeaders() {
+  const { seasons, playerStat, statMode, rankingMode } = state.filters;
+  hideEl(elements.playerLeadersUnavail);
+
+  const statLabel  = formatStatLabel(playerStat);
+  const modeLabel  = statMode === "average" ? "average per match" : "total";
+  const rankPrefix = rankingMode === "lowest" ? "Lowest" : "Top";
+
+  if (elements.playerPanelSummary) {
+    elements.playerPanelSummary.textContent =
+      `${rankPrefix} ${modeLabel} ${statLabel} · ${describeSeasons(seasons)}`;
+  }
+  if (elements.playerValueHeading) {
+    elements.playerValueHeading.textContent = statMode === "average" ? "Avg/match" : "Total";
+  }
+
+  const params = { type: "player", stat: playerStat, stat_mode: statMode, ranking: rankingMode, limit: "12" };
+  if (seasons.length > 0) params.seasons = seasons.join(",");
+
   try {
-    const d = new Date(dateStr);
-    return d.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" });
-  } catch (_) {
-    return dateStr;
+    const response = await fetchJson("/international/leaders", params);
+    const rows = response?.leaders || [];
+
+    if (!rows.length) {
+      showEl(elements.playerLeadersUnavail);
+      if (elements.playerLeadersBody) elements.playerLeadersBody.replaceChildren();
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    rows.forEach((row, index) => {
+      const colour = resolveInternationalColour(row.squad_name, index);
+      const tr = document.createElement("tr");
+      tr.setAttribute("data-rank", index + 1);
+      tr.style.setProperty("--row-accent", colour);
+
+      const statVal = statMode === "average" ? Number(row.average_value) : Number(row.total_value);
+
+      const playerTd = document.createElement("td");
+      const link = document.createElement("a");
+      link.href = `/international/player/?player_id=${encodeURIComponent(row.player_id)}`;
+      link.textContent = row.player_name || "–";
+      playerTd.appendChild(link);
+      playerTd.dataset.stackPrimary = "true";
+
+      tr.append(
+        createCell(String(index + 1)),
+        playerTd,
+        createTeamCell(row.squad_name || "–", colour),
+        createCell(formatNumber(statVal), "num"),
+        createCell(formatNumber(row.match_count), "num"),
+      );
+      fragment.appendChild(tr);
+    });
+
+    if (elements.playerLeadersBody) {
+      elements.playerLeadersBody.replaceChildren(fragment);
+      syncResponsiveTable(elements.playerLeadersBody.closest("table"));
+    }
+  } catch {
+    showEl(elements.playerLeadersUnavail);
   }
 }
 
-function formatScore(match) {
-  if (match.match_status !== "complete" || match.home_score == null) return "—";
-  return `${match.home_score}–${match.away_score}`;
-}
+async function loadTeamLeaders() {
+  const { seasons, teamStat, statMode, rankingMode } = state.filters;
+  hideEl(elements.teamLeadersUnavail);
 
-// Load recent matches from /api/international/matches
-async function loadRecentMatches() {
-  showEl(elements.matchesLoading);
-  hideEl(elements.matchesContent);
-  hideEl(elements.matchesEmpty);
+  const statLabel  = formatStatLabel(teamStat);
+  const modeLabel  = statMode === "average" ? "average per match" : "total";
+  const rankPrefix = rankingMode === "lowest" ? "Lowest" : "Top";
+
+  if (elements.teamPanelSummary) {
+    elements.teamPanelSummary.textContent =
+      `${rankPrefix} ${modeLabel} ${statLabel} · ${describeSeasons(seasons)}`;
+  }
+  if (elements.teamValueHeading) {
+    elements.teamValueHeading.textContent = statMode === "average" ? "Avg/match" : "Total";
+  }
+
+  const params = { type: "team", stat: teamStat, stat_mode: statMode, ranking: rankingMode, limit: "10" };
+  if (seasons.length > 0) params.seasons = seasons.join(",");
 
   try {
-    const response = await fetchJson("/international/matches", { limit: "10" });
-    hideEl(elements.matchesLoading);
+    const response = await fetchJson("/international/leaders", params);
+    const rows = response?.leaders || [];
 
-    const matches = (response && response.matches) ? response.matches : [];
-    if (matches.length === 0) {
+    if (!rows.length) {
+      showEl(elements.teamLeadersUnavail);
+      if (elements.teamLeadersBody) elements.teamLeadersBody.replaceChildren();
+      return;
+    }
+
+    const fragment = document.createDocumentFragment();
+    rows.forEach((row, index) => {
+      const colour = resolveInternationalColour(row.squad_name, index);
+      const tr = document.createElement("tr");
+      tr.setAttribute("data-rank", index + 1);
+      tr.style.setProperty("--row-accent", colour);
+
+      const statVal = statMode === "average" ? Number(row.average_value) : Number(row.total_value);
+      const teamTd = createTeamCell(row.squad_name || "–", colour);
+      teamTd.dataset.stackPrimary = "true";
+
+      tr.append(
+        createCell(String(index + 1)),
+        teamTd,
+        createCell(formatNumber(statVal), "num"),
+        createCell(formatNumber(row.match_count), "num"),
+      );
+      fragment.appendChild(tr);
+    });
+
+    if (elements.teamLeadersBody) {
+      elements.teamLeadersBody.replaceChildren(fragment);
+      syncResponsiveTable(elements.teamLeadersBody.closest("table"));
+    }
+  } catch {
+    showEl(elements.teamLeadersUnavail);
+  }
+}
+
+async function loadMatches() {
+  const { seasons } = state.filters;
+  hideEl(elements.matchesEmpty);
+
+  const params = { limit: "10" };
+  if (seasons.length > 0) params.seasons = seasons.join(",");
+
+  try {
+    const response = await fetchJson("/international/matches", params);
+    const matches = response?.matches || [];
+
+    if (!matches.length) {
+      if (elements.matchesBody) elements.matchesBody.replaceChildren();
       showEl(elements.matchesEmpty);
       return;
     }
 
-    elements.matchesBody.replaceChildren();
+    const fragment = document.createDocumentFragment();
     matches.forEach((match) => {
-      const row = document.createElement("tr");
-      row.innerHTML = `
-        <td data-label="Date">${formatMatchDate(match.local_start_time)}</td>
-        <td data-label="Home">${match.home_squad_name || "—"}</td>
-        <td data-label="Away">${match.away_squad_name || "—"}</td>
-        <td data-label="Score" class="num">${formatScore(match)}</td>
-      `;
-      elements.matchesBody.appendChild(row);
+      const tr = document.createElement("tr");
+
+      const seasonTd = createCell(String(match.season || "–"));
+      seasonTd.dataset.label = "Season";
+
+      const dateTd = createCell(match.local_start_time ? formatDate(match.local_start_time) : "–");
+      dateTd.dataset.label = "Date";
+
+      const resultTd = document.createElement("td");
+      resultTd.dataset.label = "Result";
+      resultTd.dataset.stackPrimary = "true";
+
+      const isComplete = match.match_status === "complete";
+      if (isComplete) {
+        const homeScore = Number(match.home_score);
+        const awayScore = Number(match.away_score);
+        const homeWon   = homeScore > awayScore;
+        const awayWon   = awayScore > homeScore;
+
+        const homeSpan = document.createElement("span");
+        homeSpan.textContent = `${match.home_squad_name || "?"} ${homeScore}`;
+        homeSpan.className   = homeWon ? "result-winner" : "result-loser";
+
+        const awaySpan = document.createElement("span");
+        awaySpan.textContent = `${awayScore} ${match.away_squad_name || "?"}`;
+        awaySpan.className   = awayWon ? "result-winner" : "result-loser";
+
+        resultTd.append(homeSpan, document.createTextNode(" – "), awaySpan);
+      } else {
+        resultTd.textContent = `${match.home_squad_name || "?"} vs ${match.away_squad_name || "?"}`;
+      }
+
+      tr.append(seasonTd, dateTd, resultTd);
+      fragment.appendChild(tr);
     });
 
-    syncResponsiveTable(document.getElementById("matches-table"));
-    showEl(elements.matchesContent);
-  } catch (error) {
-    hideEl(elements.matchesLoading);
+    if (elements.matchesBody) {
+      elements.matchesBody.replaceChildren(fragment);
+      syncResponsiveTable(elements.matchesBody.closest("table"));
+    }
+  } catch {
     showEl(elements.matchesEmpty);
   }
 }
 
-// Load player leaders (only called if stats are available)
-async function loadPlayerLeaders() {
-  const stat = state.playerStat;
-  showEl(elements.playerLeadersLoading);
-  hideEl(elements.playerLeadersContent);
-  
-  try {
-    const response = await fetchJson("/international/leaders", {
-      type: "player",
-      stat,
-      limit: "10"
-    });
-    
-    elements.playerLeadersBody.replaceChildren();
-    if (elements.playerLeadersCaption) {
-      elements.playerLeadersCaption.textContent = `Players ranked by total ${formatStatLabel(stat).toLowerCase()} across all international matches.`;
-    }
-    
-    if (response.leaders && response.leaders.length > 0) {
-      response.leaders.forEach((player) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td data-label="Player">
-            <a href="/international/player/?player_id=${player.player_id}">${player.player_name}</a>
-          </td>
-          <td data-label="Total" class="num">${formatNumber(player.total_value)}</td>
-          <td data-label="Matches" class="num">${formatNumber(player.match_count)}</td>
-          <td data-label="Avg/match" class="num">${formatNumber(player.average_value)}</td>
-        `;
-        elements.playerLeadersBody.appendChild(row);
-      });
-      syncResponsiveTable(document.getElementById("player-leaders-table"));
-      hideEl(elements.playerLeadersLoading);
-      showEl(elements.playerLeadersContent);
-    } else {
-      // Stats table exists but is empty — show unavailable state
-      hideEl(elements.playerLeadersLoading);
-      showLeadersUnavailable();
-    }
-  } catch (error) {
-    hideEl(elements.playerLeadersLoading);
-    // 503 = stats not available; hide the whole leaderboard section
-    showLeadersUnavailable();
-  }
+async function applyFilters() {
+  syncFiltersFromForm();
+  renderFilterSummary();
+  await Promise.all([loadPlayerLeaders(), loadTeamLeaders(), loadMatches()]);
 }
 
-function showLeadersUnavailable() {
-  hideEl(elements.leadersPanel);
-  showEl(elements.leadersUnavailable);
-}
-
-// Load team leaders
-async function loadTeamLeaders() {
-  const stat = state.teamStat;
-  showEl(elements.teamLeadersLoading);
-  hideEl(elements.teamLeadersContent);
-  
-  try {
-    const response = await fetchJson("/international/leaders", {
-      type: "team",
-      stat,
-      limit: "10"
-    });
-    
-    elements.teamLeadersBody.replaceChildren();
-    if (elements.teamLeadersCaption) {
-      elements.teamLeadersCaption.textContent = `Teams ranked by total ${formatStatLabel(stat).toLowerCase()} across all international matches.`;
-    }
-    
-    if (response.leaders && response.leaders.length > 0) {
-      response.leaders.forEach((team) => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td data-label="Team">${team.squad_name}</td>
-          <td data-label="Total" class="num">${formatNumber(team.total_value)}</td>
-          <td data-label="Matches" class="num">${formatNumber(team.match_count)}</td>
-          <td data-label="Avg/match" class="num">${formatNumber(team.average_value)}</td>
-        `;
-        elements.teamLeadersBody.appendChild(row);
-      });
-      syncResponsiveTable(document.getElementById("team-leaders-table"));
-      hideEl(elements.teamLeadersLoading);
-      showEl(elements.teamLeadersContent);
-    } else {
-      hideEl(elements.teamLeadersLoading);
-      showEl(elements.teamLeadersContent);
-    }
-  } catch (error) {
-    hideEl(elements.teamLeadersLoading);
-    showEl(elements.teamLeadersContent);
-  }
-}
-
-// Switch tabs
-function switchTab(tabId) {
-  state.activeTab = tabId;
-  
-  elements.tabButtons.forEach(button => {
-    const isSelected = button.getAttribute("aria-controls") === tabId;
-    button.classList.toggle("is-active", isSelected);
-    button.setAttribute("aria-selected", isSelected.toString());
-  });
-  
-  elements.tabPanes.forEach(pane => {
-    const isSelected = pane.id === tabId;
-    pane.hidden = !isSelected;
-    if (isSelected) {
-      pane.setAttribute("tabindex", "0");
-    } else {
-      pane.removeAttribute("tabindex");
-    }
-  });
-  
-  if (tabId === "team-leaders-tab" && elements.teamLeadersBody && elements.teamLeadersBody.children.length === 0) {
-    loadTeamLeaders();
-  }
-}
-
-// Initialize
 async function initialize() {
-  elements.tabButtons.forEach(button => {
-    button.addEventListener("click", () => {
-      const tabId = button.getAttribute("aria-controls");
-      switchTab(tabId);
+  // Season quick actions
+  document.querySelectorAll("[data-int-season-action]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const action = btn.dataset.intSeasonAction;
+      if (!state.meta) return;
+      if (action === "latest") {
+        const latest = state.meta.seasons?.length ? [`${state.meta.seasons[0]}`] : [];
+        setCheckedValues(elements.seasonChoices, latest);
+      } else if (action === "all") {
+        setCheckedValues(elements.seasonChoices, (state.meta.seasons || []).map((s) => `${s}`));
+      } else if (action === "clear") {
+        setCheckedValues(elements.seasonChoices, []);
+      }
     });
   });
 
-  // Populate stat selects from /api/meta (same stat lists as Super Netball homepage)
+  // Ranking mode toggle buttons
+  document.querySelectorAll("[data-int-ranking-mode]").forEach((btn) => {
+    btn.addEventListener("click", () => setRankingMode(btn.dataset.intRankingMode));
+  });
+
+  // Filter form submit
+  if (elements.filtersForm) {
+    elements.filtersForm.addEventListener("submit", (e) => {
+      e.preventDefault();
+      applyFilters();
+    });
+  }
+
+  // Reset button
+  if (elements.resetBtn) {
+    elements.resetBtn.addEventListener("click", () => {
+      if (!state.meta) return;
+      const latest = state.meta.seasons?.length ? [`${state.meta.seasons[0]}`] : [];
+      setCheckedValues(elements.seasonChoices, latest);
+      const defaultStat = (list) => list?.includes("points") ? "points" : (list?.[0] || "");
+      if (elements.playerStat) elements.playerStat.value = defaultStat(state.meta.player_stats);
+      if (elements.teamStat)   elements.teamStat.value   = defaultStat(state.meta.team_stats);
+      if (elements.statMode)   elements.statMode.value   = "total";
+      setRankingMode("highest");
+      state.filters.seasons    = latest;
+      state.filters.playerStat = defaultStat(state.meta.player_stats);
+      state.filters.teamStat   = defaultStat(state.meta.team_stats);
+      state.filters.statMode   = "total";
+      renderFilterSummary();
+      applyFilters();
+    });
+  }
+
+  // Load meta from dedicated international endpoint
   try {
-    const meta = await fetchJson("/meta");
-    if (meta) {
-      const playerStats = (meta.player_stats || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
-      const teamStats = (meta.team_stats || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
-      populateSelect(elements.playerStat, playerStats);
-      populateSelect(elements.teamStat, teamStats);
-      if (elements.playerStat) elements.playerStat.value = "points";
-      if (elements.teamStat) elements.teamStat.value = "points";
-    }
-  } catch (_) { /* non-fatal — selects stay empty */ }
-
-  if (elements.playerStat) {
-    elements.playerStat.addEventListener("change", () => {
-      state.playerStat = elements.playerStat.value;
-      loadPlayerLeaders();
-    });
-  }
-  if (elements.teamStat) {
-    elements.teamStat.addEventListener("change", () => {
-      state.teamStat = elements.teamStat.value;
-      loadTeamLeaders();
-    });
+    const meta = await fetchJson("/international/meta");
+    if (meta) applyMeta(meta);
+  } catch {
+    if (elements.filterSummary) elements.filterSummary.textContent = "Unable to load filter options.";
   }
 
-  // Load recent matches first (always available if the DB is populated)
-  await loadRecentMatches();
-  
-  // Attempt to load player leaders; gracefully hides the section if stats are unavailable
-  await loadPlayerLeaders();
-  
+  await applyFilters();
   trackEvent("international_home_viewed");
 }
 
