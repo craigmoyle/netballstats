@@ -306,6 +306,31 @@ code {
   display: block;
 }
 
+.hero-disclaimer {
+  display: none;
+  margin-top: 0.75rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  line-height: 1.5;
+  max-width: 52ch;
+}
+
+.hero-copy--home .hero-disclaimer {
+  display: block;
+}
+
+.hero-disclaimer__link {
+  color: var(--muted);
+  text-decoration: underline;
+  text-decoration-color: color-mix(in srgb, var(--muted) 40%, transparent);
+  text-underline-offset: 2px;
+}
+
+.hero-disclaimer__link:hover {
+  color: var(--fg);
+  text-decoration-color: var(--fg);
+}
+
 .query-page .hero-copy {
   flex-direction: column;
   align-items: flex-start;
