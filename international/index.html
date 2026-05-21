@@ -87,6 +87,16 @@
         </div>
 
         <div id="leaders-panel" class="tabbed-panel">
+          <form class="filters filters--dashboard int-leaders-filters" novalidate>
+            <div class="field field--stat-picker">
+              <label for="int-player-stat">Player stat</label>
+              <select id="int-player-stat" name="player-stat"></select>
+            </div>
+            <div class="field field--stat-picker">
+              <label for="int-team-stat">Team stat</label>
+              <select id="int-team-stat" name="team-stat"></select>
+            </div>
+          </form>
           <div class="tabbed-panel__tabs" role="tablist">
             <button type="button" class="tabbed-panel__tab is-active" role="tab" aria-selected="true" aria-controls="player-leaders-tab">Player leaders</button>
             <button type="button" class="tabbed-panel__tab" role="tab" aria-selected="false" aria-controls="team-leaders-tab">Team leaders</button>
