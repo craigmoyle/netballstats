@@ -373,7 +373,7 @@ code {
 }
 
 .hero-copy--home h1 {
-  font-size: clamp(3.5rem, 7.8vw, 7rem);
+  font-size: clamp(1.8rem, 3.8vw, 3.4rem);
 }
 
 .hero-tagline {
@@ -385,12 +385,8 @@ code {
 }
 
 @media (min-width: 900px) {
-  .hero-copy--home h1,
   .hero-copy--home .hero-tagline {
     white-space: nowrap;
-  }
-
-  .hero-copy--home .hero-tagline {
     max-width: none;
   }
 }
