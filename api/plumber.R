@@ -2319,34 +2319,6 @@ function(res) {
     if (!has_international_matches(conn)) {
       return(json_error(res, 503, "International data not available."))
     }
-    
-    payload <- with_statement_timeout(conn, meta_statement_timeout_ms(), build_meta_payload(conn))
-    
-    # Add international-specific metadata
-    payload$international_data_available <- TRUE
-    payload$last_international_refresh <- tryCatch({
-      meta_rows <- query_rows(conn, "SELECT value FROM metadata WHERE key = 'international_refreshed_at'", list())
-      if (nrow(meta_rows) > 0) meta_rows$value[[1]] else NULL
-    }, error = function(e) NULL)
-    
-    json_success(res, payload)
-  }, error = function(error) {
-    handle_request_error(error, res)
-  })
-}
-
-#* @get /international/meta
-#* @get /api/international/meta
-function(res) {
-  conn <- tryCatch(get_db_conn(), error = function(error) error)
-  if (inherits(conn, "error")) {
-    return(database_unavailable(res, conn))
-  }
-
-  tryCatch({
-    if (!has_international_matches(conn)) {
-      return(json_error(res, 503, "International data not available."))
-    }
 
     meta <- fetch_international_meta(conn)
     json_success(res, meta)
