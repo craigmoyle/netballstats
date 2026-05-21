@@ -22,9 +22,11 @@ const elements = {
   playerLeadersLoading: document.getElementById("player-leaders-loading"),
   playerLeadersContent: document.getElementById("player-leaders-content"),
   playerLeadersBody: document.getElementById("player-leaders-body"),
+  playerLeadersCaption: document.querySelector("#player-leaders-table caption"),
   teamLeadersLoading: document.getElementById("team-leaders-loading"),
   teamLeadersContent: document.getElementById("team-leaders-content"),
   teamLeadersBody: document.getElementById("team-leaders-body"),
+  teamLeadersCaption: document.querySelector("#team-leaders-table caption"),
   playerStat: document.getElementById("int-player-stat"),
   teamStat: document.getElementById("int-team-stat"),
   tabButtons: Array.from(document.querySelectorAll(".tabbed-panel__tab")),
@@ -119,6 +121,9 @@ async function loadPlayerLeaders() {
     });
     
     elements.playerLeadersBody.replaceChildren();
+    if (elements.playerLeadersCaption) {
+      elements.playerLeadersCaption.textContent = `Players ranked by total ${formatStatLabel(stat).toLowerCase()} across all international matches.`;
+    }
     
     if (response.leaders && response.leaders.length > 0) {
       response.leaders.forEach((player) => {
@@ -167,6 +172,9 @@ async function loadTeamLeaders() {
     });
     
     elements.teamLeadersBody.replaceChildren();
+    if (elements.teamLeadersCaption) {
+      elements.teamLeadersCaption.textContent = `Teams ranked by total ${formatStatLabel(stat).toLowerCase()} across all international matches.`;
+    }
     
     if (response.leaders && response.leaders.length > 0) {
       response.leaders.forEach((team) => {
