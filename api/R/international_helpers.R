@@ -343,10 +343,15 @@ fetch_international_meta <- function(conn) {
     error = function(e) integer(0)
   )
 
+  # Non-performance metadata fields stored as stats — exclude from dropdowns
+  non_perf_stats <- c("currentPositionCode", "startingPositionCode",
+                      "jumperNumber", "quartersPlayed")
+
   player_stats <- tryCatch({
     if (has_international_player_match_stats(conn)) {
-      as.character(query_rows(conn,
+      all_stats <- as.character(query_rows(conn,
         "SELECT DISTINCT stat FROM international_player_match_stats ORDER BY stat", list())$stat)
+      setdiff(all_stats, non_perf_stats)
     } else {
       character(0)
     }
@@ -367,11 +372,15 @@ fetch_international_meta <- function(conn) {
     }
   }, error = function(e) NA_integer_)
 
-  team_count <- tryCatch(
-    as.integer(query_rows(conn,
-      "SELECT COUNT(DISTINCT home_squad_id) AS n FROM international_matches", list())$n[1]),
-    error = function(e) NA_integer_
-  )
+  team_count <- tryCatch({
+    if (has_international_teams(conn)) {
+      as.integer(query_rows(conn,
+        "SELECT COUNT(*) AS n FROM international_teams", list())$n[1])
+    } else {
+      as.integer(query_rows(conn,
+        "SELECT COUNT(DISTINCT home_squad_id) AS n FROM international_matches", list())$n[1])
+    }
+  }, error = function(e) NA_integer_)
 
   list(
     seasons      = seasons,
