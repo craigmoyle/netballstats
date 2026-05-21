@@ -296,7 +296,13 @@ async function loadPlayerLeaders() {
       const playerTd = document.createElement("td");
       const link = document.createElement("a");
       link.href = `/international/player/?player_id=${encodeURIComponent(row.player_id)}`;
-      link.textContent = row.player_name || "–";
+      link.className = "table-link table-link--dossier";
+      const label = document.createElement("span");
+      label.textContent = row.player_name || "–";
+      const meta = document.createElement("span");
+      meta.className = "table-link__meta";
+      meta.textContent = "Open dossier";
+      link.append(label, meta);
       playerTd.appendChild(link);
       playerTd.dataset.stackPrimary = "true";
 
@@ -304,6 +310,7 @@ async function loadPlayerLeaders() {
         createCell(String(index + 1)),
         playerTd,
         createTeamCell(row.squad_name || "–", colour),
+        createCell(formatStatLabel(row.stat)),
         createCell(formatNumber(statVal), "num"),
         createCell(formatNumber(row.match_count), "num"),
       );
@@ -362,6 +369,7 @@ async function loadTeamLeaders() {
       tr.append(
         createCell(String(index + 1)),
         teamTd,
+        createCell(formatStatLabel(row.stat)),
         createCell(formatNumber(statVal), "num"),
         createCell(formatNumber(row.match_count), "num"),
       );
