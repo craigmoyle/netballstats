@@ -1763,7 +1763,9 @@ tr[data-rank="3"] td:first-child {
 
 /* Team accent: colored left-bar using the row's --row-accent custom property */
 #team-leaders-table tbody td:first-child,
-#player-leaders-table tbody td:first-child {
+#player-leaders-table tbody td:first-child,
+#int-team-leaders-table tbody td:first-child,
+#int-player-leaders-table tbody td:first-child {
   box-shadow: inset 1px 0 0 var(--row-accent, transparent);
 }
 
@@ -1774,6 +1776,10 @@ tr[data-rank="3"] td:first-child {
   #player-leaders-table th,
   #team-leaders-table td,
   #team-leaders-table th,
+  #int-player-leaders-table td,
+  #int-player-leaders-table th,
+  #int-team-leaders-table td,
+  #int-team-leaders-table th,
   #nwar-table td,
   #nwar-table th {
     white-space: nowrap;

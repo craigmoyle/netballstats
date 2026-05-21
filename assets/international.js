@@ -8,6 +8,8 @@ const {
   getCheckedValues = () => [],
   setCheckedValues = () => {},
   syncResponsiveTable = () => {},
+  showStatusBanner = () => {},
+  cycleStatusBanner = () => {},
 } = window.NetballStatsUI || {};
 
 const {
@@ -38,6 +40,42 @@ const INTERNATIONAL_TEAM_COLOURS = {
 };
 
 const FALLBACK_PALETTE = ["#C38B59", "#5BA8A0", "#7A6EA0", "#D9705D", "#6FA86B", "#A06B6B"];
+
+// Stat group assignments for optgroup rendering in stat dropdowns
+const INT_STAT_GROUPS = {
+  goals:                    "Scoring",
+  goalAttempts:             "Scoring",
+  missedGoals:              "Scoring",
+  goalAssists:              "Scoring",
+  points:                   "Scoring",
+  goalsFromCentrePass:      "Scoring",
+  goalsFromGain:            "Scoring",
+  goalsFromTurnovers:       "Scoring",
+  feeds:                    "Creation",
+  feedWithAttempt:          "Creation",
+  centrePassReceives:       "Creation",
+  disposals:                "Creation",
+  possessions:              "Creation",
+  possessionChanges:        "Creation",
+  timeInPossession:         "Creation",
+  gain:                     "Defence",
+  intercepts:               "Defence",
+  deflections:              "Defence",
+  deflectionWithGain:       "Defence",
+  deflectionWithNoGain:     "Defence",
+  deflectionPossessionGain: "Defence",
+  offensiveRebounds:        "Defence",
+  defensiveRebounds:        "Defence",
+  contactPenalties:         "Discipline",
+  obstructionPenalties:     "Discipline",
+  generalPlayTurnovers:     "Discipline",
+  unforcedTurnovers:        "Discipline",
+  turnoverHeld:             "Discipline",
+  missedGoalTurnover:       "Discipline",
+  interceptPassThrown:      "Discipline",
+  tossUpWin:                "Discipline",
+};
+const INT_STAT_GROUP_ORDER = ["Scoring", "Creation", "Defence", "Discipline", "Other"];
 
 function resolveInternationalColour(name, index) {
   if (name) {
@@ -103,6 +141,35 @@ function populateSelect(select, options) {
   if ([...select.options].some((o) => o.value === prev)) select.value = prev;
 }
 
+function populateGroupedSelect(select, stats) {
+  if (!select) return;
+  const prev = select.value;
+  select.replaceChildren();
+
+  const groups = new Map(INT_STAT_GROUP_ORDER.map((g) => [g, []]));
+  stats.forEach((stat) => {
+    const group = INT_STAT_GROUPS[stat] || "Other";
+    if (!groups.has(group)) groups.set(group, []);
+    groups.get(group).push(stat);
+  });
+
+  INT_STAT_GROUP_ORDER.forEach((groupName) => {
+    const items = groups.get(groupName);
+    if (!items?.length) return;
+    const grp = document.createElement("optgroup");
+    grp.label = groupName;
+    items.forEach((stat) => {
+      const opt = document.createElement("option");
+      opt.value = stat;
+      opt.textContent = formatStatLabel(stat);
+      grp.appendChild(opt);
+    });
+    select.appendChild(grp);
+  });
+
+  if ([...select.options].some((o) => o.value === prev)) select.value = prev;
+}
+
 function createCell(text, className) {
   const td = document.createElement("td");
   if (className) td.className = className;
@@ -164,12 +231,12 @@ function applyMeta(meta) {
 
   renderSeasonCheckboxes(elements.seasonChoices, meta.seasons || [], { inputName: "int-season" });
 
-  const playerStats = (meta.player_stats || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
-  const teamStats   = (meta.team_stats   || []).map((s) => ({ value: s, label: formatStatLabel(s) }));
-  populateSelect(elements.playerStat, playerStats);
-  populateSelect(elements.teamStat, teamStats);
+  const playerStats = meta.player_stats || [];
+  const teamStats   = meta.team_stats   || [];
+  populateGroupedSelect(elements.playerStat, playerStats);
+  populateGroupedSelect(elements.teamStat, teamStats);
 
-  const defaultStat = (list) => list.some((s) => s.value === "points") ? "points" : (list[0]?.value || "points");
+  const defaultStat = (list) => list.includes("points") ? "points" : (list[0] || "points");
   if (elements.playerStat) elements.playerStat.value = defaultStat(playerStats);
   if (elements.teamStat)   elements.teamStat.value   = defaultStat(teamStats);
   state.filters.playerStat = defaultStat(playerStats);
@@ -334,6 +401,9 @@ async function loadMatches() {
       const seasonTd = createCell(String(match.season || "–"));
       seasonTd.dataset.label = "Season";
 
+      const roundTd = createCell(match.round_number != null ? `Rd ${match.round_number}` : "–");
+      roundTd.dataset.label = "Round";
+
       const dateTd = createCell(match.local_start_time ? formatDate(match.local_start_time) : "–");
       dateTd.dataset.label = "Date";
 
@@ -361,7 +431,7 @@ async function loadMatches() {
         resultTd.textContent = `${match.home_squad_name || "?"} vs ${match.away_squad_name || "?"}`;
       }
 
-      tr.append(seasonTd, dateTd, resultTd);
+      tr.append(seasonTd, roundTd, dateTd, resultTd);
       fragment.appendChild(tr);
     });
 
@@ -377,7 +447,22 @@ async function loadMatches() {
 async function applyFilters() {
   syncFiltersFromForm();
   renderFilterSummary();
-  await Promise.all([loadPlayerLeaders(), loadTeamLeaders(), loadMatches()]);
+  cycleStatusBanner(elements.statusBanner, [
+    "Loading international stats…",
+    "Gathering player leaders…",
+    "Calculating team standings…",
+  ], { kicker: "Loading", tone: "loading" });
+  try {
+    await Promise.all([loadPlayerLeaders(), loadTeamLeaders(), loadMatches()]);
+    showStatusBanner(elements.statusBanner, "Stats ready.", "success", {
+      kicker: "Ready",
+      autoHideMs: 2000,
+    });
+  } catch {
+    showStatusBanner(elements.statusBanner, "Some stats could not be loaded.", "error", {
+      kicker: "Partial results",
+    });
+  }
 }
 
 async function initialize() {

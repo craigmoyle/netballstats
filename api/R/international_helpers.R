@@ -386,9 +386,9 @@ fetch_international_meta <- function(conn) {
     seasons      = seasons,
     player_stats = player_stats,
     team_stats   = player_stats,
-    match_count  = match_count,
-    player_count = player_count,
-    team_count   = team_count
+    match_count  = jsonlite::unbox(match_count),
+    player_count = jsonlite::unbox(player_count),
+    team_count   = jsonlite::unbox(team_count)
   )
 }
 
