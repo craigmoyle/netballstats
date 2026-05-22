@@ -270,13 +270,21 @@ extract_threshold <- function(text) {
 # Extract netball stat name from question text.
 # Uses the pre-compiled .STAT_ALIAS_TABLE (patterns built once at load time).
 # Iterates longest-to-shortest so the first match is the most specific alias.
+# Pattern matching is ordered by alias length (longest first) to ensure longest match wins.
 # @param text Character: lowercased, trimmed question text
 # @return List with $stat: canonical stat key (e.g., "goals") or NULL
 extract_stat <- function(text) {
-  for (i in seq_len(nrow(.STAT_ALIAS_TABLE))) {
-    if (grepl(.STAT_ALIAS_TABLE$pattern[[i]], text)) {
-      return(list(stat = .STAT_ALIAS_TABLE$stat[[i]]))
-    }
+  # Vectorized check: find first row where pattern matches
+  matches <- vapply(
+    .STAT_ALIAS_TABLE$pattern,
+    function(pattern) grepl(pattern, text),
+    logical(1L)
+  )
+  
+  if (any(matches)) {
+    # Get index of first match (patterns are pre-sorted longest-first)
+    matched_idx <- which(matches)[1L]
+    return(list(stat = .STAT_ALIAS_TABLE$stat[[matched_idx]]))
   }
   list(stat = NULL)
 }
@@ -303,7 +311,8 @@ extract_subject <- function(text) {
   }
 
   team_names <- .PARSE_QUESTION_TEAM_NAMES
-  teams_pattern <- paste0("\\b(", paste(gsub(" ", "\\\\s+", team_names), collapse = "|"), ")\\b")
+  # Note: teams_pattern not used here; individual team matching via loop is preferred
+  # to preserve longest-match-first ordering for team names (e.g., "west coast" before "coast")
 
   # Try matching "by a [subject]" (e.g., "by a team", "by a player")
   # Convert singular nouns to plural for consistency
