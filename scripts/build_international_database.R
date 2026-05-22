@@ -1,10 +1,10 @@
 #!/usr/bin/env Rscript
 
-message("=== INTERNATIONAL NETBALL DATABASE BUILD ===")
-message(sprintf("Timestamp: %s", Sys.time()))
-message(sprintf("Process ID: %s", Sys.getpid()))
-message(sprintf("Working directory: %s", getwd()))
-message(sprintf("R version: %s", R.version.string))
+api_log("INFO", "=== INTERNATIONAL NETBALL DATABASE BUILD ===")
+api_log("INFO", sprintf("Timestamp: %s", Sys.time()))
+api_log("INFO", sprintf("Process ID: %s", Sys.getpid()))
+api_log("INFO", sprintf("Working directory: %s", getwd()))
+api_log("INFO", sprintf("R version: %s", R.version.string))
 
 # International Netball Database Builder
 #
@@ -43,6 +43,12 @@ if (!nzchar(Sys.getenv("NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS", ""))) {
   Sys.setenv(NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS = "0")
 }
 
+# Logging helper with severity levels
+api_log <- function(level = "INFO", msg) {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
+}
+
 # Database connection function
 connect_db <- function() {
   db_host <- Sys.getenv("NETBALL_STATS_DB_HOST", "localhost")
@@ -50,21 +56,27 @@ connect_db <- function() {
   db_name <- Sys.getenv("NETBALL_STATS_DB_NAME", "netballstats")
   db_user <- Sys.getenv("NETBALL_STATS_DB_USER", "netballstatsadmin")
   db_password <- Sys.getenv("NETBALL_STATS_DB_PASSWORD", "")
+  require_db_connection <- identical(tolower(Sys.getenv("NETBALL_STATS_REQUIRE_DB_CONNECTION", "false")), "true")
   
-  message(sprintf("== DATABASE CONNECTION ATTEMPT =="))
-  message(sprintf("Host: %s", db_host))
-  message(sprintf("Port: %s", db_port))
-  message(sprintf("Database: %s", db_name))
-  message(sprintf("User: %s", db_user))
-  message(sprintf("Password provided: %s", ifelse(nzchar(db_password), "YES", "NO")))
+  api_log("INFO", "== DATABASE CONNECTION ATTEMPT ==")
+  api_log("INFO", sprintf("Host: %s", db_host))
+  api_log("INFO", sprintf("Port: %s", db_port))
+  api_log("INFO", sprintf("Database: %s", db_name))
+  api_log("INFO", sprintf("User: %s", db_user))
+  api_log("INFO", sprintf("Password provided: %s", ifelse(nzchar(db_password), "YES", "NO")))
   
-  # For demonstration purposes, return NULL if no password is provided
+  # Check if DB connection is required in production mode
   if (nchar(db_password) == 0) {
-    message("❌ No database password provided. Running in demonstration mode.")
-    return(NULL)
+    if (require_db_connection) {
+      api_log("ERROR", "No database password provided. NETBALL_STATS_REQUIRE_DB_CONNECTION is true; exiting.")
+      stop("Database connection required but password not provided.", call. = FALSE)
+    } else {
+      api_log("INFO", "No database password provided. Running in demonstration mode.")
+      return(NULL)
+    }
   }
   
-  message("🔄 Attempting database connection...")
+  api_log("INFO", "Attempting database connection...")
   
   tryCatch({
     con <- dbConnect(
@@ -77,7 +89,7 @@ connect_db <- function() {
       bigint = "integer",
       timezone = "UTC"
     )
-    message("✅ Database connection SUCCESSFUL")
+    api_log("INFO", "Database connection SUCCESSFUL")
     
     # Apply statement timeout if set
     statement_timeout_ms <- Sys.getenv("NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS", "")
@@ -87,55 +99,78 @@ connect_db <- function() {
     
     # Test the connection with a simple query
     test_result <- dbGetQuery(con, "SELECT current_database(), current_user")
-    message(sprintf("Connected to database: %s", test_result[1,1]))
-    message(sprintf("Connected as user: %s", test_result[1,2]))
+    api_log("INFO", sprintf("Connected to database: %s", test_result[1,1]))
+    api_log("INFO", sprintf("Connected as user: %s", test_result[1,2]))
     
     return(con)
   }, error = function(e) {
-    message(sprintf("❌ Database connection FAILED: %s", conditionMessage(e)))
+    error_msg <- sprintf("Database connection FAILED: %s", conditionMessage(e))
+    api_log("ERROR", error_msg)
+    if (require_db_connection) {
+      stop(error_msg, call. = FALSE)
+    }
     return(NULL)
+  })
+}
+
+# Wrapper for netballR API calls with consistent error handling
+# Returns list(success=TRUE, data=result) or list(success=FALSE, error=msg)
+wrap_netball_api_call <- function(fn, ..., operation = "API call") {
+  tryCatch({
+    result <- fn(...)
+    list(success = TRUE, data = result)
+  }, error = function(e) {
+    api_log("ERROR", sprintf("%s failed: %s", operation, conditionMessage(e)))
+    list(success = FALSE, error = conditionMessage(e), data = NULL)
+  }, warning = function(w) {
+    api_log("WARN", sprintf("%s warning: %s", operation, conditionMessage(w)))
+    # Don't stop on warning, allow caller to decide
+    invokeRestart("muffleWarning")
   })
 }
 
 # Get competitions across all supported international sources
 get_all_international_competitions <- function() {
-  message("🔍 Discovering all international netball competitions...")
+  api_log("INFO", "Discovering all international netball competitions...")
 
   if (!requireNamespace("netballR", quietly = TRUE)) {
-    message("❌ netballR package NOT FOUND")
+    api_log("ERROR", "netballR package NOT FOUND")
     return(data.frame())
   }
   desc <- packageDescription("netballR")
-  message(sprintf("netballR version: %s", desc$Version))
+  api_log("INFO", sprintf("netballR version: %s", desc$Version))
 
   # All 5 international sources plus netball_aus for Diamonds
   sources <- c("netball_aus", "netball_nz", "england_netball", "nwc2015", "nwc2019", "nwc2023")
 
-  all_comps <- tryCatch({
-    message(sprintf("🔄 Fetching competitions from %d sources...", length(sources)))
-    result <- netballR::listAllCompetitions(
-      sources     = sources,
-      deduplicate = TRUE,
-      on_error    = "warn"
-    )
-    message(sprintf("✅ Got %d unique competitions across all sources", nrow(result)))
-    result
-  }, error = function(e) {
-    message(sprintf("❌ Error fetching competitions: %s", conditionMessage(e)))
-    data.frame()
-  })
+  api_log("INFO", sprintf("Fetching competitions from %d sources...", length(sources)))
+  comp_result <- wrap_netball_api_call(
+    netballR::listAllCompetitions,
+    sources = sources,
+    deduplicate = TRUE,
+    on_error = "warn",
+    operation = "listAllCompetitions"
+  )
 
-  if (nrow(all_comps) == 0) {
-    message("❌ No competitions returned")
+  if (!comp_result$success) {
+    api_log("ERROR", "Failed to fetch competitions; gracefully degrading")
     return(data.frame())
   }
+
+  all_comps <- comp_result$data
+  if (nrow(all_comps) == 0) {
+    api_log("WARN", "No competitions returned")
+    return(data.frame())
+  }
+
+  api_log("INFO", sprintf("Got %d unique competitions across all sources", nrow(all_comps)))
 
   # Exclude men's and youth competitions
   filtered <- all_comps %>%
     dplyr::filter(!grepl("Men's|Mens|U19|U-19|Under.19|Boys", competition_name, ignore.case = TRUE))
 
-  message(sprintf("After filtering: %d competitions to process", nrow(filtered)))
-  message("Competitions list:")
+  api_log("INFO", sprintf("After filtering: %d competitions to process", nrow(filtered)))
+  api_log("INFO", "Competitions list:")
   print(filtered %>% dplyr::select(comp_id, competition_name, application_source, season))
 
   filtered$competition_id <- as.integer(filtered$comp_id)
@@ -150,11 +185,11 @@ safe_convert_number <- function(x) {
 
 # Process match data for international competitions
 process_match_data <- function(fixture_data) {
-  message("Processing match data...")
+  api_log("INFO", "Processing match data...")
   
   # Validate input data
   if (is.null(fixture_data) || nrow(fixture_data) == 0) {
-    message("⚠️  No fixture data to process")
+    api_log("WARN", "⚠️  No fixture data to process")
     return(data.frame())
   }
   
@@ -162,8 +197,8 @@ process_match_data <- function(fixture_data) {
   required_columns <- c("matchId", "utcStartTime", "round", "game", "homeSquadId", "awaySquadId", "homeSquadScore", "awaySquadScore", "matchStatus", "homeSquadName", "awaySquadName")
   missing_columns <- required_columns[!required_columns %in% names(fixture_data)]
   if (length(missing_columns) > 0) {
-    message(sprintf("❌ Missing required columns: %s", paste(missing_columns, collapse = ", ")))
-    message("Available columns:")
+    api_log("ERROR", sprintf("❌ Missing required columns: %s", paste(missing_columns, collapse = ", ")))
+    api_log("INFO", "Available columns:")
     print(names(fixture_data))
     return(data.frame())
   }
@@ -189,13 +224,13 @@ process_match_data <- function(fixture_data) {
       home_score, away_score, local_start_time, utc_start_time
     )
   
-  message(sprintf("Processed %d matches", nrow(matches_df)))
+  api_log("INFO", sprintf("Processed %d matches", nrow(matches_df)))
   return(matches_df)
 }
 
 # Extract unique teams from match data
 extract_teams <- function(matches_df) {
-  message("Extracting teams...")
+  api_log("INFO", "Extracting teams...")
   
   home_teams <- matches_df %>%
     select(squad_id = home_squad_id, squad_name = home_squad_name) %>%
@@ -208,18 +243,18 @@ extract_teams <- function(matches_df) {
   teams_df <- bind_rows(home_teams, away_teams) %>%
     distinct(squad_id, squad_name)
   
-  message(sprintf("Extracted %d unique teams", nrow(teams_df)))
+  api_log("INFO", sprintf("Extracted %d unique teams", nrow(teams_df)))
   return(teams_df)
 }
 
 # Create international tables
 create_international_tables <- function(conn) {
   if (is.null(conn)) {
-    message("Demonstration mode: Would create international tables")
+    api_log("INFO", "Demonstration mode: Would create international tables")
     return()
   }
   
-  message("Creating international tables...")
+  api_log("INFO", "Creating international tables...")
   
   # Create international_matches table
   dbExecute(conn, "
@@ -332,15 +367,15 @@ create_international_tables <- function(conn) {
   # Migration: add competition_name column to existing tables
   tryCatch({
     dbExecute(conn, "ALTER TABLE international_matches ADD COLUMN IF NOT EXISTS competition_name TEXT")
-    message("  ✅ competition_name column ensured on international_matches")
+    api_log("INFO", "  ✅ competition_name column ensured on international_matches")
   }, error = function(e) {
-    message("  ℹ️ competition_name migration skipped: ", conditionMessage(e))
+    api_log("INFO", sprintf("  ℹ️ competition_name migration skipped: %s", conditionMessage(e)))
   })
   tryCatch({
     dbExecute(conn, "ALTER TABLE international_matches ADD COLUMN IF NOT EXISTS application_source TEXT")
-    message("  ✅ application_source column ensured on international_matches")
+    api_log("INFO", "  ✅ application_source column ensured on international_matches")
   }, error = function(e) {
-    message("  ℹ️ application_source migration skipped: ", conditionMessage(e))
+    api_log("INFO", sprintf("  ℹ️ application_source migration skipped: %s", conditionMessage(e)))
   })
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_player ON international_player_match_stats(player_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_player_stats_match ON international_player_match_stats(match_id)")
@@ -355,10 +390,10 @@ create_international_tables <- function(conn) {
   tryCatch({
     dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_players_search_trgm ON international_players USING gin(search_name gin_trgm_ops)")
   }, error = function(e) {
-    message("⚠️ Could not create trigram index (expected if running on SQLite): ", conditionMessage(e))
+    api_log("WARN", sprintf("Could not create trigram index (expected if running on SQLite): %s", conditionMessage(e)))
   })
   
-  message("International tables created successfully")
+  api_log("INFO", "International tables created successfully")
 }
 
 # Insert matches data
@@ -367,7 +402,7 @@ insert_matches <- function(conn, matches_df) {
     return()
   }
   
-  message(sprintf("Inserting %d matches...", nrow(matches_df)))
+  api_log("INFO", sprintf("Inserting %d matches...", nrow(matches_df)))
   
   # Delete existing matches for these match_ids to avoid duplicates
   match_ids <- matches_df$match_id
@@ -376,9 +411,9 @@ insert_matches <- function(conn, matches_df) {
     delete_sql <- paste("DELETE FROM international_matches WHERE match_id IN (", param_placeholders, ")")
     tryCatch({
       dbExecute(conn, delete_sql, as.list(match_ids))
-      message(sprintf("Deleted %d existing matches", length(match_ids)))
+      api_log("INFO", sprintf("Deleted %d existing matches", length(match_ids)))
     }, error = function(e) {
-      message(sprintf("⚠️  Warning: Failed to delete existing matches: %s", conditionMessage(e)))
+      api_log("WARN", sprintf("⚠️  Warning: Failed to delete existing matches: %s", conditionMessage(e)))
     })
   }
   
@@ -403,13 +438,13 @@ insert_matches <- function(conn, matches_df) {
       ))
       success_count <- success_count + 1
     }, error = function(e) {
-      message(sprintf("❌ Failed to insert match %d: %s", row$match_id, conditionMessage(e)))
-      message("Row data:")
+      api_log("ERROR", sprintf("❌ Failed to insert match %d: %s", row$match_id, conditionMessage(e)))
+      api_log("INFO", "Row data:")
       print(row)
     })
   }
   
-  message(sprintf("✅ Successfully inserted %d out of %d matches", success_count, nrow(matches_df)))
+  api_log("INFO", sprintf("✅ Successfully inserted %d out of %d matches", success_count, nrow(matches_df)))
 }
 
 # Insert teams data
@@ -418,7 +453,7 @@ insert_teams <- function(conn, teams_df) {
     return()
   }
   
-  message(sprintf("Inserting %d teams...", nrow(teams_df)))
+  api_log("INFO", sprintf("Inserting %d teams...", nrow(teams_df)))
   
   # Insert or update teams with error handling
   success_count <- 0
@@ -433,13 +468,13 @@ insert_teams <- function(conn, teams_df) {
       ", list(row$squad_id, row$squad_name))
       success_count <- success_count + 1
     }, error = function(e) {
-      message(sprintf("❌ Failed to insert/update team %d: %s", row$squad_id, conditionMessage(e)))
-      message("Row data:")
+      api_log("ERROR", sprintf("❌ Failed to insert/update team %d: %s", row$squad_id, conditionMessage(e)))
+      api_log("INFO", "Row data:")
       print(row)
     })
   }
   
-  message(sprintf("✅ Successfully inserted/updated %d out of %d teams", success_count, nrow(teams_df)))
+  api_log("INFO", sprintf("✅ Successfully inserted/updated %d out of %d teams", success_count, nrow(teams_df)))
 }
 
 # Insert players data (placeholder - would need actual player data)
@@ -448,7 +483,7 @@ insert_players <- function(conn, players_df) {
     return()
   }
   
-  message(sprintf("Inserting %d players...", nrow(players_df)))
+  api_log("INFO", sprintf("Inserting %d players...", nrow(players_df)))
   
   # Insert or update players with error handling
   success_count <- 0
@@ -470,13 +505,13 @@ insert_players <- function(conn, players_df) {
       ))
       success_count <- success_count + 1
     }, error = function(e) {
-      message(sprintf("❌ Failed to insert/update player %d: %s", row$player_id, conditionMessage(e)))
-      message("Row data:")
+      api_log("ERROR", sprintf("❌ Failed to insert/update player %d: %s", row$player_id, conditionMessage(e)))
+      api_log("INFO", "Row data:")
       print(row)
     })
   }
   
-  message(sprintf("✅ Successfully inserted/updated %d out of %d players", success_count, nrow(players_df)))
+  api_log("INFO", sprintf("✅ Successfully inserted/updated %d out of %d players", success_count, nrow(players_df)))
 }
 
 # Insert player stats data using bulk insert for performance
@@ -485,7 +520,7 @@ insert_player_stats <- function(conn, stats_df) {
     return()
   }
 
-  message(sprintf("Inserting %d player stats rows...", nrow(stats_df)))
+  api_log("INFO", sprintf("Inserting %d player stats rows...", nrow(stats_df)))
 
   match_ids <- unique(stats_df$match_id)
   if (length(match_ids) > 0) {
@@ -493,15 +528,15 @@ insert_player_stats <- function(conn, stats_df) {
     delete_sql <- paste("DELETE FROM international_player_match_stats WHERE match_id IN (", param_placeholders, ")")
     tryCatch(
       dbExecute(conn, delete_sql, as.list(match_ids)),
-      error = function(e) message(sprintf("⚠️  Warning: Failed to delete existing stats: %s", conditionMessage(e)))
+      error = function(e) api_log("WARN", sprintf("⚠️  Warning: Failed to delete existing stats: %s", conditionMessage(e)))
     )
   }
 
   tryCatch({
     DBI::dbWriteTable(conn, "international_player_match_stats", stats_df, append = TRUE, row.names = FALSE)
-    message(sprintf("✅ Inserted %d player stat rows", nrow(stats_df)))
+    api_log("INFO", sprintf("✅ Inserted %d player stat rows", nrow(stats_df)))
   }, error = function(e) {
-    message(sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
+    api_log("WARN", sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
     success_count <- 0L
     for (i in seq_len(nrow(stats_df))) {
       row <- stats_df[i, ]
@@ -513,10 +548,10 @@ insert_player_stats <- function(conn, stats_df) {
         ", list(row$player_id, row$match_id, row$squad_id, row$season, row$squad_name, row$stat, row$match_value))
         success_count <- success_count + 1L
       }, error = function(e2) {
-        message(sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
+        api_log("INFO", sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
       })
     }
-    message(sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(stats_df)))
+    api_log("INFO", sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(stats_df)))
   })
 }
 
@@ -526,7 +561,7 @@ insert_player_participation <- function(conn, participation_df) {
     return()
   }
 
-  message(sprintf("Inserting %d participation rows...", nrow(participation_df)))
+  api_log("INFO", sprintf("Inserting %d participation rows...", nrow(participation_df)))
 
   match_ids <- unique(participation_df$match_id)
   if (length(match_ids) > 0) {
@@ -534,15 +569,15 @@ insert_player_participation <- function(conn, participation_df) {
     delete_sql <- paste("DELETE FROM international_player_match_participation WHERE match_id IN (", param_placeholders, ")")
     tryCatch(
       dbExecute(conn, delete_sql, as.list(match_ids)),
-      error = function(e) message(sprintf("⚠️  Warning: Failed to delete existing participation: %s", conditionMessage(e)))
+      error = function(e) api_log("WARN", sprintf("⚠️  Warning: Failed to delete existing participation: %s", conditionMessage(e)))
     )
   }
 
   tryCatch({
     DBI::dbWriteTable(conn, "international_player_match_participation", participation_df, append = TRUE, row.names = FALSE)
-    message(sprintf("✅ Inserted %d participation rows", nrow(participation_df)))
+    api_log("INFO", sprintf("✅ Inserted %d participation rows", nrow(participation_df)))
   }, error = function(e) {
-    message(sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
+    api_log("WARN", sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
     success_count <- 0L
     for (i in seq_len(nrow(participation_df))) {
       row <- participation_df[i, ]
@@ -558,10 +593,10 @@ insert_player_participation <- function(conn, participation_df) {
         ))
         success_count <- success_count + 1L
       }, error = function(e2) {
-        message(sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
+        api_log("INFO", sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
       })
     }
-    message(sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(participation_df)))
+    api_log("INFO", sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(participation_df)))
   })
 }
 
@@ -571,7 +606,7 @@ insert_team_stats <- function(conn, team_stats_df) {
     return()
   }
 
-  message(sprintf("Inserting %d team stats rows...", nrow(team_stats_df)))
+  api_log("INFO", sprintf("Inserting %d team stats rows...", nrow(team_stats_df)))
 
   match_ids <- unique(team_stats_df$match_id)
   if (length(match_ids) > 0) {
@@ -579,15 +614,15 @@ insert_team_stats <- function(conn, team_stats_df) {
     delete_sql <- paste("DELETE FROM international_team_match_stats WHERE match_id IN (", param_placeholders, ")")
     tryCatch(
       dbExecute(conn, delete_sql, as.list(match_ids)),
-      error = function(e) message(sprintf("⚠️  Warning: Failed to delete existing team stats: %s", conditionMessage(e)))
+      error = function(e) api_log("WARN", sprintf("⚠️  Warning: Failed to delete existing team stats: %s", conditionMessage(e)))
     )
   }
 
   tryCatch({
     DBI::dbWriteTable(conn, "international_team_match_stats", team_stats_df, append = TRUE, row.names = FALSE)
-    message(sprintf("✅ Inserted %d team stats rows", nrow(team_stats_df)))
+    api_log("INFO", sprintf("✅ Inserted %d team stats rows", nrow(team_stats_df)))
   }, error = function(e) {
-    message(sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
+    api_log("WARN", sprintf("⚠️ Bulk insert failed, falling back to row-by-row: %s", substr(conditionMessage(e), 1, 100)))
     success_count <- 0L
     for (i in seq_len(nrow(team_stats_df))) {
       row <- team_stats_df[i, ]
@@ -599,11 +634,32 @@ insert_team_stats <- function(conn, team_stats_df) {
         ", list(row$squad_id, row$match_id, row$season, row$squad_name, row$stat, row$match_value))
         success_count <- success_count + 1L
       }, error = function(e2) {
-        message(sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
+        api_log("INFO", sprintf("  ❌ Row %d: %s", i, substr(conditionMessage(e2), 1, 60)))
       })
     }
-    message(sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(team_stats_df)))
+    api_log("INFO", sprintf("✅ Row-by-row: inserted %d/%d", success_count, nrow(team_stats_df)))
   })
+}
+
+# Safe optional column extraction helper
+# Extracts a column from a data frame with type coercion and NA defaults
+# @param df Data frame to extract from
+# @param col_name Column name (string)
+# @param type Type to coerce to: "character", "integer", "numeric"
+# @param default Default value if column missing
+# @return Coerced vector or default
+safe_extract_col <- function(df, col_name, type = "character", default = NA) {
+  if (!col_name %in% names(df)) {
+    return(default)
+  }
+  
+  col_data <- df[[col_name]]
+  switch(type,
+    integer = suppressWarnings(as.integer(col_data)),
+    numeric = suppressWarnings(as.numeric(as.character(col_data))),
+    character = as.character(col_data),
+    default
+  )
 }
 
 # Extract player identity rows from a match payload (payload$playerInfo$player)
@@ -621,7 +677,7 @@ extract_player_info_from_payload <- function(payload) {
 
     missing <- setdiff(c("player_id", "firstname", "surname"), names(raw))
     if (length(missing) > 0) {
-      message(sprintf("    ⚠️ Missing player info columns: %s", paste(missing, collapse = ", ")))
+      api_log("INFO", sprintf("    ⚠️ Missing player info columns: %s", paste(missing, collapse = ", ")))
       return(data.frame())
     }
 
@@ -637,7 +693,7 @@ extract_player_info_from_payload <- function(payload) {
       dplyr::distinct(player_id, .keep_all = TRUE) %>%
       dplyr::filter(!is.na(player_id))
   }, error = function(e) {
-    message(sprintf("    ⚠️ extract_player_info_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
+    api_log("INFO", sprintf("    ⚠️ extract_player_info_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
     data.frame()
   })
 }
@@ -650,13 +706,13 @@ extract_player_stats_from_payload <- function(payload, match_id_val, season_val)
   raw <- tryCatch(
     netballR::tidyPlayers(payload),
     error = function(e) {
-      message(sprintf("    ⚠️ tidyPlayers failed: %s", substr(conditionMessage(e), 1, 100)))
+      api_log("INFO", sprintf("    ⚠️ tidyPlayers failed: %s", substr(conditionMessage(e), 1, 100)))
       NULL
     }
   )
   if (is.null(raw) || nrow(raw) == 0) return(data.frame())
 
-  message(sprintf("    Columns from tidyPlayers: %s", paste(names(raw), collapse = ", ")))
+  api_log("INFO", sprintf("    Columns from tidyPlayers: %s", paste(names(raw), collapse = ", ")))
 
   # Normalise column names to snake_case equivalents
   rename_col <- function(df, from, to) {
@@ -669,13 +725,13 @@ extract_player_stats_from_payload <- function(payload, match_id_val, season_val)
 
   val_col <- intersect(c("value", "periodValue", "statValue", "stat_value"), names(raw))[1]
   if (is.na(val_col)) {
-    message("    ❌ Cannot identify value column in tidyPlayers output")
+    api_log("INFO", "    ❌ Cannot identify value column in tidyPlayers output")
     return(data.frame())
   }
 
   missing <- setdiff(c("player_id", "squad_id", "squad_name", "stat"), names(raw))
   if (length(missing) > 0) {
-    message(sprintf("    ❌ Missing required columns: %s", paste(missing, collapse = ", ")))
+    api_log("INFO", sprintf("    ❌ Missing required columns: %s", paste(missing, collapse = ", ")))
     return(data.frame())
   }
 
@@ -697,7 +753,7 @@ extract_player_stats_from_payload <- function(payload, match_id_val, season_val)
     dplyr::select(player_id, match_id, squad_id, season, squad_name, stat, match_value) %>%
     dplyr::filter(!is.na(player_id))
 
-  message(sprintf("    ✅ %d stat rows for %d players", nrow(result), length(unique(result$player_id))))
+  api_log("INFO", sprintf("    ✅ %d stat rows for %d players", nrow(result), length(unique(result$player_id))))
   result
 }
 
@@ -723,7 +779,7 @@ extract_player_participation_from_payload <- function(payload, match_id_val, sea
 
     missing <- setdiff(c("player_id", "squad_id"), names(raw))
     if (length(missing) > 0) {
-      message(sprintf("    ⚠️ Missing participation columns: %s", paste(missing, collapse = ", ")))
+      api_log("WARN", sprintf("Missing participation columns: %s", paste(missing, collapse = ", ")))
       return(data.frame())
     }
 
@@ -733,18 +789,18 @@ extract_player_participation_from_payload <- function(payload, match_id_val, sea
         match_id = as.integer(match_id_val),
         squad_id = as.integer(squad_id),
         season = as.integer(season_val),
-        starting_position_code = if ("starting_position_code" %in% names(raw)) as.character(starting_position_code) else NA_character_,
-        current_position_code = if ("current_position_code" %in% names(raw)) as.character(current_position_code) else NA_character_,
-        quarters_played = if ("quarters_played" %in% names(raw)) suppressWarnings(as.integer(quarters_played)) else NA_integer_,
-        minutes_played = if ("minutes_played" %in% names(raw)) suppressWarnings(as.numeric(as.character(minutes_played))) else NA_real_
+        starting_position_code = safe_extract_col(raw, "starting_position_code", type = "character", default = NA_character_),
+        current_position_code = safe_extract_col(raw, "current_position_code", type = "character", default = NA_character_),
+        quarters_played = safe_extract_col(raw, "quarters_played", type = "integer", default = NA_integer_),
+        minutes_played = safe_extract_col(raw, "minutes_played", type = "numeric", default = NA_real_)
       ) %>%
       dplyr::distinct(player_id, match_id, .keep_all = TRUE) %>%
       dplyr::filter(!is.na(player_id), !is.na(squad_id))
 
-    message(sprintf("    ✅ %d participation rows for %d players", nrow(result), length(unique(result$player_id))))
+    api_log("INFO", sprintf("Extracted %d participation rows for %d players", nrow(result), length(unique(result$player_id))))
     result
   }, error = function(e) {
-    message(sprintf("    ⚠️ extract_player_participation_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
+    api_log("WARN", sprintf("extract_player_participation_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
     data.frame()
   })
 }
@@ -770,7 +826,7 @@ extract_team_stats_from_payload <- function(payload, match_id_val, season_val) {
     raw <- rename_col(raw, "currentPositionCode", "current_position_code")
 
     if (!"squad_id" %in% names(raw)) {
-      message("    ⚠️ Missing team stats column: squad_id")
+      api_log("INFO", "    ⚠️ Missing team stats column: squad_id")
       return(data.frame())
     }
 
@@ -800,7 +856,7 @@ extract_team_stats_from_payload <- function(payload, match_id_val, season_val) {
     }, logical(1))]
 
     if (length(stat_cols) == 0) {
-      message("    ⚠️ No team stats columns found in playerStats payload")
+      api_log("INFO", "    ⚠️ No team stats columns found in playerStats payload")
       return(data.frame())
     }
 
@@ -825,60 +881,60 @@ extract_team_stats_from_payload <- function(payload, match_id_val, season_val) {
       ) %>%
       dplyr::select(squad_id, match_id, season, squad_name, stat, match_value)
 
-    message(sprintf("    ✅ %d team stat rows for %d squads", nrow(result), length(unique(result$squad_id))))
+    api_log("INFO", sprintf("    ✅ %d team stat rows for %d squads", nrow(result), length(unique(result$squad_id))))
     result
   }, error = function(e) {
-    message(sprintf("    ⚠️ extract_team_stats_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
+    api_log("INFO", sprintf("    ⚠️ extract_team_stats_from_payload failed: %s", substr(conditionMessage(e), 1, 80)))
     data.frame()
   })
 }
 
 # Main execution
 main <- function() {
-  message("=== Starting International Database Build Process ===")
+  api_log("INFO", "=== Starting International Database Build Process ===")
   
   # Show environment for debugging
-  message(sprintf("Database host: %s", Sys.getenv("NETBALL_STATS_DB_HOST", "<not set>")))
-  message(sprintf("Database name: %s", Sys.getenv("NETBALL_STATS_DB_NAME", "<not set>")))
-  message(sprintf("Database user: %s", Sys.getenv("NETBALL_STATS_DB_USER", "<not set>")))
-  message(sprintf("API user: %s", Sys.getenv("NETBALL_STATS_API_DB_USERNAME", "<not set>")))
-  message(sprintf("Sample mode: %s", ifelse(sample_mode, "YES", "NO")))
+  api_log("INFO", sprintf("Database host: %s", Sys.getenv("NETBALL_STATS_DB_HOST", "<not set>")))
+  api_log("INFO", sprintf("Database name: %s", Sys.getenv("NETBALL_STATS_DB_NAME", "<not set>")))
+  api_log("INFO", sprintf("Database user: %s", Sys.getenv("NETBALL_STATS_DB_USER", "<not set>")))
+  api_log("INFO", sprintf("API user: %s", Sys.getenv("NETBALL_STATS_API_DB_USERNAME", "<not set>")))
+  api_log("INFO", sprintf("Sample mode: %s", ifelse(sample_mode, "YES", "NO")))
   
-  message("Connecting to database...")
+  api_log("INFO", "Connecting to database...")
   
   # Try to connect to database
   conn <- tryCatch({
     connect_db()
   }, error = function(e) {
-    message(sprintf("Could not connect to database: %s", conditionMessage(e)))
-    message("Proceeding in demonstration mode.")
+    api_log("INFO", sprintf("Could not connect to database: %s", conditionMessage(e)))
+    api_log("INFO", "Proceeding in demonstration mode.")
     NULL
   })
   
   # Log connection status
   if (is.null(conn)) {
-    message("⚠️  Database connection: NONE (running in demo mode)")
-    message("🛑 DEMO MODE: No real database operations will occur")
+    api_log("WARN", "⚠️  Database connection: NONE (running in demo mode)")
+    api_log("INFO", "🛑 DEMO MODE: No real database operations will occur")
   } else {
-    message("✅ Database connection: ESTABLISHED")
-    message("🟢 REAL MODE: Will attempt real database operations")
+    api_log("INFO", "✅ Database connection: ESTABLISHED")
+    api_log("INFO", "🟢 REAL MODE: Will attempt real database operations")
   }
   
   # Discover competitions
   diamonds_comps <- get_all_international_competitions()
   
   if (nrow(diamonds_comps) == 0) {
-    message("❌ FATAL: No competitions to process. Script ending early.")
+    api_log("ERROR", "❌ FATAL: No competitions to process. Script ending early.")
     return(invisible(0))
   }
   
-  message(sprintf("Found %d international competitions to process", nrow(diamonds_comps)))
-  message("🔍 Competition list:")
+  api_log("INFO", sprintf("Found %d international competitions to process", nrow(diamonds_comps)))
+  api_log("INFO", "🔍 Competition list:")
   print(diamonds_comps[, c("comp_id", "competition_name", "season")])
   
   # Save to config file if it doesn't exist or is empty
   if (!file.exists(config_path) || file.size(config_path) == 0) {
-    message(sprintf("Creating config file: %s", config_path))
+    api_log("INFO", sprintf("Creating config file: %s", config_path))
     # Extract competition IDs and save
     config_data <- diamonds_comps %>%
       select(competition_id = comp_id) %>%
@@ -889,7 +945,7 @@ main <- function() {
       select(season, phase, competition_id)
     
     write.csv(config_data, config_path, row.names = FALSE)
-    message(sprintf("Config file created with %d competitions", nrow(config_data)))
+    api_log("INFO", sprintf("Config file created with %d competitions", nrow(config_data)))
   }
   
   # Create international tables
@@ -910,20 +966,20 @@ main <- function() {
     comp_row  <- diamonds_comps[i, , drop = FALSE]
     comp_id   <- comp_row$competition_id[[1]]
     comp_name <- comp_row$competition_name[[1]]
-    message(sprintf("\n=== Competition %d/%d: %s (ID: %s) ===", i, total_comps, comp_name, comp_id))
+    api_log("INFO", sprintf("\n=== Competition %d/%d: %s (ID: %s) ===", i, total_comps, comp_name, comp_id))
 
     fixture <- tryCatch({
-      message("  Downloading fixture...")
+      api_log("INFO", "  Downloading fixture...")
       result <- netballR::downloadFixture(comp_id)
-      message(sprintf("  ✅ %d matches in fixture", nrow(result)))
+      api_log("INFO", sprintf("  ✅ %d matches in fixture", nrow(result)))
       result
     }, error = function(e) {
-      message(sprintf("  ❌ Fixture download failed: %s", conditionMessage(e)))
+      api_log("INFO", sprintf("  ❌ Fixture download failed: %s", conditionMessage(e)))
       NULL
     })
 
     if (is.null(fixture) || nrow(fixture) == 0) {
-      message("  ⏭️  No fixture data, skipping competition")
+      api_log("INFO", "  ⏭️  No fixture data, skipping competition")
       next
     }
 
@@ -954,17 +1010,17 @@ main <- function() {
 
       # Only fetch stats for completed matches
       if (status_v %in% c("scheduled", "pre-match", "prematch", "")) {
-        message(sprintf("  [%d/%d] Match %d: scheduled — skipping stats", j, nrow(fixture), match_id_v))
+        api_log("INFO", sprintf("  [%d/%d] Match %d: scheduled — skipping stats", j, nrow(fixture), match_id_v))
         next
       }
 
-      message(sprintf("  [%d/%d] Match %d r%d g%d (%d) — fetching stats...",
+      api_log("INFO", sprintf("  [%d/%d] Match %d r%d g%d (%d) — fetching stats...",
         j, nrow(fixture), match_id_v, round_v, game_v, season_v))
 
       payload <- tryCatch(
         netballR::downloadMatch(as.character(comp_id), round_v, game_v),
         error = function(e) {
-          message(sprintf("    ⚠️ downloadMatch failed: %s", substr(conditionMessage(e), 1, 80)))
+          api_log("INFO", sprintf("    ⚠️ downloadMatch failed: %s", substr(conditionMessage(e), 1, 80)))
           NULL
         }
       )
@@ -1015,22 +1071,22 @@ main <- function() {
     processed_count <- processed_count + 1L
   }
 
-  message(sprintf("\n=== Processing Summary ==="))
-  message(sprintf("Competitions found:     %d", total_comps))
-  message(sprintf("Competitions processed: %d", processed_count))
-  message(sprintf("Matches inserted:       %d", total_matches))
-  message(sprintf("Players upserted:       %d", total_players))
-  message(sprintf("Player stat rows:       %d", total_stats_rows))
-  message(sprintf("Participation rows:     %d", total_participation_rows))
-  message(sprintf("Team stat rows:         %d", total_team_stats_rows))
+  api_log("INFO", sprintf("\n=== Processing Summary ==="))
+  api_log("INFO", sprintf("Competitions found:     %d", total_comps))
+  api_log("INFO", sprintf("Competitions processed: %d", processed_count))
+  api_log("INFO", sprintf("Matches inserted:       %d", total_matches))
+  api_log("INFO", sprintf("Players upserted:       %d", total_players))
+  api_log("INFO", sprintf("Player stat rows:       %d", total_stats_rows))
+  api_log("INFO", sprintf("Participation rows:     %d", total_participation_rows))
+  api_log("INFO", sprintf("Team stat rows:         %d", total_team_stats_rows))
   
   # Close database connection
   if (!is.null(conn)) {
     dbDisconnect(conn)
-    message("Database connection closed.")
+    api_log("INFO", "Database connection closed.")
   }
 
-  message("\n=== International Database Build Complete ===")
+  api_log("INFO", "\n=== International Database Build Complete ===")
 }
 
 # Run main function
