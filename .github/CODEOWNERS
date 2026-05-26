@@ -1,0 +1,113 @@
+# Code Ownership and Review Requirements
+#
+# This file defines who must review changes to different parts of the codebase.
+# GitHub will automatically request reviews from the appropriate owners when
+# a pull request modifies files matching these patterns.
+#
+# Format: <file-pattern>  <@owner>
+#
+# For more information: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# =============================================================================
+# API and Backend (R Plumber Service)
+# =============================================================================
+
+# Core API entry point
+/api/plumber.R                                  @craigmoyle
+
+# All R helper modules
+/api/R/                                         @craigmoyle
+
+# API configuration and build
+/Dockerfile.azure                               @craigmoyle
+/renv.lock                                      @craigmoyle
+/renv/                                          @craigmoyle
+
+# =============================================================================
+# Database
+# =============================================================================
+
+# Database build and configuration
+/scripts/build_database.R                       @craigmoyle
+/scripts/build_international_database.R        @craigmoyle
+/scripts/*.sql                                 @craigmoyle
+
+# Database schema and migrations
+/scripts/schema/                                @craigmoyle
+
+# =============================================================================
+# Infrastructure and Deployment (Azure/Bicep/IaC)
+# =============================================================================
+
+# Azure deployment configuration
+/azure.yaml                                     @craigmoyle
+/infra/                                         @craigmoyle
+
+# GitHub Actions workflows
+/.github/workflows/                             @craigmoyle
+
+# Container scanning and security
+/.github/workflows/scan-container.yml          @craigmoyle
+
+# =============================================================================
+# Frontend (Static Assets and Pages)
+# =============================================================================
+
+# Frontend build and configuration
+/package.json                                   @craigmoyle
+/package-lock.json                             @craigmoyle
+/npm-build-scripts/                            @craigmoyle
+
+# Core frontend assets
+/assets/                                        @craigmoyle
+/assets/config.js                              @craigmoyle
+/assets/theme.js                               @craigmoyle
+
+# Major page structures
+/index.html                                     @craigmoyle
+/archive/                                       @craigmoyle
+/query/                                         @craigmoyle
+/compare/                                       @craigmoyle
+/players/                                       @craigmoyle
+/player/                                        @craigmoyle
+/international/                                 @craigmoyle
+
+# Static web app configuration
+/staticwebapp.config.json                       @craigmoyle
+/_headers                                       @craigmoyle
+
+# =============================================================================
+# Repository Configuration and Documentation
+# =============================================================================
+
+# Critical repository files
+/AGENTS.md                                      @craigmoyle
+/README.md                                      @craigmoyle
+/.github/BRANCH_PROTECTION.md                  @craigmoyle
+/.github/CODEOWNERS                            @craigmoyle
+
+# Dependabot configuration
+/.github/dependabot.yml                        @craigmoyle
+
+# Issue and PR templates
+/.github/ISSUE_TEMPLATE/                       @craigmoyle
+/.github/pull_request_template.md              @craigmoyle
+
+# =============================================================================
+# CI/CD and Automation
+# =============================================================================
+
+# Scripts (data refresh, testing, utilities)
+/scripts/                                       @craigmoyle
+/scripts/usage-telemetry.kql                   @craigmoyle
+/scripts/test_api_regression.R                 @craigmoyle
+
+# Configuration files
+/config/                                        @craigmoyle
+
+# =============================================================================
+# Default Fallback
+# =============================================================================
+
+# All other files default to repository owner
+*                                               @craigmoyle
