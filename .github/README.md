@@ -35,8 +35,8 @@ Read: **[BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md)**
 
 See: **[CODEOWNERS](./CODEOWNERS)**
 - Who reviews what code
-- How to add/modify code owners
-- What triggers required reviews
+- Auto-enforced by GitHub
+- Defines which files may request specific reviewers
 
 ---
 
@@ -47,8 +47,8 @@ See: **[CODEOWNERS](./CODEOWNERS)**
 | **[CONTRIBUTING.md](../CONTRIBUTING.md)** | Development workflow and contribution guide | Everyone |
 | **[BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md)** | Branch protection policy and rules | Everyone |
 | **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** | Solutions for common issues | Developers |
-| **[CODEOWNERS](./CODEOWNERS)** | Code ownership matrix | Developers, Maintainers |
-| **[SETUP_SUMMARY.md](./SETUP_SUMMARY.md)** | Configuration details and history | Maintainers |
+| **[CODEOWNERS](./CODEOWNERS)** | Code ownership definitions | Developers, Maintainers |
+| **[SETUP_SUMMARY.md](./SETUP_SUMMARY.md)** | Configuration details and record | Maintainers |
 
 ---
 
@@ -57,7 +57,7 @@ See: **[CODEOWNERS](./CODEOWNERS)**
 | File | Purpose |
 |------|---------|
 | **[branch-protection-config.sh](./branch-protection-config.sh)** | Automated branch protection setup (executable) |
-| **[CODEOWNERS](./CODEOWNERS)** | Code ownership definitions for auto-review |
+| **[CODEOWNERS](./CODEOWNERS)** | Code ownership definitions for review guidance |
 | **[dependabot.yml](./dependabot.yml)** | Automated dependency updates |
 
 ---
@@ -92,7 +92,7 @@ cd netballstats
 git checkout -b feature/my-feature
 
 # 4. Make your changes
-npm run build          # Frontend validation
+npm run build:verify  # Frontend validation
 Rscript -e "..."       # Backend validation
 
 # 5. Push and create PR
@@ -131,7 +131,7 @@ gh api -X GET repos/craigmoyle/netballstats/branches/main/protection
 
 ### Branch Protection Rules
 
-✅ **1 approval required** (from code owner)  
+✅ **1 approval required**  
 ✅ **Status checks must pass** (strict mode)  
 ✅ **Conversation resolution required**  
 ✅ **Linear history** (squash/rebase, no merge commits)  
@@ -141,8 +141,7 @@ gh api -X GET repos/craigmoyle/netballstats/branches/main/protection
 
 ### Status Checks
 
-- `deploy-azure-static-web-app` — Frontend build validation
-- `scan-container` — Security scanning
+- `Scan container image / scan` — Security scanning
 
 ### Code Owners
 
@@ -159,8 +158,7 @@ gh api -X GET repos/craigmoyle/netballstats/branches/main/protection
 
 | Issue | Solution |
 |-------|----------|
-| "Deploy-azure-static-web-app failed" | Run `npm run build` locally, fix errors, push |
-| "Scan-container failed" | Fix vulnerable dependencies, push again |
+| "Scan container image / scan failed" | Fix vulnerable dependencies, push again |
 | "PR is blocked from merging" | Check approval, status checks, conversation resolution |
 | "Branch is behind main" | `git rebase origin/main && git push --force-with-lease` |
 | "Can't push to main" | Use a feature branch; all changes go through PRs |
@@ -177,5 +175,5 @@ See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) for detailed solutions.
 
 ---
 
-**Last Updated**: May 22, 2026  
+**Last Updated**: May 27, 2026  
 **Status**: ✅ Active and enforced

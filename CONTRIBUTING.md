@@ -22,7 +22,7 @@ Thank you for your interest in contributing to netballstats! This guide explains
 ### Prerequisites
 
 - **Git** and GitHub account access to [craigmoyle/netballstats](https://github.com/craigmoyle/netballstats)
-- **Node.js** (v16+) and npm for frontend development
+- **Node.js** (v22 recommended; matches CI environment) and npm for frontend development
 - **R** (v4.0+) and [renv](https://rstudio.github.io/renv/) for backend development
 - **Docker** (optional) for local API testing
 - GitHub CLI (`gh`) for convenient command-line operations
@@ -71,8 +71,8 @@ git checkout -b feature/my-feature
 # Install dependencies
 npm install
 
-# Build the static site
-npm run build
+# Build and verify the static site (matches CI)
+npm run build:verify
 
 # Output is in dist/
 ls dist/
@@ -130,7 +130,7 @@ Follow the standards outlined in [AGENTS.md](./AGENTS.md):
 
 ```bash
 # Frontend validation
-npm run build                    # Verify build succeeds
+npm run build:verify             # Verify build and validation succeeds
 
 # Backend validation
 Rscript -e "parse(file='api/plumber.R')"
@@ -145,10 +145,10 @@ git diff --cached                # Review staged changes
 
 The repository uses these validation approaches:
 
-- **Frontend**: `npm run build` validates syntax and outputs artifacts
+- **Frontend**: `npm run build:verify` validates syntax, runs checks, and outputs artifacts
 - **Backend**: `Rscript -e "parse(file='...')"` validates R syntax
 - **API**: Regression tests in `scripts/test_api_regression.R`
-- **Container**: `scan-container` workflow scans for vulnerabilities
+- **Container**: `Scan container image / scan` check scans for vulnerabilities
 
 See [AGENTS.md](./AGENTS.md) for detailed testing patterns and data conventions.
 
@@ -190,32 +190,15 @@ git push origin feature/my-feature
    - Any breaking changes or database migrations
    - Links to related issues (if any)
 
-   Example:
-   ```
-   ## Description
-   Adds a new page for browsing international netball player statistics,
-   complementing the existing Super Netball data.
-
-   ## Changes
-   - New international player stats page at /international/players/
-   - Query endpoint /api/international/players
-   - Shared styling with existing player pages
-
-   ## Related Issues
-   Closes #123
-
-   ## Testing
-   Verified with sample data in local dev environment.
-   ```
-
 4. Set a reviewer (usually auto-assigned via CODEOWNERS)
 5. Ensure your branch is up-to-date with `main`
 
 ### Branch Status After Pushing
 
 Once you push, GitHub automatically:
-1. Runs **status checks** (frontend build, container scan)
-2. Requests **code owner reviews** (via CODEOWNERS)
+1. Runs **status checks**:
+   - `Scan container image / scan` (required on every PR, optimized for frontend changes)
+2. Requests **code owner reviews** where relevant
 3. Blocks merging until all checks pass
 
 ---
@@ -233,162 +216,59 @@ Once you push, GitHub automatically:
 ### Handling Review Comments
 
 Example workflow:
-1. Reviewer requests: "This function needs a comment explaining the logic"
-2. You make the change, commit, and push
-3. Old approval is dismissed automatically
-4. Reviewer sees the update and approves again
 
-### If Status Checks Fail
+1. Read the comment carefully
+2. Make the necessary fix in your local branch
+3. Commit and push the change
+4. Mark the conversation as resolved when appropriate
 
-**Frontend build failure**:
-```bash
-npm run build           # Run locally to see the error
-# Fix the issue
-git add .
-git commit -m "Fix: Build error in theme.js"
-git push origin feature/my-feature
-```
+### Review Best Practices
 
-**Container scan failure**:
-- Review the scan report in GitHub Actions
-- Fix vulnerabilities in dependencies or code
-- Push your fix — the scan re-runs automatically
+- Be respectful and constructive in all review comments
+- Focus on the code, not the person
+- Ask clarifying questions if a comment is unclear
+- Prefer small, focused changes over large, risky rewrites
 
 ---
 
 ## Merge and Deployment
 
-### When You're Ready to Merge
+### When Ready to Merge
 
-All of these must be true:
-- ✅ **At least 1 code owner approval** (shown as "Approved" in PR)
-- ✅ **All status checks pass** (green checkmarks)
-- ✅ **No unresolved comments** (all review feedback addressed)
-- ✅ **Branch is up-to-date** with `main`
+Before merging, confirm:
 
-### Merging Your PR
+- [ ] All status checks are passing
+- [ ] Review feedback is resolved
+- [ ] The PR is current with `main`
+- [ ] The change is documented if needed
 
-1. Click **"Squash and merge"** (or **"Rebase and merge"** if you have multiple logical commits)
-   - **Do not use "Create a merge commit"** — this violates linear history
-2. Confirm the merge
-3. Delete your feature branch
+### Merge Method
 
-**After merge**:
-- GitHub automatically deploys to Azure Static Web Apps
-- Azure Container Apps refresh jobs run on their scheduled times
-- You can delete your local branch: `git branch -d feature/my-feature`
+Use **Squash and merge** or **Rebase and merge**. Do not create merge commits.
 
-### Deployment Timeline
+### After Merge
 
-| Step | Time | What Happens |
-|------|------|--------------|
-| Merge to main | Immediate | GitHub Actions triggered |
-| Frontend deploy | ~2–3 min | npm build runs, outputs to dist/ |
-| Static Web App deploy | ~2–5 min | dist/ synced to Azure Static Web Apps |
-| Live | ~5–10 min total | Changes visible at https://netballstats.com |
-| API/Database | Scheduled | Refresh jobs run Tuesday, Friday, Saturday, Sunday (see AGENTS.md) |
+- The frontend deploys automatically via Azure Static Web Apps
+- Database refresh jobs remain synchronized through the Azure deployment process
+- Monitor deployment status and logs if something looks off
 
 ---
 
 ## Style Guides
 
-### Commit Messages
-
-Use the present tense, imperative mood:
-- ✅ "Add international player stats page"
-- ✅ "Fix: Correct typo in stat label"
-- ✅ "Refactor: Extract shared table logic to helper"
-- ❌ "Added page" or "Fixed stuff"
-
-### Frontend Code
-
-- Use **vanilla JavaScript** with shared helpers from `assets/config.js`
-- Use **descriptive variable names**
-  - ✅ `const playerLeadersTable = document.getElementById('player-leaders-table')`
-  - ❌ `const t = document.getElementById('tbl')`
-- **Format labels** using `window.NetballStatsUI.formatStatLabel(key)`
-- **Don't hardcode** stat names or custom styles when shared utilities exist
-- Maintain **warm amber and teal** palette (unless there's strong product reason)
-- Support **dark and light themes** via CSS variables
-
-### Backend Code (R)
-
-- Use **parameterized queries** with `append_integer_in_filter()` (SQLite compatible)
-- **Validate inputs** explicitly, no silent fallbacks
-- **Log errors** clearly (use structured logging patterns from helpers.R)
-- **Comment complex logic** (especially database queries and business rules)
-- **Reuse helpers** from `api/R/helpers.R` rather than duplicating logic
-
-### Documentation
-
-- Update **AGENTS.md** if you change operational decisions
-- Update **README.md** if you change how to build/deploy
-- Include **inline comments** for non-obvious logic
-- Document **data contracts** (what the API returns, what fields mean)
+- Use the existing editorial tone and netball terminology
+- Preserve the warm amber and teal palette
+- Keep the typography system intact
+- Follow the repo guidance in `AGENTS.md`
 
 ---
 
-## Validation Checklist
+## Questions or Issues
 
-Before opening a PR, confirm:
-
-- [ ] Branch is created from latest `main`
-- [ ] All changes are committed to your feature branch
-- [ ] Build succeeds locally (`npm run build`)
-- [ ] Backend syntax is valid (`Rscript -e "parse(file='api/plumber.R')"`)
-- [ ] No accidental console logs or debug code
-- [ ] Commit messages are clear and present-tense
-- [ ] AGENTS.md is updated if operational decisions changed
-- [ ] README.md is updated if build/deploy instructions changed
-- [ ] No sensitive data (API keys, passwords, credentials) in code
-- [ ] Code follows the style guides above
+- See [TROUBLESHOOTING.md](./.github/TROUBLESHOOTING.md)
+- Review [BRANCH_PROTECTION.md](./.github/BRANCH_PROTECTION.md)
+- Check [AGENTS.md](./AGENTS.md) for repository context
 
 ---
 
-## Questions or Issues?
-
-### Getting Help
-
-- **Questions about contributing**: Open a GitHub Discussion
-- **Bug reports**: Open a GitHub Issue with steps to reproduce
-- **Security concerns**: Please email the maintainer privately (don't open a public issue)
-- **Branch protection or process questions**: See [.github/BRANCH_PROTECTION.md](./.github/BRANCH_PROTECTION.md)
-
-### Common Issues
-
-**"Why is my PR blocked from merging?"**
-- Check that all status checks pass (green checkmarks)
-- Ensure you have at least 1 approval
-- Make sure all comments are resolved
-- Your branch should be up-to-date with main
-
-**"How do I update my branch with the latest main?"**
-```bash
-git fetch origin
-git rebase origin/main
-git push origin feature/my-feature --force-with-lease
-```
-
-**"Can I commit directly to main?"**
-No. All changes go through pull requests. See [BRANCH_PROTECTION.md](./.github/BRANCH_PROTECTION.md).
-
-**"What if a status check keeps failing?"**
-- Check the GitHub Actions workflow logs for details
-- Common causes: build errors, linting, security scan issues
-- Fix locally and push again — checks re-run automatically
-
----
-
-## Recognition
-
-Contributors are recognized in:
-- Pull request history on GitHub
-- Commit log (via git)
-- GitHub Contributors page
-
-Thank you for helping improve netballstats! 🎉
-
----
-
-**Last Updated**: May 22, 2026  
-**Related Files**: [AGENTS.md](./AGENTS.md), [.github/BRANCH_PROTECTION.md](./.github/BRANCH_PROTECTION.md), [.github/CODEOWNERS](./.github/CODEOWNERS)
+**Last Updated**: May 27, 2026

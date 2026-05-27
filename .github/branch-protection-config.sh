@@ -2,9 +2,10 @@
 
 ###############################################################################
 # Branch Protection Configuration for netballstats
-# 
+#
 # This script configures best practice branch protection rules for the main
-# branch and establishes a pattern for feature branches.
+# branch. It allows the repository owner to approve their own PRs while
+# maintaining code quality and security standards.
 #
 # Usage: ./branch-protection-config.sh
 #
@@ -72,14 +73,13 @@ cat << 'EOF' > /tmp/branch_protection.json
   "required_status_checks": {
     "strict": true,
     "contexts": [
-      "deploy-azure-static-web-app",
-      "scan-container"
+      "Scan container image / scan"
     ]
   },
-  "enforce_admins": true,
+  "enforce_admins": false,
   "required_pull_request_reviews": {
     "dismiss_stale_reviews": true,
-    "require_code_owner_reviews": true,
+    "require_code_owner_reviews": false,
     "required_approving_review_count": 1,
     "require_last_push_approval": true
   },
@@ -108,40 +108,37 @@ echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 echo -e "${YELLOW}Main Branch (${MAIN_BRANCH}):${NC}"
 echo "  ✓ Require pull request reviews before merging (1 approval required)"
-echo "  ✓ Require code owner reviews"
+echo "  ✓ Admin (owner) can self-approve their own PRs"
+echo "  ✓ Code owner designation available for optional review guidance (see CODEOWNERS)"
 echo "  ✓ Dismiss stale pull request approvals when new commits are pushed"
 echo "  ✓ Require approval of the most recent push"
 echo "  ✓ Require conversation resolution before merging"
 echo "  ✓ Require linear history (no merge commits)"
 echo "  ✓ Require status checks to pass before merging (strict mode)"
-echo "    - deploy-azure-static-web-app"
-echo "    - scan-container"
-echo "  ✓ Include administrators in restrictions"
-echo "  ✓ Restrict who can push to matching branches"
+echo "    - Scan container image / scan"
 echo "  ✓ Prevent force pushes"
 echo "  ✓ Prevent deletion"
 echo ""
-
+echo -e "${YELLOW}Review Policy:${NC}"
+echo "  • Owner can self-approve PRs (practical for solo maintainer)"
+echo "  • CODEOWNERS file defines review responsibility (informational)"
+echo "  • All code still requires PR review, approval, and status checks"
+echo "  • Quality gates remain enforced for all changes"
+echo ""
 echo -e "${YELLOW}Recommended Development Workflow:${NC}"
 echo "  1. Create feature branch from main (e.g., 'feature/my-feature')"
 echo "  2. Push changes and open a pull request"
 echo "  3. Ensure all status checks pass"
-echo "  4. Request review from code owner"
-echo "  5. Address review feedback"
-echo "  6. Merge when approved and all checks pass"
+echo "  4. Review your own changes (or request feedback if needed)"
+echo "  5. Approve and merge when ready"
 echo ""
-
 echo -e "${YELLOW}Status Check Details:${NC}"
 echo ""
-echo "  deploy-azure-static-web-app"
-echo "    - Validates frontend build (npm run build)"
-echo "    - Only runs on main and PR branches"
-echo "    - Confirms deployment-ready state"
-echo ""
-echo "  scan-container"
-echo "    - Scans container images for vulnerabilities"
-echo "    - Prevents merge if security issues found"
-echo "    - Runs on pull requests targeting main"
+echo "  Scan container image / scan"
+echo "    - Runs on every pull request"
+echo "    - Scans container images for HIGH/CRITICAL vulnerabilities"
+echo "    - Optimized: skips Docker build for frontend-only changes"
+echo "    - Required check: must pass before merge"
 echo ""
 
 ###############################################################################

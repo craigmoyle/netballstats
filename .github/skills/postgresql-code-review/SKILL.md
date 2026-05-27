@@ -5,7 +5,7 @@ description: 'PostgreSQL-specific code review assistant focusing on PostgreSQL b
 
 # PostgreSQL Code Review Assistant
 
-Expert PostgreSQL code review for ${selection} (or entire project if no selection). Focus on PostgreSQL-specific best practices, anti-patterns, and quality standards that are unique to PostgreSQL.
+Expert PostgreSQL code review for the netballstats project. Focus on PostgreSQL-specific best practices, anti-patterns, and quality standards that matter for this repo.
 
 ## 🎯 PostgreSQL-Specific Review Areas
 

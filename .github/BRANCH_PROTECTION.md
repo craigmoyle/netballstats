@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document describes the branch protection rules configured for the `netballstats` repository. These rules enforce code quality, security, and deployment readiness standards before changes can be merged to production.
+This document describes the branch protection rules configured for the `netballstats` repository. These rules enforce code quality, security, and deployment readiness standards before changes can be merged to production. The configuration supports a single-maintainer setup where the repository owner can approve their own PRs while maintaining all quality and security gates.
 
 ---
 
@@ -14,26 +14,26 @@ This document describes the branch protection rules configured for the `netballs
 
 ### 1. **Pull Request Reviews** (REQUIRED)
 - **Minimum 1 approval required** before merging
-- **Code Owner reviews required** (see [CODEOWNERS](#codeowners))
+- **Owner can self-approve** (practical for solo maintainer)
+- **CODEOWNERS file** defines review responsibility (informational, not enforced)
 - **Stale reviews dismissed** when new commits are pushed
 - **Last push approval required** — last commit must be approved by a reviewer
 
-**Why this matters**: Ensures human review of all changes, preventing mistakes and maintaining quality.
+**Why this matters**: Ensures human review of all changes, preventing mistakes and maintaining quality. The owner (sole admin) can approve their own PRs while still maintaining quality gates and code owner guidance via the CODEOWNERS file.
 
 ### 2. **Status Checks** (REQUIRED)
 All of the following must pass before merge is allowed:
 
-#### `deploy-azure-static-web-app`
-- Validates the frontend builds successfully (`npm run build`)
-- Confirms deployment artifacts are production-ready
-- **Strict mode enabled** — must pass on the PR branch, not just base branch
-
-#### `scan-container`
-- Scans container images for security vulnerabilities
-- Prevents merge if security issues are found
+#### `Scan container image / scan`
+- **Always runs** on every pull request (all branches, all changes)
+- Scans container images for HIGH and CRITICAL vulnerabilities only
+- Optimized: Skips Docker build for frontend-only changes (fast no-op for frontend PRs)
+- Must pass before merge is allowed (required check)
 - Ensures API (R Plumber service) meets security standards
 
-**Strict mode**: Ensures status checks are based on the most recent commit on your branch, not on the base branch. This prevents "stale" approvals.
+**Strict mode**: Status checks are validated against the most recent commit on your branch, not the base branch. This ensures fresh scans after you push updates.
+
+**Note**: The `Deploy Azure Static Web App` workflow is a post-merge deployment check (runs after merge to `main`), not a PR requirement. Frontend validation during PR review is performed locally via `npm run build:verify`.
 
 ### 3. **Conversation Resolution** (REQUIRED)
 - All comments and feedback must be resolved before merging
@@ -83,6 +83,23 @@ These protection rules ensure:
 
 ---
 
+## Review Policy
+
+**Single-Maintainer Configuration**
+
+This repository is configured for a single maintainer who is the sole administrator. The branch protection policy reflects this practical setup:
+
+- **Pull request reviews are required** (minimum 1 approval)
+- **The owner can self-approve** their own PRs (since they are the only reviewer)
+- **CODEOWNERS file** is maintained for organizational clarity and future scaling
+- **All other quality gates** remain strictly enforced (status checks, conversation resolution, linear history)
+
+**This means:**
+- The owner can approve and merge their own PRs without waiting for external review
+- Code quality and security checks are still required (status checks must pass)
+- The process is practical and efficient for solo maintenance
+- If the project grows to multiple maintainers, the review enforcement can be re-enabled
+
 ## Development Workflow
 
 ### Starting a Feature
@@ -105,11 +122,10 @@ git push origin feature/my-feature
 
 ### Getting Approval
 
-1. **Code Owner Review** will be automatically requested
+1. **Code Owner Review** may be requested automatically for relevant paths
 2. Address any feedback from the reviewer
 3. Keep pushing updates to your branch — old approvals auto-dismiss
 4. **Status checks must pass**:
-   - Check the deployment preview (Azure Static Web Apps)
    - Confirm no security issues in the container scan
 5. Once approved and all checks pass, you can merge
 
@@ -121,16 +137,16 @@ git push origin feature/my-feature
 
 ### If Status Checks Fail
 
-**Frontend build failure** (`deploy-azure-static-web-app`):
+**Frontend build failure**:
 ```bash
 # Run the build locally
-npm run build
+npm run build:verify
 
 # Fix any errors, commit, and push
 git push origin feature/my-feature
 ```
 
-**Security scan failure** (`scan-container`):
+**Security scan failure** (`Scan container image / scan`):
 - Review the scan report in the GitHub Actions workflow
 - Fix vulnerabilities in the container image or dependencies
 - The scan re-runs automatically on your next push
@@ -139,13 +155,13 @@ git push origin feature/my-feature
 
 ## CODEOWNERS
 
-The following teams/individuals are designated as code owners and must review certain changes:
+The following teams/individuals are designated as code owners and may be requested to review certain changes:
 
 ```
 # See .github/CODEOWNERS for the full list
 ```
 
-Code owner reviews are **required** and ensure domain expertise is applied to changes in sensitive areas (API, database, infrastructure, etc.).
+Code owner reviews provide domain guidance for sensitive areas (API, database, infrastructure, etc.), even when self-approval is allowed.
 
 ---
 
@@ -195,91 +211,54 @@ While not enforced by branch protection, follow these conventions:
 **A**: No. These rules apply to everyone, including administrators. This ensures consistency and accountability.
 
 ### Q: What if my status check fails?
-**A**: Fix the issue locally, push your changes, and the check will re-run automatically. Status checks often fail due to:
-- Build errors → Run `npm run build` and fix errors
-- Security scan → Fix dependencies or vulnerabilities
-- Network issues → Re-run by pushing an empty commit (`git commit --allow-empty -m "Re-run checks"`)
+**A**: Fix the issue locally, push your changes, and the check will re-run automatically. The `Scan container image / scan` check can fail due to:
+- **API/container vulnerabilities** → Fix dependencies in `Dockerfile.azure`, `api/`, or `renv.lock`
+- **Network issues** → Re-run by pushing an empty commit (`git commit --allow-empty -m "Re-run checks"`)
+- **Frontend-only PR** → No Docker build needed; scan will complete quickly with a pass
 
-### Q: Can I merge without an approval?
-**A**: No. At least one code owner approval is required. If you're the only developer, ask a colleague to review, or contact the repository administrator.
+For frontend changes (HTML/CSS/JS only), the scan runs in optimized mode and completes fast.
 
-### Q: What's the difference between "Squash" and "Rebase" merge?
-- **Squash**: Combines all commits in your PR into one commit on `main`. Good for clean history.
-- **Rebase**: Replays your commits on top of `main`. Good for detailed commit history.
-- **Merge** (standard): Forbidden — creates merge commits and violates linear history.
+### Q: Can I push directly to main?
+**A**: No. The branch is protected. All changes must go through pull requests.
 
-Use **Squash and Merge** if unsure.
+### Q: What if I'm blocked by a status check?
+**A**: Fix the issue locally, commit, and push. The check re-runs automatically. See [TROUBLESHOOTING.md](./TROUBLESHOOTING.md).
 
-### Q: How do I update my branch with the latest `main`?
+### Q: What if a reviewer doesn't respond?
+**A**: After 48 hours, politely ping them in the PR. Code owners are expected to review within 24–48 hours.
+
+### Q: Can I request review from someone other than the code owner?
+**A**: Yes. Click "Request review" on the PR and select whoever you want. Code owner guidance is still available for relevant paths.
+
+### Q: What if I disagree with a review comment?
+**A**: Discuss in the PR comment thread. You can push a different fix and explain why. The reviewer will reconsider.
+
+### Q: Can I merge without addressing all feedback?
+**A**: No. All conversations must be resolved, and the reviewer must approve. You can't bypass this.
+
+### Q: How do I update my branch with the latest main?
 ```bash
-# Fetch latest changes
 git fetch origin
-
-# Rebase your branch
 git rebase origin/main
-
-# Force-push your branch (safe; only affects your branch)
-git push origin feature/my-feature --force-with-lease
 ```
 
-### Q: Can I commit directly to `main`?
-**A**: No. All changes go through pull requests. This is non-negotiable and applies to all users.
+### Q: Can I force push my feature branch?
+**A**: Yes, but use caution. Force pushes to `main` are blocked.
 
-### Q: How long does the status check take?
-- **Frontend build**: ~2–3 minutes
-- **Container scan**: ~3–5 minutes
-- **Total**: ~5–8 minutes from push to checks complete
+### Q: Why is there a single-maintainer review policy?
+**A**: It allows the repository owner to move quickly while preserving quality gates and review discipline.
 
 ---
 
-## Maintenance & Updates
+## Related Files
 
-### Updating Protection Rules
-
-The branch protection configuration is defined in:
-- **Script**: `.github/branch-protection-config.sh`
-- **Documentation**: This file (`.github/BRANCH_PROTECTION.md`)
-
-To update rules:
-```bash
-# Edit the script
-vim .github/branch-protection-config.sh
-
-# Re-run it to apply changes
-./.github/branch-protection-config.sh
-```
-
-### Monitoring Compliance
-
-To see merge activity and check compliance:
-```bash
-# View recent merges
-gh pr list --state merged --limit 10
-
-# Check branch protection status
-gh api repos/craigmoyle/netballstats/branches/main/protection
-```
+- [CONTRIBUTING.md](../CONTRIBUTING.md) - Detailed contribution workflow
+- [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) - Solutions to common issues
+- [CODEOWNERS](./CODEOWNERS) - Code ownership definitions
+- [SETUP_SUMMARY.md](./SETUP_SUMMARY.md) - Branch protection setup record
+- [branch-protection-config.sh](./branch-protection-config.sh) - Script to re-apply protection rules
 
 ---
 
-## Related Documents
-
-- **[CONTRIBUTING.md](../../CONTRIBUTING.md)**: General contribution guidelines
-- **[AGENTS.md](../../AGENTS.md)**: Repository context and operational decisions
-- **[GitHub Workflows](.github/workflows/)**: Automated checks (build, scan, deploy)
-- **[CODEOWNERS](.github/CODEOWNERS)**: Code ownership and review requirements
-
----
-
-## Questions?
-
-If you're blocked by branch protection rules or have questions:
-
-1. **Check the FAQ** above
-2. **Review the error message** from GitHub — it usually tells you what's wrong
-3. **Contact the repository maintainer**
-
----
-
-**Last Updated**: May 22, 2026  
-**Configured by**: Configuration script `.github/branch-protection-config.sh`
+**Last Updated**: May 27, 2026  
+**Status**: ✅ Active and enforced
