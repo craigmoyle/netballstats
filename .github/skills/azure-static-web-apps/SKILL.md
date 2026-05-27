@@ -52,7 +52,7 @@ Example of generated config (for reference only):
       "appLocation": ".",
       "apiLocation": "api",
       "outputLocation": "dist",
-      "appBuildCommand": "npm run build",
+      "appBuildCommand": "npm run build:verify",
       "run": "npm run dev",
       "appDevserverUrl": "http://localhost:3000"
     }
@@ -174,7 +174,7 @@ swa db init --database-type cosmosdb_nosql
 
 ### Create SWA from Existing Frontend and Backend
 
-**Always run `swa init` before `swa start` or `swa deploy`. Do not manually create `swa-cli.config.json`.**
+**Always run `swa init` before `swa start` or `swa deploy`. For this repo, the app build command should be `npm run build:verify`. Do not manually create `swa-cli.config.json`.**
 
 ```bash
 # 1. Install CLI
@@ -186,7 +186,7 @@ npx swa init              # Interactive mode
 npx swa init --yes        # Accept auto-detected defaults
 
 # 3. Build application (if needed)
-npm run build
+npm run build:verify
 
 # 4. Test locally (uses settings from swa-cli.config.json)
 npx swa start

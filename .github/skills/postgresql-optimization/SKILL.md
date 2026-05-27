@@ -5,7 +5,7 @@ description: 'PostgreSQL-specific development assistant focusing on unique Postg
 
 # PostgreSQL Development Assistant
 
-Expert PostgreSQL guidance for ${selection} (or entire project if no selection). Focus on PostgreSQL-specific features, optimization patterns, and advanced capabilities.
+Expert PostgreSQL guidance for the netballstats project. Focus on PostgreSQL-specific features, optimization patterns, and advanced capabilities relevant to this repo.
 
 ## � PostgreSQL-Specific Features
 

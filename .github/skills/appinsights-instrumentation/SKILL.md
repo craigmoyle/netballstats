@@ -30,14 +30,14 @@ If the app is a C# ASP.NET Core app hosted in Azure App Service, use [AUTO guide
 
 ### Manually instrument
 
-Manually instrument the app by creating the AppInsights resource and update the app's code. 
+Manually instrument the app by creating the Application Insights resource and updating the app's code.
 
-#### Create AppInsights resource
+#### Create Application Insights resource
 
 Use one of the following options that fits the environment.
 
-- Add AppInsights to existing Bicep template. See [examples/appinsights.bicep](examples/appinsights.bicep) for what to add. This is the best option if there are existing Bicep template files in the workspace.
-- Use Azure CLI. See [scripts/appinsights.ps1](scripts/appinsights.ps1) for what Azure CLI command to execute to create the App Insights resource.
+- Add Application Insights to the existing Bicep template if one is present.
+- Use Azure CLI if you prefer an imperative setup path.
 
 No matter which option you choose, recommend the user to create the App Insights resource in a meaningful resource group that makes managing resources easier. A good candidate will be the same resource group that contains the resources for the hosted app in Azure.
 
