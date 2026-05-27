@@ -23,19 +23,16 @@ This document describes the branch protection rules configured for the `netballs
 ### 2. **Status Checks** (REQUIRED)
 All of the following must pass before merge is allowed:
 
-#### `Deploy Azure Static Web App / build_and_deploy`
-- Validates the frontend builds successfully and passes verification (`npm run build:verify`)
-- Runs on push to `main` and manually via GitHub web interface
-- **Note**: This check currently runs only after merge to `main`. See CI/CD section for details.
-- **Strict mode enabled** — must pass on the branch, not just base branch
-
 #### `Scan container image / scan`
-- Scans container images for security vulnerabilities
-- Prevents merge if high/critical security issues are found
-- Runs on pull requests that modify API code (`api/`, `Dockerfile.azure`, etc.)
+- **Always runs** on every pull request (all branches, all changes)
+- Scans container images for HIGH and CRITICAL vulnerabilities only
+- Optimized: Skips Docker build for frontend-only changes (fast no-op for frontend PRs)
+- Must pass before merge is allowed (required check)
 - Ensures API (R Plumber service) meets security standards
 
-**Strict mode**: Ensures status checks are based on the most recent commit on your branch, not on the base branch. This prevents "stale" approvals.
+**Strict mode**: Status checks are validated against the most recent commit on your branch, not the base branch. This ensures fresh scans after you push updates.
+
+**Note**: The `Deploy Azure Static Web App` workflow is a post-merge deployment check (runs after merge to `main`), not a PR requirement. Frontend validation during PR review is performed locally via `npm run build:verify`.
 
 ### 3. **Conversation Resolution** (REQUIRED)
 - All comments and feedback must be resolved before merging
@@ -197,10 +194,12 @@ While not enforced by branch protection, follow these conventions:
 **A**: No. These rules apply to everyone, including administrators. This ensures consistency and accountability.
 
 ### Q: What if my status check fails?
-**A**: Fix the issue locally, push your changes, and the check will re-run automatically. Status checks often fail due to:
-- Build errors → Run `npm run build` and fix errors
-- Security scan → Fix dependencies or vulnerabilities
-- Network issues → Re-run by pushing an empty commit (`git commit --allow-empty -m "Re-run checks"`)
+**A**: Fix the issue locally, push your changes, and the check will re-run automatically. The `Scan container image / scan` check can fail due to:
+- **API/container vulnerabilities** → Fix dependencies in `Dockerfile.azure`, `api/`, or `renv.lock`
+- **Network issues** → Re-run by pushing an empty commit (`git commit --allow-empty -m "Re-run checks"`)
+- **Frontend-only PR** → No Docker build needed; scan will complete quickly with a pass
+
+For frontend changes (HTML/CSS/JS only), the scan runs in optimized mode and completes fast.
 
 ### Q: Can I merge without an approval?
 **A**: No. At least one code owner approval is required. If you're the only developer, ask a colleague to review, or contact the repository administrator.
@@ -228,9 +227,11 @@ git push origin feature/my-feature --force-with-lease
 **A**: No. All changes go through pull requests. This is non-negotiable and applies to all users.
 
 ### Q: How long does the status check take?
-- **Frontend build**: ~2–3 minutes
-- **Container scan**: ~3–5 minutes
-- **Total**: ~5–8 minutes from push to checks complete
+- **Container scan**: ~1–2 minutes (frontend-only PRs, optimized)
+- **Container scan**: ~4–6 minutes (API changes, includes Docker build)
+- **Total**: ~5–10 minutes from push to checks complete
+
+Faster scans for frontend-only PRs because we skip the Docker build step.
 
 ---
 

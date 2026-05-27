@@ -3,17 +3,7 @@ name: Scan container image
 on:
   push:
     branches: [main]
-    paths:
-      - 'Dockerfile.azure'
-      - 'api/**'
-      - 'R/**'
-      - 'renv.lock'
   pull_request:
-    paths:
-      - 'Dockerfile.azure'
-      - 'api/**'
-      - 'R/**'
-      - 'renv.lock'
   workflow_dispatch:
 
 permissions:
@@ -28,7 +18,26 @@ jobs:
       # actions/checkout v6 — https://github.com/actions/checkout/commits/v6
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
 
+      # Check if API code changed; skip scan if not (optimization for frontend-only PRs).
+      # Scan still always reports a status so it can be a required check.
+      - name: Check if API code changed
+        id: api_changed
+        run: |
+          # If this is a push to main, always check (safety first)
+          if [[ "${{ github.event_name }}" == "push" ]]; then
+            echo "api_changed=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # For PRs, only scan if relevant files changed
+          git fetch origin ${{ github.base_ref }}
+          if git diff --quiet origin/${{ github.base_ref }} -- Dockerfile.azure api/ R/ renv.lock; then
+            echo "api_changed=false" >> $GITHUB_OUTPUT
+          else
+            echo "api_changed=true" >> $GITHUB_OUTPUT
+          fi
+
       - name: Build image
+        if: steps.api_changed.outputs.api_changed == 'true'
         run: docker build -f Dockerfile.azure -t netballstats-api:scan .
 
       # Install Trivy directly from GitHub Releases instead of via a third-party
@@ -46,6 +55,7 @@ jobs:
           sudo mv trivy /usr/local/bin/trivy
 
       - name: Run Trivy vulnerability scanner
+        if: steps.api_changed.outputs.api_changed == 'true'
         run: |
           trivy image \
             --format sarif \
@@ -55,9 +65,16 @@ jobs:
             --skip-files '**/openssl/*/doc/keys.html' \
             netballstats-api:scan
 
+      # For frontend-only PRs, create a clean passing result
+      - name: Create passing result for non-API changes
+        if: steps.api_changed.outputs.api_changed == 'false'
+        run: |
+          echo '{"version": "2.1.0", "runs": [{"tool": {"driver": {"name": "Trivy", "version": "0.69.3"}}, "results": []}]}' > trivy-results.sarif
+
       # github/codeql-action is a first-party GitHub action; pinned by commit SHA.
       # v4 tag object d4b3ca9 → commit c10b806
       # https://github.com/github/codeql-action/commits/v4
+      # Always upload (even empty result) so the check always reports a status.
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa
         if: always()

@@ -214,7 +214,8 @@ git push origin feature/my-feature
 ### Branch Status After Pushing
 
 Once you push, GitHub automatically:
-1. Runs **status checks** (frontend build, container scan)
+1. Runs **status checks**:
+   - `Scan container image / scan` (required on every PR, optimized for frontend changes)
 2. Requests **code owner reviews** (via CODEOWNERS)
 3. Blocks merging until all checks pass
 
