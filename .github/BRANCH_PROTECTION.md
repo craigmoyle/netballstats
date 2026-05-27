@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document describes the branch protection rules configured for the `netballstats` repository. These rules enforce code quality, security, and deployment readiness standards before changes can be merged to production.
+This document describes the branch protection rules configured for the `netballstats` repository. These rules enforce code quality, security, and deployment readiness standards before changes can be merged to production. The configuration supports a single-maintainer setup where the repository owner can approve their own PRs while maintaining all quality and security gates.
 
 ---
 
@@ -14,26 +14,26 @@ This document describes the branch protection rules configured for the `netballs
 
 ### 1. **Pull Request Reviews** (REQUIRED)
 - **Minimum 1 approval required** before merging
-- **Code Owner reviews required** (see [CODEOWNERS](#codeowners))
+- **Owner can self-approve** (practical for solo maintainer)
+- **CODEOWNERS file** defines review responsibility (informational, not enforced)
 - **Stale reviews dismissed** when new commits are pushed
 - **Last push approval required** — last commit must be approved by a reviewer
 
-**Why this matters**: Ensures human review of all changes, preventing mistakes and maintaining quality.
+**Why this matters**: Ensures human review of all changes, preventing mistakes and maintaining quality. The owner (sole admin) can approve their own PRs while still maintaining quality gates and code owner guidance via the CODEOWNERS file.
 
 ### 2. **Status Checks** (REQUIRED)
 All of the following must pass before merge is allowed:
 
-#### `deploy-azure-static-web-app`
-- Validates the frontend builds successfully (`npm run build`)
-- Confirms deployment artifacts are production-ready
-- **Strict mode enabled** — must pass on the PR branch, not just base branch
-
-#### `scan-container`
-- Scans container images for security vulnerabilities
-- Prevents merge if security issues are found
+#### `Scan container image / scan`
+- **Always runs** on every pull request (all branches, all changes)
+- Scans container images for HIGH and CRITICAL vulnerabilities only
+- Optimized: Skips Docker build for frontend-only changes (fast no-op for frontend PRs)
+- Must pass before merge is allowed (required check)
 - Ensures API (R Plumber service) meets security standards
 
-**Strict mode**: Ensures status checks are based on the most recent commit on your branch, not on the base branch. This prevents "stale" approvals.
+**Strict mode**: Status checks are validated against the most recent commit on your branch, not the base branch. This ensures fresh scans after you push updates.
+
+**Note**: The `Deploy Azure Static Web App` workflow is a post-merge deployment check (runs after merge to `main`), not a PR requirement. Frontend validation during PR review is performed locally via `npm run build:verify`.
 
 ### 3. **Conversation Resolution** (REQUIRED)
 - All comments and feedback must be resolved before merging
@@ -83,6 +83,24 @@ These protection rules ensure:
 
 ---
 
+## Review Policy
+
+**Single-Maintainer Configuration**
+
+This repository is configured for a single maintainer who is the sole administrator. The branch protection policy reflects this practical setup:
+
+- **Pull request reviews are required** (minimum 1 approval)
+- **The owner can self-approve** their own PRs (since they are the only reviewer)
+- **CODEOWNERS file** is maintained for organizational clarity and future scaling
+- **All other quality gates** remain strictly enforced (status checks, conversation resolution, linear history)
+
+**This means:**
+- The owner can approve and merge their own PRs without waiting for external review
+- Code quality and security checks are still required (status checks must pass)
+- The process is practical and efficient for solo maintenance
+- If the project grows to multiple maintainers, the review enforcement can be re-enabled
+
+
 ## Development Workflow
 
 ### Starting a Feature
@@ -121,7 +139,7 @@ git push origin feature/my-feature
 
 ### If Status Checks Fail
 
-**Frontend build failure** (`deploy-azure-static-web-app`):
+**Frontend build failure**:
 ```bash
 # Run the build locally
 npm run build
@@ -195,10 +213,12 @@ While not enforced by branch protection, follow these conventions:
 **A**: No. These rules apply to everyone, including administrators. This ensures consistency and accountability.
 
 ### Q: What if my status check fails?
-**A**: Fix the issue locally, push your changes, and the check will re-run automatically. Status checks often fail due to:
-- Build errors → Run `npm run build` and fix errors
-- Security scan → Fix dependencies or vulnerabilities
-- Network issues → Re-run by pushing an empty commit (`git commit --allow-empty -m "Re-run checks"`)
+**A**: Fix the issue locally, push your changes, and the check will re-run automatically. The `Scan container image / scan` check can fail due to:
+- **API/container vulnerabilities** → Fix dependencies in `Dockerfile.azure`, `api/`, or `renv.lock`
+- **Network issues** → Re-run by pushing an empty commit (`git commit --allow-empty -m "Re-run checks"`)
+- **Frontend-only PR** → No Docker build needed; scan will complete quickly with a pass
+
+For frontend changes (HTML/CSS/JS only), the scan runs in optimized mode and completes fast.
 
 ### Q: Can I merge without an approval?
 **A**: No. At least one code owner approval is required. If you're the only developer, ask a colleague to review, or contact the repository administrator.
@@ -226,9 +246,11 @@ git push origin feature/my-feature --force-with-lease
 **A**: No. All changes go through pull requests. This is non-negotiable and applies to all users.
 
 ### Q: How long does the status check take?
-- **Frontend build**: ~2–3 minutes
-- **Container scan**: ~3–5 minutes
-- **Total**: ~5–8 minutes from push to checks complete
+- **Container scan**: ~1–2 minutes (frontend-only PRs, optimized)
+- **Container scan**: ~4–6 minutes (API changes, includes Docker build)
+- **Total**: ~5–10 minutes from push to checks complete
+
+Faster scans for frontend-only PRs because we skip the Docker build step.
 
 ---
 
@@ -264,10 +286,10 @@ gh api repos/craigmoyle/netballstats/branches/main/protection
 
 ## Related Documents
 
-- **[CONTRIBUTING.md](../../CONTRIBUTING.md)**: General contribution guidelines
-- **[AGENTS.md](../../AGENTS.md)**: Repository context and operational decisions
-- **[GitHub Workflows](.github/workflows/)**: Automated checks (build, scan, deploy)
-- **[CODEOWNERS](.github/CODEOWNERS)**: Code ownership and review requirements
+- **[CONTRIBUTING.md](../CONTRIBUTING.md)**: General contribution guidelines
+- **[AGENTS.md](../AGENTS.md)**: Repository context and operational decisions
+- **[GitHub Workflows](./workflows/)**: Automated checks (build, scan, deploy)
+- **[CODEOWNERS](./CODEOWNERS)**: Code ownership and review requirements
 
 ---
 

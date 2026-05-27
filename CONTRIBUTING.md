@@ -22,7 +22,7 @@ Thank you for your interest in contributing to netballstats! This guide explains
 ### Prerequisites
 
 - **Git** and GitHub account access to [craigmoyle/netballstats](https://github.com/craigmoyle/netballstats)
-- **Node.js** (v16+) and npm for frontend development
+- **Node.js** (v22 recommended; matches CI environment) and npm for frontend development
 - **R** (v4.0+) and [renv](https://rstudio.github.io/renv/) for backend development
 - **Docker** (optional) for local API testing
 - GitHub CLI (`gh`) for convenient command-line operations
@@ -71,8 +71,8 @@ git checkout -b feature/my-feature
 # Install dependencies
 npm install
 
-# Build the static site
-npm run build
+# Build and verify the static site (matches CI)
+npm run build:verify
 
 # Output is in dist/
 ls dist/
@@ -130,7 +130,7 @@ Follow the standards outlined in [AGENTS.md](./AGENTS.md):
 
 ```bash
 # Frontend validation
-npm run build                    # Verify build succeeds
+npm run build:verify             # Verify build and validation succeeds
 
 # Backend validation
 Rscript -e "parse(file='api/plumber.R')"
@@ -145,10 +145,10 @@ git diff --cached                # Review staged changes
 
 The repository uses these validation approaches:
 
-- **Frontend**: `npm run build` validates syntax and outputs artifacts
+- **Frontend**: `npm run build:verify` validates syntax, runs checks, and outputs artifacts
 - **Backend**: `Rscript -e "parse(file='...')"` validates R syntax
 - **API**: Regression tests in `scripts/test_api_regression.R`
-- **Container**: `scan-container` workflow scans for vulnerabilities
+- **Container**: `Scan container image / scan` check scans for vulnerabilities
 
 See [AGENTS.md](./AGENTS.md) for detailed testing patterns and data conventions.
 
@@ -214,7 +214,8 @@ git push origin feature/my-feature
 ### Branch Status After Pushing
 
 Once you push, GitHub automatically:
-1. Runs **status checks** (frontend build, container scan)
+1. Runs **status checks**:
+   - `Scan container image / scan` (required on every PR, optimized for frontend changes)
 2. Requests **code owner reviews** (via CODEOWNERS)
 3. Blocks merging until all checks pass
 
@@ -242,7 +243,7 @@ Example workflow:
 
 **Frontend build failure**:
 ```bash
-npm run build           # Run locally to see the error
+npm run build:verify    # Run locally to see the error
 # Fix the issue
 git add .
 git commit -m "Fix: Build error in theme.js"
@@ -334,7 +335,7 @@ Before opening a PR, confirm:
 
 - [ ] Branch is created from latest `main`
 - [ ] All changes are committed to your feature branch
-- [ ] Build succeeds locally (`npm run build`)
+- [ ] Build succeeds locally (`npm run build:verify`)
 - [ ] Backend syntax is valid (`Rscript -e "parse(file='api/plumber.R')"`)
 - [ ] No accidental console logs or debug code
 - [ ] Commit messages are clear and present-tense
