@@ -72,8 +72,7 @@ cat << 'EOF' > /tmp/branch_protection.json
   "required_status_checks": {
     "strict": true,
     "contexts": [
-      "deploy-azure-static-web-app",
-      "scan-container"
+      "Scan container image / scan"
     ]
   },
   "enforce_admins": true,
@@ -114,8 +113,7 @@ echo "  ✓ Require approval of the most recent push"
 echo "  ✓ Require conversation resolution before merging"
 echo "  ✓ Require linear history (no merge commits)"
 echo "  ✓ Require status checks to pass before merging (strict mode)"
-echo "    - deploy-azure-static-web-app"
-echo "    - scan-container"
+echo "    - Scan container image \/ scan"
 echo "  ✓ Include administrators in restrictions"
 echo "  ✓ Restrict who can push to matching branches"
 echo "  ✓ Prevent force pushes"
@@ -133,12 +131,11 @@ echo ""
 
 echo -e "${YELLOW}Status Check Details:${NC}"
 echo ""
-echo "  deploy-azure-static-web-app"
+echo "  Scan container image \/ scan"
 echo "    - Validates frontend build (npm run build)"
 echo "    - Only runs on main and PR branches"
 echo "    - Confirms deployment-ready state"
 echo ""
-echo "  scan-container"
 echo "    - Scans container images for vulnerabilities"
 echo "    - Prevents merge if security issues found"
 echo "    - Runs on pull requests targeting main"

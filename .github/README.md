@@ -35,8 +35,8 @@ Read: **[BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md)**
 
 See: **[CODEOWNERS](./CODEOWNERS)**
 - Who reviews what code
-- How to add/modify code owners
-- What triggers required reviews
+- Auto-enforced by GitHub
+- Defines which files require specific reviewers
 
 ---
 
@@ -47,8 +47,8 @@ See: **[CODEOWNERS](./CODEOWNERS)**
 | **[CONTRIBUTING.md](../CONTRIBUTING.md)** | Development workflow and contribution guide | Everyone |
 | **[BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md)** | Branch protection policy and rules | Everyone |
 | **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** | Solutions for common issues | Developers |
-| **[CODEOWNERS](./CODEOWNERS)** | Code ownership matrix | Developers, Maintainers |
-| **[SETUP_SUMMARY.md](./SETUP_SUMMARY.md)** | Configuration details and history | Maintainers |
+| **[CODEOWNERS](./CODEOWNERS)** | Code ownership definitions | Developers, Maintainers |
+| **[SETUP_SUMMARY.md](./SETUP_SUMMARY.md)** | Configuration details and record | Maintainers |
 
 ---
 

@@ -22,7 +22,7 @@ Thank you for your interest in contributing to netballstats! This guide explains
 ### Prerequisites
 
 - **Git** and GitHub account access to [craigmoyle/netballstats](https://github.com/craigmoyle/netballstats)
-- **Node.js** (v16+) and npm for frontend development
+- **Node.js** (v22 recommended; matches CI environment) and npm for frontend development
 - **R** (v4.0+) and [renv](https://rstudio.github.io/renv/) for backend development
 - **Docker** (optional) for local API testing
 - GitHub CLI (`gh`) for convenient command-line operations
@@ -71,8 +71,8 @@ git checkout -b feature/my-feature
 # Install dependencies
 npm install
 
-# Build the static site
-npm run build
+# Build and verify the static site (matches CI)
+npm run build:verify
 
 # Output is in dist/
 ls dist/
@@ -130,7 +130,7 @@ Follow the standards outlined in [AGENTS.md](./AGENTS.md):
 
 ```bash
 # Frontend validation
-npm run build                    # Verify build succeeds
+npm run build:verify             # Verify build and validation succeeds
 
 # Backend validation
 Rscript -e "parse(file='api/plumber.R')"
@@ -145,7 +145,7 @@ git diff --cached                # Review staged changes
 
 The repository uses these validation approaches:
 
-- **Frontend**: `npm run build` validates syntax and outputs artifacts
+- **Frontend**: `npm run build:verify` validates syntax, runs checks, and outputs artifacts
 - **Backend**: `Rscript -e "parse(file='...')"` validates R syntax
 - **API**: Regression tests in `scripts/test_api_regression.R`
 - **Container**: `scan-container` workflow scans for vulnerabilities

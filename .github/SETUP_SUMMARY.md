@@ -29,12 +29,12 @@ The following rules are **now enforced** on the `main` branch:
 
 | File | Purpose |
 |------|---------|
-| **[BRANCH_PROTECTION.md](./.github/BRANCH_PROTECTION.md)** | Complete policy documentation and user guide |
-| **[CODEOWNERS](./.github/CODEOWNERS)** | Defines who reviews what (auto-assigned via GitHub) |
-| **[TROUBLESHOOTING.md](./.github/TROUBLESHOOTING.md)** | Solutions for common issues developers encounter |
+| **[BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md)** | Complete policy documentation and user guide |
+| **[CODEOWNERS](./CODEOWNERS)** | Defines who reviews what (auto-assigned via GitHub) |
+| **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** | Solutions for common issues developers encounter |
 | **[CONTRIBUTING.md](../CONTRIBUTING.md)** | Comprehensive contribution workflow guide |
-| **[branch-protection-config.sh](./.github/branch-protection-config.sh)** | Configuration automation script |
-| **[SETUP_SUMMARY.md](./.github/SETUP_SUMMARY.md)** | This file — deployment record |
+| **[branch-protection-config.sh](./branch-protection-config.sh)** | Configuration automation script |
+| **[SETUP_SUMMARY.md](./SETUP_SUMMARY.md)** | This file — deployment record |
 
 ---
 
@@ -43,8 +43,8 @@ The following rules are **now enforced** on the `main` branch:
 ### For Developers
 
 1. **Read**: [CONTRIBUTING.md](../CONTRIBUTING.md) (complete workflow)
-2. **Bookmark**: [TROUBLESHOOTING.md](./.github/TROUBLESHOOTING.md) (for when things go wrong)
-3. **Reference**: [BRANCH_PROTECTION.md](./.github/BRANCH_PROTECTION.md) (policy details)
+2. **Bookmark**: [TROUBLESHOOTING.md](./TROUBLESHOOTING.md) (for when things go wrong)
+3. **Reference**: [BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md) (policy details)
 
 ### For Administrators
 
@@ -128,7 +128,7 @@ git push origin feature/my-feature
 
 ### ✅ Code Owner Reviews
 
-**What**: Certain files require specific people to review (see [CODEOWNERS](./.github/CODEOWNERS)).
+**What**: Certain files require specific people to review (see [CODEOWNERS](./CODEOWNERS)).
 
 **Why**:
 - API changes should be reviewed by API experts

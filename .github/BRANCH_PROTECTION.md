@@ -23,14 +23,16 @@ This document describes the branch protection rules configured for the `netballs
 ### 2. **Status Checks** (REQUIRED)
 All of the following must pass before merge is allowed:
 
-#### `deploy-azure-static-web-app`
-- Validates the frontend builds successfully (`npm run build`)
-- Confirms deployment artifacts are production-ready
-- **Strict mode enabled** — must pass on the PR branch, not just base branch
+#### `Deploy Azure Static Web App / build_and_deploy`
+- Validates the frontend builds successfully and passes verification (`npm run build:verify`)
+- Runs on push to `main` and manually via GitHub web interface
+- **Note**: This check currently runs only after merge to `main`. See CI/CD section for details.
+- **Strict mode enabled** — must pass on the branch, not just base branch
 
-#### `scan-container`
+#### `Scan container image / scan`
 - Scans container images for security vulnerabilities
-- Prevents merge if security issues are found
+- Prevents merge if high/critical security issues are found
+- Runs on pull requests that modify API code (`api/`, `Dockerfile.azure`, etc.)
 - Ensures API (R Plumber service) meets security standards
 
 **Strict mode**: Ensures status checks are based on the most recent commit on your branch, not on the base branch. This prevents "stale" approvals.
@@ -264,10 +266,10 @@ gh api repos/craigmoyle/netballstats/branches/main/protection
 
 ## Related Documents
 
-- **[CONTRIBUTING.md](../../CONTRIBUTING.md)**: General contribution guidelines
-- **[AGENTS.md](../../AGENTS.md)**: Repository context and operational decisions
-- **[GitHub Workflows](.github/workflows/)**: Automated checks (build, scan, deploy)
-- **[CODEOWNERS](.github/CODEOWNERS)**: Code ownership and review requirements
+- **[CONTRIBUTING.md](../CONTRIBUTING.md)**: General contribution guidelines
+- **[AGENTS.md](../AGENTS.md)**: Repository context and operational decisions
+- **[GitHub Workflows](./workflows/)**: Automated checks (build, scan, deploy)
+- **[CODEOWNERS](./CODEOWNERS)**: Code ownership and review requirements
 
 ---
 
