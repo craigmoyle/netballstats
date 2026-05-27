@@ -7,3 +7,14 @@ dist/
 .worktrees/
 renv/library/
 renv/staging/
+
+# Copilot / local agent helpers
+.claude/
+.gemini/
+.copilot/
+.superpowers/
+.antigravitycli/
+/agents/
+threat-model-*/
+.github/agents/
+.github/skills/
