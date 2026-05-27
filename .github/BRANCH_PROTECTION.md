@@ -139,7 +139,7 @@ git push origin feature/my-feature
 
 ### If Status Checks Fail
 
-**Frontend build failure** (`deploy-azure-static-web-app`):
+**Frontend build failure**:
 ```bash
 # Run the build locally
 npm run build

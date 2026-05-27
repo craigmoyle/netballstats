@@ -148,7 +148,7 @@ The repository uses these validation approaches:
 - **Frontend**: `npm run build:verify` validates syntax, runs checks, and outputs artifacts
 - **Backend**: `Rscript -e "parse(file='...')"` validates R syntax
 - **API**: Regression tests in `scripts/test_api_regression.R`
-- **Container**: `scan-container` workflow scans for vulnerabilities
+- **Container**: `Scan container image / scan` check scans for vulnerabilities
 
 See [AGENTS.md](./AGENTS.md) for detailed testing patterns and data conventions.
 
@@ -243,7 +243,7 @@ Example workflow:
 
 **Frontend build failure**:
 ```bash
-npm run build           # Run locally to see the error
+npm run build:verify    # Run locally to see the error
 # Fix the issue
 git add .
 git commit -m "Fix: Build error in theme.js"
@@ -335,7 +335,7 @@ Before opening a PR, confirm:
 
 - [ ] Branch is created from latest `main`
 - [ ] All changes are committed to your feature branch
-- [ ] Build succeeds locally (`npm run build`)
+- [ ] Build succeeds locally (`npm run build:verify`)
 - [ ] Backend syntax is valid (`Rscript -e "parse(file='api/plumber.R')"`)
 - [ ] No accidental console logs or debug code
 - [ ] Commit messages are clear and present-tense
