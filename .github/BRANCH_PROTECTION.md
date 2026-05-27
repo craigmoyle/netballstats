@@ -6,7 +6,7 @@
 
 ## Overview
 
-This document describes the branch protection rules configured for the `netballstats` repository. These rules enforce code quality, security, and deployment readiness standards before changes can be merged to production.
+This document describes the branch protection rules configured for the `netballstats` repository. These rules enforce code quality, security, and deployment readiness standards before changes can be merged to production. The configuration supports a single-maintainer setup where the repository owner can approve their own PRs while maintaining all quality and security gates.
 
 ---
 
@@ -14,11 +14,12 @@ This document describes the branch protection rules configured for the `netballs
 
 ### 1. **Pull Request Reviews** (REQUIRED)
 - **Minimum 1 approval required** before merging
-- **Code Owner reviews required** (see [CODEOWNERS](#codeowners))
+- **Owner can self-approve** (practical for solo maintainer)
+- **CODEOWNERS file** defines review responsibility (informational, not enforced)
 - **Stale reviews dismissed** when new commits are pushed
 - **Last push approval required** — last commit must be approved by a reviewer
 
-**Why this matters**: Ensures human review of all changes, preventing mistakes and maintaining quality.
+**Why this matters**: Ensures human review of all changes, preventing mistakes and maintaining quality. The owner (sole admin) can approve their own PRs while still maintaining quality gates and code owner guidance via the CODEOWNERS file.
 
 ### 2. **Status Checks** (REQUIRED)
 All of the following must pass before merge is allowed:
@@ -81,6 +82,24 @@ These protection rules ensure:
 5. **Incident Prevention**: Reduces risk of production outages
 
 ---
+
+## Review Policy
+
+**Single-Maintainer Configuration**
+
+This repository is configured for a single maintainer who is the sole administrator. The branch protection policy reflects this practical setup:
+
+- **Pull request reviews are required** (minimum 1 approval)
+- **The owner can self-approve** their own PRs (since they are the only reviewer)
+- **CODEOWNERS file** is maintained for organizational clarity and future scaling
+- **All other quality gates** remain strictly enforced (status checks, conversation resolution, linear history)
+
+**This means:**
+- The owner can approve and merge their own PRs without waiting for external review
+- Code quality and security checks are still required (status checks must pass)
+- The process is practical and efficient for solo maintenance
+- If the project grows to multiple maintainers, the review enforcement can be re-enabled
+
 
 ## Development Workflow
 
