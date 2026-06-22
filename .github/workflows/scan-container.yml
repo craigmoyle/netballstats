@@ -16,7 +16,7 @@ jobs:
     steps:
       # Pin first-party actions by commit SHA to guard against mutable-tag abuse.
       # actions/checkout v6 — https://github.com/actions/checkout/commits/v6
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0
 
       # Check if API code changed; skip scan if not (optimization for frontend-only PRs).
       # Scan still always reports a status so it can be a required check.
