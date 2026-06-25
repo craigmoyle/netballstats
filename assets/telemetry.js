@@ -489,6 +489,17 @@
       return state.browserConfig;
     }
 
+    const getMeta = window.NetballStatsUI?.getMeta;
+    if (typeof getMeta === "function") {
+      try {
+        const meta = await getMeta();
+        applyMetaConfig(meta);
+        return state.browserConfig;
+      } catch {
+        return null;
+      }
+    }
+
     if (!state.metaPromise) {
       state.metaPromise = fetch(buildApiUrl("/meta"), {
         headers: {

@@ -2,6 +2,7 @@ const {
   buildUrl,
   clearEmptyTableState = () => {},
   fetchJson,
+  getMeta,
   formatNumber,
   formatStatLabel = (stat) => stat,
   getCheckedValues = () => [],
@@ -755,40 +756,28 @@ function renderAll() {
 }
 
 async function loadMetadata(retries = 1) {
-  let attempt = 0;
-  let lastError = null;
-
-  while (attempt <= retries) {
-    try {
-      const meta = await fetchJson("/meta");
-      state.meta = meta;
-      renderSeasonChoices(meta.seasons || []);
-      renderTeamChoices(meta.teams || []);
-      return meta;
-    } catch (error) {
-      lastError = error;
-      if (attempt >= retries) {
-        break;
-      }
-      await wait(1500 * (attempt + 1));
-      attempt += 1;
-    }
-  }
-
-  throw lastError;
+  const meta = await getMeta({ retries });
+  state.meta = meta;
+  renderSeasonChoices(meta.seasons || []);
+  renderTeamChoices(meta.teams || []);
+  return meta;
 }
 
 async function loadHomeEdge() {
   const requestToken = ++state.requestToken;
   showLoadingStatus();
   try {
-    const payload = await fetchJson("/home-venue-impact", currentParams(false));
+    const [payload, breakdown] = await Promise.all([
+      fetchJson("/home-venue-impact", currentParams(false)),
+      fetchJson("/home-venue-breakdown", breakdownParams())
+    ]);
     if (requestToken !== state.requestToken) {
       return;
     }
     state.payload = payload;
+    state.breakdown = breakdown;
     renderAll();
-    await loadBreakdown();
+    renderBreakdownSections();
     trackEvent("home_edge_loaded", {
       seasons: getSelectedSeasons().join(",") || "all",
       team_id: elements.team?.value || "all",

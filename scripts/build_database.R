@@ -1413,6 +1413,19 @@ write_database <- function(tables, build_mode) {
       "FROM player_match_participation"
     ))
 
+    # Synthesise points stat: goal1 + 2×goal2 per match. Stored in player_match_stats
+    # so leaders, game highs, and archive rank use idx_pms_stat_value directly.
+    DBI::dbExecute(conn, paste(
+      "INSERT INTO player_match_stats",
+      "  (player_id, match_id, season, round_number, squad_id, squad_name, stat, match_value)",
+      "SELECT g1.player_id, g1.match_id, g1.season, g1.round_number, g1.squad_id, g1.squad_name, 'points',",
+      "  ROUND(CAST(COALESCE(g1.match_value, 0) + 2 * COALESCE(g2.match_value, 0) AS numeric), 2)",
+      "FROM player_match_stats g1",
+      "LEFT JOIN player_match_stats g2",
+      "  ON g1.player_id = g2.player_id AND g1.match_id = g2.match_id AND g2.stat = 'goal2'",
+      "WHERE g1.stat = 'goal1'"
+    ))
+
     configure_postgres_api_user(conn)
 
     # Analyse only our tables (system catalogs require superuser; skip them).

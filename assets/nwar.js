@@ -2,6 +2,7 @@ const {
   buildUrl,
   clearEmptyTableState = () => {},
   fetchJson,
+  getMeta,
   formatNumber,
   playerProfileUrl = (playerId) => `/player/${encodeURIComponent(playerId)}/`,
   renderEmptyTableRow = () => {},
@@ -189,7 +190,7 @@ function renderTable(rows, usePerSeason = false) {
 
 async function loadMetadata() {
   try {
-    const meta = await fetchJson("/meta");
+    const meta = await getMeta({ retries: 1 });
     state.seasons = (meta.seasons || []).slice();
     const seasonSelect = elements.nwarSeason;
     if (!seasonSelect) return;

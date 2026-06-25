@@ -6,5 +6,8 @@
     "build": "node scripts/build_static.mjs",
     "verify": "node scripts/verify_home_edge_breakdown.mjs && node scripts/verify_league_composition_ui.mjs",
     "build:verify": "npm run build && npm run verify"
+  },
+  "devDependencies": {
+    "esbuild": "^0.25.0"
   }
 }

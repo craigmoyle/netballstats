@@ -27,6 +27,7 @@ const {
   debounce = (fn) => fn,
   getCheckedValues = () => [],
   fetchJson,
+  getMeta,
   formatStatLabel = (stat) => stat,
   getThemePalette = () => [...DEFAULT_CHART_PALETTE],
   renderEmptyTableRow = () => {},
@@ -1311,7 +1312,7 @@ async function initialise() {
   showLoadingStatus(COMPARE_META_LOADING_MESSAGES, "Loading builder");
 
   try {
-    const meta = await fetchJson("/meta");
+    const meta = await getMeta({ retries: 1 });
     applyMetaConfig(meta);
     applyMeta(meta);
     await applyUrlState();

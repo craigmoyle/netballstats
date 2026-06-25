@@ -4,6 +4,7 @@ const {
   buildUrl,
   clearEmptyTableState = () => {},
   fetchJson,
+  getMeta,
   formatDate,
   formatNumber,
   formatStatLabel = (stat) => stat,
@@ -1762,20 +1763,15 @@ function setupBuilderEventListeners() {
   });
 }
 
-async function loadBuilderMetadata() {
-  try {
-    const meta = await fetchJson("/meta");
-    if (meta.seasons && Array.isArray(meta.seasons)) {
-      builderState.availableSeasons = meta.seasons;
-      populateBuilderSeasonSelects();
-    }
-    if (meta.players && Array.isArray(meta.players)) {
-      builderState.availableSubjects = meta.players;
-    } else if (meta.subjects && Array.isArray(meta.subjects)) {
-      builderState.availableSubjects = meta.subjects;
-    }
-  } catch (error) {
-    console.error("Failed to load builder metadata:", error);
+async function loadBuilderMetadata(meta) {
+  if (meta.seasons && Array.isArray(meta.seasons)) {
+    builderState.availableSeasons = meta.seasons;
+    populateBuilderSeasonSelects();
+  }
+  if (meta.players && Array.isArray(meta.players)) {
+    builderState.availableSubjects = meta.players;
+  } else if (meta.subjects && Array.isArray(meta.subjects)) {
+    builderState.availableSubjects = meta.subjects;
   }
 }
 
@@ -1783,15 +1779,20 @@ async function init() {
   setIdleState();
 
   try {
-    const meta = await fetchJson("/meta");
+    const meta = await getMeta({ retries: 1 });
     applyMetaConfig(meta);
     renderMeta(meta);
+    await loadBuilderMetadata(meta);
   } catch (error) {
     elements.querySeasonSummary.textContent = "Archive metadata is unavailable right now. Questions may still work.";
+    try {
+      await loadBuilderMetadata({});
+    } catch (builderError) {
+      console.error("Failed to load builder metadata:", builderError);
+    }
   }
 
   // Initialize builder modal
-  await loadBuilderMetadata();
   setupBuilderEventListeners();
 
   const params = new URLSearchParams(window.location.search);
