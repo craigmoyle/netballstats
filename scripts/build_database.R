@@ -1498,6 +1498,18 @@ if (!sample_mode) {
         message(sprintf("  Found %d upcoming matches after filtering by time", length(upcoming)))
 
         if (length(upcoming) > 0) {
+          competitions <- read.csv(config_path, stringsAsFactors = FALSE)
+          max_regular_round <- DBI::dbGetQuery(
+            conn,
+            "
+            SELECT COALESCE(MAX(round_number), 0) AS max_round
+            FROM matches
+            WHERE season = $1
+              AND COALESCE(competition_phase, '') = 'regular'
+            ",
+            params = list(current_season)
+          )$max_round[[1]]
+
           inserts_done <- 0
           for (m in upcoming) {
             home_name <- normalize_fixture_team_name(m$homeSquadName)
@@ -1506,7 +1518,17 @@ if (!sample_mode) {
             tryCatch({
               home_squad_id <- if (!is.null(m$homeSquadId)) as.integer(m$homeSquadId) else 0L
               away_squad_id <- if (!is.null(m$awaySquadId)) as.integer(m$awaySquadId) else 0L
-              round_number <- normalize_fixture_round_number(m$roundNumber)
+              competition_phase <- normalize_fixture_competition_phase(
+                m$competitionId,
+                m$finalsType,
+                competitions
+              )
+              round_number <- normalize_fixture_season_round_number(
+                competition_phase,
+                m$finalsType,
+                m$roundNumber,
+                max_regular_round
+              )
               game_number <- normalize_fixture_match_number(m$matchNumber)
               venue_id <- if (!is.null(m$venueId)) as.integer(m$venueId) else NA_integer_
               match_id <- if (!is.null(m$matchId)) as.integer(m$matchId) else NA_integer_
@@ -1518,11 +1540,26 @@ if (!sample_mode) {
                   home_squad_id, home_squad_name, away_squad_id, away_squad_name,
                   home_score, away_score
                 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-                ON CONFLICT (match_id) DO NOTHING
+                ON CONFLICT (match_id) DO UPDATE SET
+                  season = EXCLUDED.season,
+                  competition_phase = EXCLUDED.competition_phase,
+                  competition_id = EXCLUDED.competition_id,
+                  round_number = EXCLUDED.round_number,
+                  game_number = EXCLUDED.game_number,
+                  match_type = EXCLUDED.match_type,
+                  match_status = EXCLUDED.match_status,
+                  venue_id = EXCLUDED.venue_id,
+                  local_start_time = EXCLUDED.local_start_time,
+                  utc_start_time = EXCLUDED.utc_start_time,
+                  venue_name = EXCLUDED.venue_name,
+                  home_squad_id = EXCLUDED.home_squad_id,
+                  home_squad_name = EXCLUDED.home_squad_name,
+                  away_squad_id = EXCLUDED.away_squad_id,
+                  away_squad_name = EXCLUDED.away_squad_name
               ", list(
                 match_id,
                 current_season,
-                "regular",
+                competition_phase,
                 as.integer(m$competitionId),
                 round_number,
                 game_number,

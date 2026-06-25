@@ -3404,14 +3404,43 @@ margin_record_badges <- function(conn, margin_value, season) {
   unique(badges)
 }
 
-format_round_label <- function(competition_phase, round_number) {
+format_round_label <- function(competition_phase, round_number, season = NULL, conn = NULL) {
   phase <- trimws(as.character(competition_phase %||% ""))
+  round_value <- suppressWarnings(as.integer(round_number))
 
   if (!nzchar(phase) || grepl("^regular", phase, ignore.case = TRUE)) {
-    return(sprintf("Round %s", round_number))
+    return(sprintf("Round %s", round_value))
   }
 
-  sprintf("%s Round %s", phase, round_number)
+  if (grepl("^finals", phase, ignore.case = TRUE) && !is.null(conn) && !is.null(season)) {
+    max_regular <- suppressWarnings(as.integer(
+      query_rows(
+        conn,
+        paste(
+          "SELECT MAX(round_number) AS max_round",
+          "FROM matches",
+          "WHERE season = ?season",
+          "AND COALESCE(competition_phase, '') = 'regular'"
+        ),
+        list(season = as.integer(season))
+      )$max_round[[1]]
+    ))
+
+    if (!is.na(max_regular) && max_regular > 0L && !is.na(round_value)) {
+      finals_label <- switch(
+        as.character(round_value - max_regular),
+        "1" = "Semi Finals",
+        "2" = "Preliminary Final",
+        "3" = "Grand Final",
+        NULL
+      )
+      if (!is.null(finals_label)) {
+        return(finals_label)
+      }
+    }
+  }
+
+  sprintf("%s Round %s", phase, round_value)
 }
 
 fetch_latest_completed_round <- function(conn, season = NULL, round = NULL) {
@@ -3437,6 +3466,34 @@ fetch_latest_completed_round <- function(conn, season = NULL, round = NULL) {
     query,
     " GROUP BY season, COALESCE(competition_phase, ''), round_number",
     " ORDER BY season DESC, round_end_time DESC, round_number DESC LIMIT 1"
+  )
+
+  query_rows(conn, query, params)
+}
+
+fetch_next_preview_round <- function(conn, season = NULL, now_utc = NULL) {
+  if (is.null(now_utc)) {
+    now_utc <- format(Sys.time(), "%Y-%m-%dT%H:%M:%SZ", tz = "UTC")
+  }
+
+  query <- paste(
+    "SELECT season, COALESCE(competition_phase, '') AS competition_phase, round_number,",
+    "COUNT(*) AS total_matches, MIN(utc_start_time) AS round_start_time",
+    "FROM matches",
+    "WHERE home_score IS NULL AND away_score IS NULL",
+    "AND utc_start_time IS NOT NULL AND utc_start_time > ?now"
+  )
+  params <- list(now = now_utc)
+
+  if (!is.null(season)) {
+    query <- paste0(query, " AND season = ?season")
+    params$season <- as.integer(season)
+  }
+
+  query <- paste0(
+    query,
+    " GROUP BY season, COALESCE(competition_phase, ''), round_number",
+    " ORDER BY round_start_time ASC, season DESC, round_number ASC LIMIT 1"
   )
 
   query_rows(conn, query, params)
@@ -3582,8 +3639,7 @@ fetch_current_or_next_round <- function(conn, season = NULL, now_utc = NULL) {
 }
 
 fetch_next_upcoming_round <- function(conn, season = NULL, now_utc = NULL) {
-  # Deprecated: use fetch_current_or_next_round instead
-  fetch_current_or_next_round(conn, season, now_utc)
+  fetch_next_preview_round(conn, season, now_utc)
 }
 
 fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", round_number, now_utc) {
@@ -3597,12 +3653,15 @@ fetch_upcoming_round_matches <- function(conn, season, competition_phase = "", r
       "AND season = ?season",
       "AND COALESCE(competition_phase, '') = ?competition_phase",
       "AND round_number = ?round_number",
+      "AND home_score IS NULL AND away_score IS NULL",
+      "AND utc_start_time > ?now",
       "ORDER BY local_start_time ASC, game_number ASC, match_id ASC"
     ),
     list(
       season = as.integer(season),
       competition_phase = as.character(competition_phase %||% ""),
-      round_number = as.integer(round_number)
+      round_number = as.integer(round_number),
+      now = as.character(now_utc)
     )
   )
 }
@@ -3655,9 +3714,14 @@ build_round_preview_payload <- function(conn, season = NULL) {
 
   payload <- list(
     season = season_value,
+    competition_phase = competition_phase,
     round_number = round_value,
-    round_label = format_round_label(competition_phase, round_value),
-    round_intro = sprintf("%s fixtures are scheduled in the next upcoming round.", nrow(matches)),
+    round_label = format_round_label(competition_phase, round_value, season = season_value, conn = conn),
+    round_intro = if (identical(competition_phase, "finals")) {
+      sprintf("%s fixture%s scheduled next.", nrow(matches), if (nrow(matches) == 1L) " is" else "s are")
+    } else {
+      sprintf("%s fixtures are scheduled in the next upcoming round.", nrow(matches))
+    },
     summary_cards = list(
       list(label = "Matches", value = as.character(nrow(matches)))
     ),
@@ -4410,7 +4474,7 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     season = season_value,
     competition_phase = competition_phase,
     round_number = round_value,
-    round_label = format_round_label(competition_phase, round_value),
+    round_label = format_round_label(competition_phase, round_value, season = season_value, conn = conn),
     round_end_time = normalize_record_value(selected_round$round_end_time[[1]]),
     summary = round_summary,
     matches = rows_to_records(matches),

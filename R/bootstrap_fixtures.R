@@ -33,6 +33,51 @@ normalize_fixture_match_number <- function(match_number = NULL, game_number = NU
   1L
 }
 
+normalize_fixture_competition_phase <- function(competition_id, finals_type = NULL, competitions = NULL) {
+  comp_id <- suppressWarnings(as.integer(first_fixture_value(competition_id)))
+  if (!is.null(competitions) && nrow(competitions)) {
+    matched <- competitions[competitions$competition_id == comp_id, , drop = FALSE]
+    if (nrow(matched)) {
+      return(as.character(matched$phase[[1]]))
+    }
+  }
+
+  finals_label <- toupper(trimws(as.character(first_fixture_value(finals_type) %||% "")))
+  if (nzchar(finals_label)) {
+    return("finals")
+  }
+
+  "regular"
+}
+
+normalize_fixture_season_round_number <- function(
+  competition_phase,
+  finals_type = NULL,
+  round_number = NULL,
+  max_regular_round = NULL
+) {
+  phase <- trimws(as.character(competition_phase %||% ""))
+  if (!identical(phase, "finals")) {
+    return(normalize_fixture_round_number(round_number))
+  }
+
+  finals_label <- toupper(trimws(as.character(first_fixture_value(finals_type) %||% "")))
+  offset <- switch(
+    finals_label,
+    SEMI = 1L,
+    PRELIM = 2L,
+    PRELIMINARY = 2L,
+    GRAND = 3L,
+    NA_integer_
+  )
+  max_regular <- suppressWarnings(as.integer(first_fixture_value(max_regular_round)))
+  if (!is.na(offset) && !is.na(max_regular) && max_regular >= 1L) {
+    return(max_regular + offset)
+  }
+
+  normalize_fixture_round_number(round_number)
+}
+
 normalize_fixture_team_name <- function(value) {
   team_map <- c(
     "Swifts" = "NSW Swifts",
