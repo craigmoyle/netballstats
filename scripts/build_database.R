@@ -1098,6 +1098,7 @@ write_database <- function(tables, build_mode) {
       "  ROUND(CAST(SUM(stats.value_number) AS numeric), 2) AS match_value",
       "FROM player_period_stats AS stats",
       "WHERE stats.value_number IS NOT NULL",
+      "  AND stats.stat != 'points'",
       "GROUP BY stats.player_id, stats.match_id, stats.season, stats.round_number, stats.squad_id, stats.stat"
     ))
     # Primary access path: stat filter with top-N sort by match_value
@@ -1423,7 +1424,12 @@ write_database <- function(tables, build_mode) {
       "FROM player_match_stats g1",
       "LEFT JOIN player_match_stats g2",
       "  ON g1.player_id = g2.player_id AND g1.match_id = g2.match_id AND g2.stat = 'goal2'",
-      "WHERE g1.stat = 'goal1'"
+      "WHERE g1.stat = 'goal1'",
+      "  AND NOT EXISTS (",
+      "    SELECT 1 FROM player_match_stats x",
+      "    WHERE x.player_id = g1.player_id AND x.match_id = g1.match_id",
+      "      AND x.stat = 'points'",
+      "  )"
     ))
 
     configure_postgres_api_user(conn)
