@@ -113,7 +113,7 @@ hooks:
       
       # Only trigger DB refresh if R code was modified (check for R files in git diff)
       # Skip DB refresh on frontend-only deployments to save ~2 minutes
-      if git diff --name-only HEAD~1 HEAD | grep -qE '\.(R|r)$|renv\.lock|scripts/build_database|scripts/build_international_database'; then
+      if git diff --name-only HEAD~1 HEAD | grep -qE '\.(R|r)$|renv\.lock|scripts/build_database|scripts/build_international_database|config/competitions\.csv'; then
         echo "R code detected in commit. Triggering DB refresh..."
         wait  # Wait for job updates to complete before triggering refresh
         az containerapp job start \
