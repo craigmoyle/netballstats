@@ -23,6 +23,7 @@ const {
 const {
   buildUrl,
   fetchJson,
+  getMeta,
   formatDate,
   formatStatLabel = (stat) => stat,
   getThemePalette = () => [...DEFAULT_CHART_PALETTE],
@@ -1323,7 +1324,7 @@ async function initialise() {
           showLoadingStatus(ARCHIVE_STARTUP_MESSAGES, "Starting up");
           await new Promise((resolve) => window.setTimeout(resolve, metaBackoffMs[attempt]));
         }
-        meta = await fetchJson("/meta");
+        meta = await getMeta({ retries: 1 });
         break;
       } catch (error) {
         lastMetaError = error;

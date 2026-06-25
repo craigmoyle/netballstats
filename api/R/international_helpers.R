@@ -53,40 +53,80 @@ fetch_international_player_profile <- function(conn, player_id) {
   player
 }
 
-# Fetch international player stats for profile
+# Fetch international player stats for profile (SQL-aggregated when match stats exist).
 fetch_international_player_stats <- function(conn, player_id) {
-  has_participation <- has_international_player_match_stats(conn) && has_international_player_match_participation(conn)
-  
-  stats_rows <- if (has_international_player_match_stats(conn)) {
-    participation_join <- if (has_participation) {
-      "INNER JOIN international_player_match_participation pmpart ON pmpart.player_id = stats.player_id AND pmpart.match_id = stats.match_id"
-    } else {
-      ""
-    }
-    
-    query_rows(
-      conn,
-      paste(
-        "SELECT stats.match_id, stats.season, stats.squad_name, stats.stat, stats.match_value AS value_number",
-        "FROM international_player_match_stats stats",
-        participation_join,
-        "WHERE stats.player_id = ?player_id AND stats.match_value IS NOT NULL"
-      ),
-      list(player_id = player_id)
-    )
-  } else {
-    query_rows(
-      conn,
-      paste(
-        "SELECT match_id, season, squad_name, stat, value_number",
-        "FROM international_player_period_stats",
-        "WHERE player_id = ?player_id AND value_number IS NOT NULL"
-      ),
-      list(player_id = player_id)
-    )
+  if (!has_international_player_match_stats(conn)) {
+    return(list(
+      mode = "raw",
+      stats_rows = query_rows(
+        conn,
+        paste(
+          "SELECT match_id, season, squad_name, stat, value_number",
+          "FROM international_player_period_stats",
+          "WHERE player_id = ?player_id AND value_number IS NOT NULL"
+        ),
+        list(player_id = player_id)
+      )
+    ))
   }
-  
-  stats_rows
+
+  has_participation <- has_international_player_match_participation(conn)
+  participation_join <- if (has_participation) {
+    "INNER JOIN international_player_match_participation pmpart ON pmpart.player_id = stats.player_id AND pmpart.match_id = stats.match_id"
+  } else {
+    ""
+  }
+
+  career_stats <- query_rows(
+    conn,
+    paste(
+      "SELECT stats.stat,",
+      " ROUND(CAST(SUM(stats.match_value) AS numeric), 2) AS total,",
+      " ROUND(CAST(SUM(stats.match_value) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average,",
+      " CAST(COUNT(DISTINCT stats.match_id) AS integer) AS games",
+      "FROM international_player_match_stats stats",
+      participation_join,
+      "WHERE stats.player_id = ?player_id AND stats.match_value IS NOT NULL",
+      "GROUP BY stats.stat",
+      "ORDER BY stats.stat"
+    ),
+    list(player_id = player_id)
+  )
+
+  season_stats <- query_rows(
+    conn,
+    paste(
+      "SELECT stats.season, stats.stat,",
+      " ROUND(CAST(SUM(stats.match_value) AS numeric), 2) AS total,",
+      " ROUND(CAST(SUM(stats.match_value) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average,",
+      " CAST(COUNT(DISTINCT stats.match_id) AS integer) AS games",
+      "FROM international_player_match_stats stats",
+      participation_join,
+      "WHERE stats.player_id = ?player_id AND stats.match_value IS NOT NULL",
+      "GROUP BY stats.season, stats.stat",
+      "ORDER BY stats.season DESC, stats.stat"
+    ),
+    list(player_id = player_id)
+  )
+
+  games_played <- if (has_participation) {
+    as.integer(query_rows(
+      conn,
+      "SELECT COUNT(DISTINCT match_id) AS games_played FROM international_player_match_participation WHERE player_id = ?player_id",
+      list(player_id = player_id)
+    )$games_played[[1]] %||% 0L)
+  } else if (nrow(career_stats)) {
+    as.integer(max(career_stats$games, na.rm = TRUE))
+  } else {
+    0L
+  }
+
+  list(
+    mode = "aggregated",
+    career_stats = career_stats,
+    season_stats = season_stats,
+    games_played = games_played
+  )
 }
 
 # Fetch international player identity data
@@ -447,49 +487,60 @@ fetch_international_meta <- function(conn) {
 }
 
 # Build international player profile payload
-build_international_player_profile_payload <- function(player_row, stats_rows, identity_row = NULL) {
-  available_stats <- if (nrow(stats_rows)) {
-    sort(unique(as.character(stats_rows$stat)))
+build_international_player_profile_payload <- function(player_row, stats_data, identity_row = NULL) {
+  if (is.list(stats_data) && identical(stats_data$mode, "aggregated")) {
+    career_stats <- stats_data$career_stats
+    season_stats <- stats_data$season_stats
+    available_stats <- if (nrow(career_stats)) sort(as.character(career_stats$stat)) else character()
+    games_played <- stats_data$games_played %||% 0L
   } else {
-    character()
-  }
-  
-  games_played <- if (nrow(stats_rows)) {
-    length(unique(stats_rows$match_id))
-  } else {
-    0L
-  }
-  
-  # Calculate career totals by stat
-  career_stats <- if (nrow(stats_rows)) {
-    stats_rows %>%
-      dplyr::group_by(stat) %>%
-      dplyr::summarise(
-        total = sum(value_number, na.rm = TRUE),
-        average = round(mean(value_number, na.rm = TRUE), 2),
-        games = length(unique(match_id)),
-        .groups = "drop"
-      ) %>%
-      dplyr::mutate(total = round(total, 2)) %>%
-      dplyr::arrange(stat)
-  } else {
-    data.frame(stat = character(), total = numeric(), average = numeric(), games = integer())
-  }
-  
-  # Season-by-season breakdown
-  season_stats <- if (nrow(stats_rows)) {
-    stats_rows %>%
-      dplyr::group_by(season, stat) %>%
-      dplyr::summarise(
-        total = sum(value_number, na.rm = TRUE),
-        average = round(mean(value_number, na.rm = TRUE), 2),
-        games = length(unique(match_id)),
-        .groups = "drop"
-      ) %>%
-      dplyr::mutate(total = round(total, 2)) %>%
-      dplyr::arrange(desc(season), stat)
-  } else {
-    data.frame(season = integer(), stat = character(), total = numeric(), average = numeric(), games = integer())
+    stats_rows <- if (is.list(stats_data) && identical(stats_data$mode, "raw")) {
+      stats_data$stats_rows
+    } else {
+      stats_data
+    }
+
+    available_stats <- if (nrow(stats_rows)) {
+      sort(unique(as.character(stats_rows$stat)))
+    } else {
+      character()
+    }
+
+    games_played <- if (nrow(stats_rows)) {
+      length(unique(stats_rows$match_id))
+    } else {
+      0L
+    }
+
+    career_stats <- if (nrow(stats_rows)) {
+      stats_rows %>%
+        dplyr::group_by(stat) %>%
+        dplyr::summarise(
+          total = sum(value_number, na.rm = TRUE),
+          average = round(mean(value_number, na.rm = TRUE), 2),
+          games = length(unique(match_id)),
+          .groups = "drop"
+        ) %>%
+        dplyr::mutate(total = round(total, 2)) %>%
+        dplyr::arrange(stat)
+    } else {
+      data.frame(stat = character(), total = numeric(), average = numeric(), games = integer())
+    }
+
+    season_stats <- if (nrow(stats_rows)) {
+      stats_rows %>%
+        dplyr::group_by(season, stat) %>%
+        dplyr::summarise(
+          total = sum(value_number, na.rm = TRUE),
+          average = round(mean(value_number, na.rm = TRUE), 2),
+          games = length(unique(match_id)),
+          .groups = "drop"
+        ) %>%
+        dplyr::mutate(total = round(total, 2)) %>%
+        dplyr::arrange(dplyr::desc(season), stat)
+    } else {
+      data.frame(season = integer(), stat = character(), total = numeric(), average = numeric(), games = integer())
+    }
   }
   
   result <- list(

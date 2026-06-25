@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import * as esbuild from 'esbuild';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -20,6 +21,28 @@ const fingerprintName = (assetName, content) => {
   return `${parsed.name}.${hashContent(content)}${parsed.ext}`;
 };
 
+async function minifyAsset(assetName, content) {
+  const ext = path.extname(assetName).toLowerCase();
+  if (ext === '.css') {
+    const result = await esbuild.transform(content.toString('utf8'), {
+      loader: 'css',
+      minify: true
+    });
+    return Buffer.from(result.code, 'utf8');
+  }
+
+  if (ext === '.js') {
+    const result = await esbuild.transform(content.toString('utf8'), {
+      loader: 'js',
+      minify: true,
+      target: 'es2020'
+    });
+    return Buffer.from(result.code, 'utf8');
+  }
+
+  return content;
+}
+
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 await mkdir(assetOutputDir, { recursive: true });
@@ -35,7 +58,8 @@ await cp(path.join(assetSourceDir, 'noise.svg'), path.join(assetOutputDir, 'nois
 
 const assetContents = new Map();
 for (const assetName of fingerprintedAssets) {
-  assetContents.set(assetName, await readFile(path.join(assetSourceDir, assetName)));
+  const rawContent = await readFile(path.join(assetSourceDir, assetName));
+  assetContents.set(assetName, await minifyAsset(assetName, rawContent));
 }
 
 const assetManifest = new Map();

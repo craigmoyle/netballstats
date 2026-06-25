@@ -1549,6 +1549,24 @@ cache_table_exists_once <- function(conn, table_name, option_key) {
 # Returns TRUE when player_match_stats is available in the connected database.
 # The table is created by build_database.R; older DB builds won't have it.
 has_player_match_stats        <- function(conn) cache_table_exists(conn, "player_match_stats",        "netballstats.pms_available")
+
+# TRUE once player_match_stats contains synthesised 'points' rows from build_database.R.
+has_player_points_stat <- function(conn) {
+  if (isTRUE(getOption("netballstats.pms_points_available"))) {
+    return(TRUE)
+  }
+  if (!has_player_match_stats(conn)) {
+    return(FALSE)
+  }
+  result <- nrow(tryCatch(
+    query_rows(conn, "SELECT 1 AS ok FROM player_match_stats WHERE stat = 'points' LIMIT 1", list()),
+    error = function(e) data.frame()
+  )) > 0L
+  if (result) {
+    options(netballstats.pms_points_available = TRUE)
+  }
+  result
+}
 has_player_match_positions    <- function(conn) cache_table_exists(conn, "player_match_positions",    "netballstats.pmp_available")
 has_player_match_participation <- function(conn) cache_table_exists(conn, "player_match_participation", "netballstats.pmpart_available")
 # Returns TRUE when team_match_stats is available in the connected database.
@@ -2349,6 +2367,96 @@ fetch_player_leader_rows <- function(conn, seasons = NULL, team_id = NULL, round
   query_rows(conn, filters$query, filters$params)
 }
 
+# Load player profile stat data using SQL-side aggregation when match-level stats exist.
+fetch_player_profile_stats <- function(conn, player_id) {
+  has_participation <- has_player_match_stats(conn) && has_player_match_participation(conn)
+  participation_join <- if (has_participation) {
+    "INNER JOIN player_match_participation pmpart ON pmpart.player_id = stats.player_id AND pmpart.match_id = stats.match_id"
+  } else {
+    ""
+  }
+
+  if (has_player_match_stats(conn)) {
+    career_stats <- query_rows(
+      conn,
+      paste(
+        "SELECT stats.stat,",
+        " ROUND(CAST(SUM(stats.match_value) AS numeric), 2) AS total_value,",
+        " ROUND(CAST(SUM(stats.match_value) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average_value,",
+        " CAST(COUNT(DISTINCT stats.match_id) AS integer) AS matches_played",
+        "FROM player_match_stats stats",
+        participation_join,
+        "WHERE stats.player_id = ?player_id AND stats.match_value IS NOT NULL",
+        "GROUP BY stats.stat",
+        "ORDER BY stats.stat"
+      ),
+      list(player_id = player_id)
+    )
+
+    season_stats <- query_rows(
+      conn,
+      paste(
+        "SELECT stats.season, stats.stat,",
+        " ROUND(CAST(SUM(stats.match_value) AS numeric), 2) AS total_value,",
+        " ROUND(CAST(SUM(stats.match_value) AS numeric) / NULLIF(COUNT(DISTINCT stats.match_id), 0), 2) AS average_value,",
+        " CAST(COUNT(DISTINCT stats.match_id) AS integer) AS matches_played",
+        "FROM player_match_stats stats",
+        participation_join,
+        "WHERE stats.player_id = ?player_id AND stats.match_value IS NOT NULL",
+        "GROUP BY stats.season, stats.stat",
+        "ORDER BY stats.season DESC, stats.stat"
+      ),
+      list(player_id = player_id)
+    )
+
+    season_squads <- query_rows(
+      conn,
+      paste(
+        "SELECT stats.season, stats.squad_name",
+        "FROM player_match_stats stats",
+        participation_join,
+        "WHERE stats.player_id = ?player_id AND stats.squad_name IS NOT NULL",
+        "GROUP BY stats.season, stats.squad_name",
+        "ORDER BY stats.season DESC, stats.squad_name"
+      ),
+      list(player_id = player_id)
+    )
+
+    games_played <- if (has_participation) {
+      as.integer(query_rows(
+        conn,
+        "SELECT COUNT(DISTINCT match_id) AS games_played FROM player_match_participation WHERE player_id = ?player_id",
+        list(player_id = player_id)
+      )$games_played[[1]] %||% 0L)
+    } else if (nrow(career_stats) && "gamesPlayed" %in% career_stats$stat) {
+      as.integer(career_stats$total_value[career_stats$stat == "gamesPlayed"][[1]] %||% 0L)
+    } else {
+      0L
+    }
+
+    return(list(
+      mode = "aggregated",
+      career_stats = career_stats,
+      season_stats = season_stats,
+      season_squads = season_squads,
+      games_played = games_played
+    ))
+  }
+
+  list(
+    mode = "raw",
+    stats_rows = query_rows(
+      conn,
+      paste(
+        "SELECT match_id, season, squad_name, stat, value_number",
+        "FROM player_period_stats",
+        "WHERE player_id = ?player_id AND value_number IS NOT NULL"
+      ),
+      list(player_id = player_id)
+    )
+  )
+}
+
 fetch_player_season_metric_rows <- function(conn, seasons = NULL, team_id = NULL, round = NULL, stat = "points", search = "") {
   # Single query over all requested seasons; avoids one round-trip per season.
   # When seasons is NULL (no filter), omit the IN clause so the planner can do
@@ -2970,71 +3078,6 @@ fetch_spotlight_archive_data <- function(conn, subject_type, stat_values, rankin
   list(bests = bests, ranks = ranks)
 }
 
-# Batch-compute the historical rank for multiple (stat, value) pairs in one
-# DB round-trip using a CASE WHEN counting pattern.
-# stat_values: named list of stat -> numeric value (NA values pre-filtered).
-# Returns a named integer vector.
-batch_compute_archive_ranks <- function(conn, subject_type, stat_values, ranking = "highest") {
-  if (!length(stat_values)) return(setNames(integer(0), character(0)))
-  stats      <- names(stat_values)
-  stat_sql   <- safe_stat_in_sql(stats)
-  compare_op <- if (identical(ranking, "highest")) ">" else "<"
-  result     <- setNames(rep(NA_integer_, length(stats)), stats)
-
-  make_case <- function(value_col) {
-    parts <- vapply(stats, function(s) {
-      v <- as.numeric(stat_values[[s]])
-      sprintf("WHEN stat = '%s' AND %s %s %.15g THEN 1", s, value_col, compare_op, v)
-    }, character(1))
-    paste0("CASE ", paste(parts, collapse = " "), " END")
-  }
-
-  query <- tryCatch({
-    if (identical(subject_type, "player") && has_player_match_stats(conn)) {
-      paste0(
-        "SELECT stat, COUNT(", make_case("match_value"), ") + 1 AS rank",
-        " FROM player_match_stats WHERE stat IN (", stat_sql, ")",
-        " GROUP BY stat"
-      )
-    } else if (identical(subject_type, "player")) {
-      paste0(
-        "SELECT stat, COUNT(", make_case("total_value"), ") + 1 AS rank FROM (",
-        " SELECT stat, player_id, match_id,",
-        "   ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value",
-        " FROM player_period_stats WHERE stat IN (", stat_sql, ")",
-        " GROUP BY stat, player_id, match_id) sub GROUP BY stat"
-      )
-    } else if (identical(subject_type, "team") && has_team_match_stats(conn)) {
-      paste0(
-        "SELECT stat, COUNT(", make_case("match_value"), ") + 1 AS rank",
-        " FROM team_match_stats WHERE stat IN (", stat_sql, ")",
-        " GROUP BY stat"
-      )
-    } else {
-      paste0(
-        "SELECT stat, COUNT(", make_case("total_value"), ") + 1 AS rank FROM (",
-        " SELECT stat, squad_id, match_id,",
-        "   ROUND(CAST(SUM(value_number) AS numeric), 2) AS total_value",
-        " FROM team_period_stats WHERE stat IN (", stat_sql, ")",
-        " GROUP BY stat, squad_id, match_id) sub GROUP BY stat"
-      )
-    }
-  }, error = function(e) NULL)
-
-  if (is.null(query)) return(result)
-  rows <- tryCatch(query_rows(conn, query, list()), error = function(e) data.frame())
-  if (nrow(rows) && all(c("stat", "rank") %in% names(rows))) {
-    for (i in seq_len(nrow(rows))) {
-      s <- as.character(rows$stat[[i]])
-      if (s %in% names(result)) {
-        r <- suppressWarnings(as.integer(rows$rank[[i]]))
-        if (!is.na(r) && r > 0L) result[[s]] <- r
-      }
-    }
-  }
-  result
-}
-
 # Pure function: compute record badges from pre-fetched best vectors (no DB access).
 spotlight_badges <- function(stat, ranking, total_value, season_bests, archive_bests) {
   if (is.null(total_value) || is.na(total_value)) return(character())
@@ -3052,6 +3095,18 @@ spotlight_badges <- function(stat, ranking, total_value, season_bests, archive_b
 # ---------------------------------------------------------------------------
 
 fetch_player_points_high <- function(conn, seasons = NULL, round = NULL, competition_phase = NULL, ranking = "highest", limit = 1L) {
+  if (has_player_points_stat(conn)) {
+    return(fetch_player_game_high_rows(
+      conn,
+      seasons = seasons,
+      round = round,
+      competition_phase = competition_phase,
+      stat = "points",
+      ranking = ranking,
+      limit = limit
+    ))
+  }
+
   order_direction <- ranking_order_sql(ranking)
 
   query <- paste(
@@ -3136,25 +3191,41 @@ fetch_team_points_high <- function(conn, seasons = NULL, round = NULL, competiti
   query_rows(conn, query, params)
 }
 
-points_record_badges <- function(conn, subject_type = c("team", "player"), ranking = "highest", total_value, season) {
+points_record_badges_from_values <- function(total_value, season_best_value, archive_best_value, ranking = "highest") {
+  if (is.null(total_value) || is.na(total_value)) {
+    return(character())
+  }
+
+  badges <- character()
+  if (numeric_equal(total_value, season_best_value)) {
+    badges <- c(badges, record_badge_label("season", ranking))
+  }
+  if (numeric_equal(total_value, archive_best_value)) {
+    badges <- c(badges, record_badge_label("archive", ranking))
+  }
+  unique(badges)
+}
+
+points_record_badges <- function(conn, subject_type = c("team", "player"), ranking = "highest", total_value, season, season_best_value = NULL, archive_best_value = NULL) {
   subject_type <- match.arg(subject_type)
 
   if (is.null(total_value) || is.na(total_value) || is.null(season) || is.na(season)) {
     return(character())
   }
 
-  fetcher <- if (identical(subject_type, "team")) fetch_team_points_high else fetch_player_points_high
-  season_best  <- fetcher(conn, seasons = as.integer(season), ranking = ranking, limit = 1L)
-  archive_best <- fetcher(conn, seasons = NULL,               ranking = ranking, limit = 1L)
+  if (!is.null(season_best_value) && !is.null(archive_best_value)) {
+    return(points_record_badges_from_values(total_value, season_best_value, archive_best_value, ranking))
+  }
 
-  badges <- character()
-  if (numeric_equal(total_value, extract_first_numeric(season_best))) {
-    badges <- c(badges, record_badge_label("season", ranking))
+  fetcher <- if (identical(subject_type, "team")) fetch_team_points_high else fetch_player_points_high
+  if (is.null(season_best_value)) {
+    season_best_value <- extract_first_numeric(fetcher(conn, seasons = as.integer(season), ranking = ranking, limit = 1L))
   }
-  if (numeric_equal(total_value, extract_first_numeric(archive_best))) {
-    badges <- c(badges, record_badge_label("archive", ranking))
+  if (is.null(archive_best_value)) {
+    archive_best_value <- extract_first_numeric(fetcher(conn, seasons = NULL, ranking = ranking, limit = 1L))
   }
-  unique(badges)
+
+  points_record_badges_from_values(total_value, season_best_value, archive_best_value, ranking)
 }
 
 # Compute all-time rank for a statistical value
@@ -3181,7 +3252,16 @@ compute_archive_rank <- function(conn, subject_type = c("team", "player"), stat,
 
   count_row <- tryCatch({
     if (identical(stat, "points")) {
-      if (identical(subject_type, "player")) {
+      if (identical(subject_type, "player") && has_player_points_stat(conn)) {
+        query_rows(
+          conn,
+          paste0(
+            "SELECT COUNT(*) + 1 AS rank FROM player_match_stats",
+            " WHERE stat = 'points' AND match_value ", compare_op, " ?total_value"
+          ),
+          list(total_value = as.numeric(total_value))
+        )
+      } else if (identical(subject_type, "player")) {
         query_rows(
           conn,
           paste0(
@@ -3567,7 +3647,13 @@ build_round_preview_payload <- function(conn, season = NULL) {
     return(NULL)
   }
 
-  list(
+  cache_key <- build_round_summary_cache_key(matches, season_value, round_value, competition_phase)
+  cached <- .round_preview_cache[[cache_key]]
+  if (!is.null(cached) && as.numeric(difftime(Sys.time(), cached$ts, units = "secs")) < .round_cache_ttl_secs) {
+    return(cached$payload)
+  }
+
+  payload <- list(
     season = season_value,
     round_number = round_value,
     round_label = format_round_label(competition_phase, round_value),
@@ -3639,6 +3725,14 @@ build_round_preview_payload <- function(conn, season = NULL) {
       )
     })
   )
+
+  cache_prefix <- paste0(season_value, "_", round_value, "_", competition_phase, "_")
+  stale_keys <- setdiff(ls(envir = .round_preview_cache, pattern = paste0("^", cache_prefix)), cache_key)
+  if (length(stale_keys)) {
+    rm(list = stale_keys, envir = .round_preview_cache)
+  }
+  .round_preview_cache[[cache_key]] <- list(payload = payload, ts = Sys.time())
+  payload
 }
 
 fetch_preview_head_to_head <- function(conn, home_squad_id, away_squad_id, home_team_name, away_team_name) {
@@ -3989,6 +4083,7 @@ fetch_preview_fantasy_watch <- function(conn, squad_id, seasons) {
 # Cached in the API process. DB refresh jobs do not restart the API, so the
 # cache key must reflect the current round snapshot rather than just season/round.
 .round_summary_cache <- new.env(parent = emptyenv())
+.round_preview_cache <- new.env(parent = emptyenv())
 .round_cache_ttl_secs <- 3600L  # 1 hour
 
 round_summary_cache_fragment <- function(value) {
@@ -4034,12 +4129,6 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
   round_value <- suppressWarnings(as.integer(selected_round$round_number[[1]]))
   competition_phase <- as.character(selected_round$competition_phase[[1]] %||% "")
 
-  cache_key <- paste0(season_value, "_", round_value, "_", competition_phase)
-  cached <- .round_summary_cache[[cache_key]]
-  if (!is.null(cached) && as.numeric(difftime(Sys.time(), cached$ts, units = "secs")) < .round_cache_ttl_secs) {
-    return(cached$payload)
-  }
-
   matches <- fetch_round_matches(conn, season_value, competition_phase, round_value)
   if (!nrow(matches)) {
     return(NULL)
@@ -4069,6 +4158,37 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     ranking = "highest",
     limit = 1L
   )
+
+  player_points_value <- extract_first_numeric(player_points_row)
+  team_points_value <- extract_first_numeric(team_points_row)
+  player_season_points_best <- extract_first_numeric(fetch_player_points_high(
+    conn, seasons = season_value, ranking = "highest", limit = 1L
+  ))
+  player_archive_points_best <- extract_first_numeric(fetch_player_points_high(
+    conn, seasons = NULL, ranking = "highest", limit = 1L
+  ))
+  team_season_points_best <- extract_first_numeric(fetch_team_points_high(
+    conn, seasons = season_value, ranking = "highest", limit = 1L
+  ))
+  team_archive_points_best <- extract_first_numeric(fetch_team_points_high(
+    conn, seasons = NULL, ranking = "highest", limit = 1L
+  ))
+  player_points_badges <- points_record_badges_from_values(
+    player_points_value, player_season_points_best, player_archive_points_best, "highest"
+  )
+  team_points_badges <- points_record_badges_from_values(
+    team_points_value, team_season_points_best, team_archive_points_best, "highest"
+  )
+  player_points_rank <- if (!is.na(player_points_value)) {
+    compute_archive_rank(conn, "player", "points", "highest", player_points_value)
+  } else {
+    NA_integer_
+  }
+  team_points_rank <- if (!is.na(team_points_value)) {
+    compute_archive_rank(conn, "team", "points", "highest", team_points_value)
+  } else {
+    NA_integer_
+  }
   # --- Batch spotlight queries (replaces ~195 sequential queries with ~14) ---
   PLAYER_BATCH_STATS <- c(
     "goalAssists", "feeds", "gain", "deflections", "intercepts",
@@ -4147,10 +4267,8 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     performance_entry_from_row(
       player_points_row, "Top score",
       subject_type = "player", ranking = "highest",
-      badges = points_record_badges(conn, subject_type = "player", ranking = "highest",
-        total_value = extract_first_numeric(player_points_row), season = season_value),
-      historical_rank = compute_archive_rank(
-        conn, "player", "points", "highest", extract_first_numeric(player_points_row))
+      badges = player_points_badges,
+      historical_rank = player_points_rank
     ),
     entry_player("goalAssists",        "Most goal assists"),
     entry_player("feeds",              "Most feeds"),
@@ -4172,10 +4290,8 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
     performance_entry_from_row(
       team_points_row, "Highest team score",
       subject_type = "team", ranking = "highest",
-      badges = points_record_badges(conn, subject_type = "team", ranking = "highest",
-        total_value = extract_first_numeric(team_points_row), season = season_value),
-      historical_rank = compute_archive_rank(
-        conn, "team", "points", "highest", extract_first_numeric(team_points_row))
+      badges = team_points_badges,
+      historical_rank = team_points_rank
     ),
     entry_team("gain",                 "Most gains"),
     entry_team("deflections",          "Most deflections"),
@@ -4209,8 +4325,10 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
           conn,
           subject_type = "team",
           ranking = "highest",
-          total_value = extract_first_numeric(team_points_row),
-          season = season_value
+          total_value = team_points_value,
+          season = season_value,
+          season_best_value = team_season_points_best,
+          archive_best_value = team_archive_points_best
         )
       )
     },
@@ -4243,8 +4361,10 @@ build_round_summary_payload <- function(conn, season = NULL, round = NULL) {
           conn,
           subject_type = "player",
           ranking = "highest",
-          total_value = extract_first_numeric(player_points_row),
-          season = season_value
+          total_value = player_points_value,
+          season = season_value,
+          season_best_value = player_season_points_best,
+          archive_best_value = player_archive_points_best
         )
       )
     },
@@ -4380,9 +4500,32 @@ fetch_query_result_rows <- function(conn, intent) {
     ))
   }
 
-  # For count intents we need all matching rows to compute total_matches, but
-  # cap at 2000 to guard against unbounded scans. No single player has more
-  # than ~1000 matches in the dataset.
+  # For count intents use SQL-side COUNT(*) instead of transferring up to 2000 rows.
+  if (identical(intent$intent_type, "count")) {
+    count_row <- query_rows(
+      conn,
+      paste0("SELECT COUNT(*) AS total_matches FROM (", base_query$query, ") sub"),
+      base_query$params
+    )
+    sample_limit <- min(intent$limit %||% 12L, 12L)
+    sample_rows <- sort_query_result_rows(
+      query_rows(
+        conn,
+        paste0(
+          base_query$query,
+          " ORDER BY total_value DESC",
+          ", ", tbl_alias, ".season DESC, ", tbl_alias, ".round_number DESC, ", order_name_expr, " ASC",
+          " LIMIT ", sample_limit
+        ),
+        base_query$params
+      ),
+      "list"
+    )
+    attr(sample_rows, "total_matches") <- as.integer(count_row$total_matches[[1]] %||% 0L)
+    return(sample_rows)
+  }
+
+  # Non-count intents without a pushed LIMIT: cap transfer at 2000 rows.
   sort_query_result_rows(
     query_rows(conn, paste0(base_query$query, " LIMIT 2000"), base_query$params),
     intent$intent_type

@@ -385,6 +385,14 @@ create_international_tables <- function(conn) {
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_team_stats_match ON international_team_match_stats(match_id)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_team_stats_stat ON international_team_match_stats(stat)")
   dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_players_search_name ON international_players(search_name)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_pms_stat_season_player ON international_player_match_stats(stat, season, player_id)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_pms_player_stat_value ON international_player_match_stats(player_id, stat, match_value DESC)")
+  dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_matches_comp_season ON international_matches(competition_name, season)")
+  tryCatch({
+    dbExecute(conn, "CREATE INDEX IF NOT EXISTS idx_intl_matches_complete_start ON international_matches(utc_start_time DESC) WHERE match_status = 'complete'")
+  }, error = function(e) {
+    api_log("WARN", sprintf("Could not create partial match index: %s", conditionMessage(e)))
+  })
   
   # pg_trgm GIN index for search_name matching Super Netball behavior, wrapped in tryCatch for SQLite compatibility
   tryCatch({
@@ -404,7 +412,6 @@ insert_matches <- function(conn, matches_df) {
   
   api_log("INFO", sprintf("Inserting %d matches...", nrow(matches_df)))
   
-  # Delete existing matches for these match_ids to avoid duplicates
   match_ids <- matches_df$match_id
   if (length(match_ids) > 0) {
     param_placeholders <- paste(paste0("$", seq_along(match_ids)), collapse = ",")
@@ -413,38 +420,31 @@ insert_matches <- function(conn, matches_df) {
       dbExecute(conn, delete_sql, as.list(match_ids))
       api_log("INFO", sprintf("Deleted %d existing matches", length(match_ids)))
     }, error = function(e) {
-      api_log("WARN", sprintf("⚠️  Warning: Failed to delete existing matches: %s", conditionMessage(e)))
+      api_log("WARN", sprintf("Warning: Failed to delete existing matches: %s", conditionMessage(e)))
     })
   }
-  
-  # Insert new matches with error handling
-  success_count <- 0
-  for (i in 1:nrow(matches_df)) {
-    row <- matches_df[i, ]
-    tryCatch({
-      dbExecute(conn, "
-        INSERT INTO international_matches (
-          match_id, season, round_number, game_number, match_type, competition_name, match_status,
-          home_squad_id, home_squad_name, away_squad_id, away_squad_name,
-          home_score, away_score, local_start_time, utc_start_time, application_source
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-      ", list(
-        row$match_id, row$season, row$round_number, row$game_number, row$match_type,
-        if ("competition_name" %in% names(row)) row$competition_name else NA_character_,
-        row$match_status,
-        row$home_squad_id, row$home_squad_name, row$away_squad_id, row$away_squad_name,
-        row$home_score, row$away_score, row$local_start_time, row$utc_start_time,
-        if ("application_source" %in% names(row)) row$application_source else NA_character_
-      ))
-      success_count <- success_count + 1
-    }, error = function(e) {
-      api_log("ERROR", sprintf("❌ Failed to insert match %d: %s", row$match_id, conditionMessage(e)))
-      api_log("INFO", "Row data:")
-      print(row)
-    })
+
+  output <- as.data.frame(matches_df, stringsAsFactors = FALSE)
+  if (!"competition_name" %in% names(output)) {
+    output$competition_name <- NA_character_
   }
-  
-  api_log("INFO", sprintf("✅ Successfully inserted %d out of %d matches", success_count, nrow(matches_df)))
+  if (!"application_source" %in% names(output)) {
+    output$application_source <- NA_character_
+  }
+
+  cols <- c(
+    "match_id", "season", "round_number", "game_number", "match_type", "competition_name",
+    "match_status", "home_squad_id", "home_squad_name", "away_squad_id", "away_squad_name",
+    "home_score", "away_score", "local_start_time", "utc_start_time", "application_source"
+  )
+  output <- output[, cols, drop = FALSE]
+
+  tryCatch({
+    DBI::dbWriteTable(conn, DBI::Id(table = "international_matches"), output, append = TRUE, row.names = FALSE)
+    api_log("INFO", sprintf("Successfully inserted %d matches", nrow(output)))
+  }, error = function(e) {
+    api_log("ERROR", sprintf("Failed to bulk insert matches: %s", conditionMessage(e)))
+  })
 }
 
 # Insert teams data
@@ -454,27 +454,23 @@ insert_teams <- function(conn, teams_df) {
   }
   
   api_log("INFO", sprintf("Inserting %d teams...", nrow(teams_df)))
-  
-  # Insert or update teams with error handling
-  success_count <- 0
-  for (i in 1:nrow(teams_df)) {
-    row <- teams_df[i, ]
-    tryCatch({
-      dbExecute(conn, "
-        INSERT INTO international_teams (squad_id, squad_name)
-        VALUES ($1, $2)
-        ON CONFLICT (squad_id) DO UPDATE SET
-          squad_name = EXCLUDED.squad_name
-      ", list(row$squad_id, row$squad_name))
-      success_count <- success_count + 1
-    }, error = function(e) {
-      api_log("ERROR", sprintf("❌ Failed to insert/update team %d: %s", row$squad_id, conditionMessage(e)))
-      api_log("INFO", "Row data:")
-      print(row)
-    })
-  }
-  
-  api_log("INFO", sprintf("✅ Successfully inserted/updated %d out of %d teams", success_count, nrow(teams_df)))
+
+  output <- unique(as.data.frame(
+    teams_df[, c("squad_id", "squad_name"), drop = FALSE],
+    stringsAsFactors = FALSE
+  ))
+
+  tryCatch({
+    DBI::dbWriteTable(conn, DBI::Id(table = "temp_intl_teams"), output, temporary = TRUE, overwrite = TRUE, row.names = FALSE)
+    dbExecute(conn, "
+      INSERT INTO international_teams (squad_id, squad_name)
+      SELECT squad_id, squad_name FROM temp_intl_teams
+      ON CONFLICT (squad_id) DO UPDATE SET squad_name = EXCLUDED.squad_name
+    ")
+    api_log("INFO", sprintf("Successfully upserted %d teams", nrow(output)))
+  }, error = function(e) {
+    api_log("ERROR", sprintf("Failed to bulk upsert teams: %s", conditionMessage(e)))
+  })
 }
 
 # Insert players data (placeholder - would need actual player data)
@@ -484,34 +480,35 @@ insert_players <- function(conn, players_df) {
   }
   
   api_log("INFO", sprintf("Inserting %d players...", nrow(players_df)))
-  
-  # Insert or update players with error handling
-  success_count <- 0
-  for (i in 1:nrow(players_df)) {
-    row <- players_df[i, ]
-    tryCatch({
-      dbExecute(conn, "
-        INSERT INTO international_players (
-          player_id, firstname, surname, short_display_name, player_name, canonical_name
-        ) VALUES ($1, $2, $3, $4, $5, $6)
-        ON CONFLICT (player_id) DO UPDATE SET
-          firstname = EXCLUDED.firstname,
-          surname = EXCLUDED.surname,
-          short_display_name = EXCLUDED.short_display_name,
-          player_name = EXCLUDED.player_name,
-          canonical_name = EXCLUDED.canonical_name
-      ", list(
-        row$player_id, row$firstname, row$surname, row$short_display_name, row$player_name, row$canonical_name
-      ))
-      success_count <- success_count + 1
-    }, error = function(e) {
-      api_log("ERROR", sprintf("❌ Failed to insert/update player %d: %s", row$player_id, conditionMessage(e)))
-      api_log("INFO", "Row data:")
-      print(row)
-    })
-  }
-  
-  api_log("INFO", sprintf("✅ Successfully inserted/updated %d out of %d players", success_count, nrow(players_df)))
+
+  output <- as.data.frame(players_df, stringsAsFactors = FALSE)
+  output$search_name <- vapply(output$canonical_name, normalize_player_search_name, character(1))
+  cols <- c(
+    "player_id", "firstname", "surname", "short_display_name",
+    "player_name", "canonical_name", "search_name"
+  )
+  output <- output[, cols, drop = FALSE]
+
+  tryCatch({
+    DBI::dbWriteTable(conn, DBI::Id(table = "temp_intl_players"), output, temporary = TRUE, overwrite = TRUE, row.names = FALSE)
+    dbExecute(conn, "
+      INSERT INTO international_players (
+        player_id, firstname, surname, short_display_name, player_name, canonical_name, search_name
+      )
+      SELECT player_id, firstname, surname, short_display_name, player_name, canonical_name, search_name
+      FROM temp_intl_players
+      ON CONFLICT (player_id) DO UPDATE SET
+        firstname = EXCLUDED.firstname,
+        surname = EXCLUDED.surname,
+        short_display_name = EXCLUDED.short_display_name,
+        player_name = EXCLUDED.player_name,
+        canonical_name = EXCLUDED.canonical_name,
+        search_name = EXCLUDED.search_name
+    ")
+    api_log("INFO", sprintf("Successfully upserted %d players", nrow(output)))
+  }, error = function(e) {
+    api_log("ERROR", sprintf("Failed to bulk upsert players: %s", conditionMessage(e)))
+  })
 }
 
 # Insert player stats data using bulk insert for performance
@@ -1079,6 +1076,21 @@ main <- function() {
   api_log("INFO", sprintf("Player stat rows:       %d", total_stats_rows))
   api_log("INFO", sprintf("Participation rows:     %d", total_participation_rows))
   api_log("INFO", sprintf("Team stat rows:         %d", total_team_stats_rows))
+
+  if (!is.null(conn)) {
+    for (tbl in c(
+      "international_matches", "international_teams", "international_players",
+      "international_player_match_stats", "international_player_match_participation",
+      "international_team_match_stats", "international_player_reference"
+    )) {
+      tryCatch(
+        dbExecute(conn, paste0("ANALYZE ", DBI::dbQuoteIdentifier(conn, tbl))),
+        error = function(e) {
+          api_log("WARN", sprintf("ANALYZE skipped for %s: %s", tbl, conditionMessage(e)))
+        }
+      )
+    }
+  }
   
   # Close database connection
   if (!is.null(conn)) {

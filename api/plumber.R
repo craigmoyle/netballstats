@@ -45,6 +45,11 @@ source(file.path(repo_root_path, "api", "R", "parse_question.R"), local = TRUE)
 
 # Shared in-process cache for /meta responses (30-minute TTL).
 .meta_cache <- new.env(parent = emptyenv())
+.international_meta_cache <- new.env(parent = emptyenv())
+
+set_public_cache_headers <- function(res, max_age = 300L) {
+  res$setHeader("Cache-Control", paste0("public, max-age=", as.integer(max_age)))
+}
 
 # Middleware: Per-client rate limiter using sliding window
 # Tracks requests per client IP (extracted from X-Forwarded-For) over a time window
@@ -641,12 +646,11 @@ function(req, res) {
 }
 
 database_health_check <- function(include_metadata = FALSE) {
-  conn <- tryCatch(open_db(), error = function(error) error)
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
   if (inherits(conn, "error")) {
     api_log("ERROR", "db_health_connection_failed", error_class = class(conn)[[1]] %||% "unknown")
     return(list(ok = FALSE, error = "The statistics database is currently unavailable."))
   }
-  on.exit(DBI::dbDisconnect(conn), add = TRUE)
 
   query_check <- tryCatch(
     query_rows(conn, "SELECT 1 AS ok"),
@@ -720,7 +724,10 @@ database_unavailable <- function(res, error) {
 
 build_supported_query_response <- function(conn, intent) {
   all_rows <- fetch_query_result_rows(conn, intent)
-  total_matches <- nrow(all_rows)
+  total_matches <- attr(all_rows, "total_matches")
+  if (is.null(total_matches)) {
+    total_matches <- nrow(all_rows)
+  }
   row_limit <- if (identical(intent$intent_type, "count")) {
     min(intent$limit, 12L)
   } else if (identical(intent$intent_type, "list")) {
@@ -876,38 +883,81 @@ build_stat_summary <- function(rows, stats_order = NULL) {
   do.call(rbind, summary_rows)
 }
 
-build_player_profile_payload <- function(player_row, stats_rows, identity_row = NULL) {
-  available_stats <- if (nrow(stats_rows)) {
-    sort(unique(as.character(stats_rows$stat)))
-  } else {
-    character()
-  }
+build_player_profile_payload <- function(player_row, stats_rows, identity_row = NULL, profile_stats = NULL) {
+  if (!is.null(profile_stats) && identical(profile_stats$mode, "aggregated")) {
+    career_stats <- profile_stats$career_stats
+    season_stats <- profile_stats$season_stats
+    season_squads <- profile_stats$season_squads
+    available_stats <- if (nrow(career_stats)) sort(as.character(career_stats$stat)) else character()
+    games_played <- profile_stats$games_played %||% 0L
+    season_values <- if (nrow(season_stats)) {
+      sort(unique(season_stats$season), decreasing = TRUE)
+    } else {
+      integer()
+    }
+    squad_names <- if (nrow(season_squads)) {
+      sort(unique(as.character(season_squads$squad_name)))
+    } else {
+      character()
+    }
 
-  games_played <- if (nrow(stats_rows)) {
-    length(unique(stats_rows$match_id))
-  } else {
-    0L
-  }
-  season_values <- if (nrow(stats_rows)) {
-    sort(unique(stats_rows$season), decreasing = TRUE)
-  } else {
-    integer()
-  }
-  squad_names <- if (nrow(stats_rows)) {
-    sort(unique(as.character(stats_rows$squad_name)))
-  } else {
-    character()
-  }
+    season_summaries <- unname(lapply(season_values, function(season_value) {
+      season_stat_rows <- season_stats[season_stats$season == season_value, , drop = FALSE]
+      season_squad_rows <- season_squads[season_squads$season == season_value, , drop = FALSE]
+      list(
+        season = jsonlite::unbox(as.integer(season_value)),
+        matches_played = jsonlite::unbox(as.integer(
+          if (nrow(season_stat_rows)) {
+            suppressWarnings(max(season_stat_rows$matches_played, na.rm = TRUE))
+          } else {
+            0L
+          }
+        )),
+        squad_names = sort(unique(as.character(season_squad_rows$squad_name))),
+        stats = rows_to_records(season_stat_rows[, c("stat", "total_value", "average_value", "matches_played"), drop = FALSE])
+      )
+    }))
 
-  season_summaries <- unname(lapply(season_values, function(season_value) {
-    season_rows <- stats_rows[stats_rows$season == season_value, , drop = FALSE]
-    list(
-      season = jsonlite::unbox(as.integer(season_value)),
-      matches_played = jsonlite::unbox(as.integer(length(unique(season_rows$match_id)))),
-      squad_names = sort(unique(as.character(season_rows$squad_name))),
-      stats = rows_to_records(build_stat_summary(season_rows, available_stats))
-    )
-  }))
+    career_payload <- if (nrow(career_stats)) {
+      rows_to_records(career_stats[, c("stat", "total_value", "average_value", "matches_played"), drop = FALSE])
+    } else {
+      list()
+    }
+  } else {
+    available_stats <- if (nrow(stats_rows)) {
+      sort(unique(as.character(stats_rows$stat)))
+    } else {
+      character()
+    }
+
+    games_played <- if (nrow(stats_rows)) {
+      length(unique(stats_rows$match_id))
+    } else {
+      0L
+    }
+    season_values <- if (nrow(stats_rows)) {
+      sort(unique(stats_rows$season), decreasing = TRUE)
+    } else {
+      integer()
+    }
+    squad_names <- if (nrow(stats_rows)) {
+      sort(unique(as.character(stats_rows$squad_name)))
+    } else {
+      character()
+    }
+
+    season_summaries <- unname(lapply(season_values, function(season_value) {
+      season_rows <- stats_rows[stats_rows$season == season_value, , drop = FALSE]
+      list(
+        season = jsonlite::unbox(as.integer(season_value)),
+        matches_played = jsonlite::unbox(as.integer(length(unique(season_rows$match_id)))),
+        squad_names = sort(unique(as.character(season_rows$squad_name))),
+        stats = rows_to_records(build_stat_summary(season_rows, available_stats))
+      )
+    }))
+
+    career_payload <- rows_to_records(build_stat_summary(stats_rows, available_stats))
+  }
 
   # Build the identity block from the optional player_reference/demographics row.
   # Helpers to safely extract a typed field value from the identity row.
@@ -965,7 +1015,7 @@ build_player_profile_payload <- function(player_row, stats_rows, identity_row = 
       squad_names = squad_names
     ),
     available_stats = available_stats,
-    career_stats = rows_to_records(build_stat_summary(stats_rows, available_stats)),
+    career_stats = career_payload,
     season_summaries = season_summaries
   )
 }
@@ -1016,6 +1066,8 @@ function(res) {
   if (inherits(conn, "error")) {
     return(database_unavailable(res, conn))
   }
+
+  set_public_cache_headers(res, 1800L)
 
   # Serve from in-process cache — /meta is called on every page load and the
   # data changes only after a DB rebuild (roughly weekly).
@@ -1155,33 +1207,11 @@ function(player_id = "", res) {
       return(json_error(res, 404, "Player not found."))
     }
 
-    has_participation <- has_player_match_stats(conn) && has_player_match_participation(conn)
-    stats_rows <- if (has_player_match_stats(conn)) {
-      participation_join <- if (has_participation) {
-        "INNER JOIN player_match_participation pmpart ON pmpart.player_id = stats.player_id AND pmpart.match_id = stats.match_id"
-      } else {
-        ""
-      }
-      query_rows(
-        conn,
-        paste(
-          "SELECT stats.match_id, stats.season, stats.squad_name, stats.stat, stats.match_value AS value_number",
-          "FROM player_match_stats stats",
-          participation_join,
-          "WHERE stats.player_id = ?player_id AND stats.match_value IS NOT NULL"
-        ),
-        list(player_id = player_id)
-      )
+    profile_stats <- fetch_player_profile_stats(conn, player_id)
+    stats_rows <- if (identical(profile_stats$mode, "raw")) {
+      profile_stats$stats_rows
     } else {
-      query_rows(
-        conn,
-        paste(
-          "SELECT match_id, season, squad_name, stat, value_number",
-          "FROM player_period_stats",
-          "WHERE player_id = ?player_id AND value_number IS NOT NULL"
-        ),
-        list(player_id = player_id)
-      )
+      data.frame()
     }
 
     # Fetch identity row via LEFT JOIN over player_reference (and optionally
@@ -1214,7 +1244,7 @@ function(player_id = "", res) {
       NULL
     }
 
-    build_player_profile_payload(player, stats_rows, identity_row)
+    build_player_profile_payload(player, stats_rows, identity_row, profile_stats)
   }, error = function(error) {
     handle_request_error(error, res)
   })
@@ -1319,6 +1349,8 @@ function(season = "", round = "", res) {
       stop("season is required when round is provided.", call. = FALSE)
     }
 
+    set_public_cache_headers(res, 300L)
+
     timeout_ms <- parse_nonnegative_env_int("NETBALL_STATS_ROUND_SUMMARY_TIMEOUT_MS", 15000L)
     payload <- with_statement_timeout(
       conn,
@@ -1345,6 +1377,8 @@ function(season = "", res) {
 
   tryCatch({
     season <- parse_optional_int(season, "season", minimum = 2017L, maximum = 2100L)
+
+    set_public_cache_headers(res, 300L)
 
     payload <- tryCatch({
       timeout_ms <- parse_nonnegative_env_int("NETBALL_STATS_ROUND_PREVIEW_TIMEOUT_MS", 15000L)
@@ -2315,13 +2349,22 @@ function(res) {
     return(database_unavailable(res, conn))
   }
 
+  set_public_cache_headers(res, 1800L)
+
+  cached <- .international_meta_cache[["meta"]]
+  if (!is.null(cached) &&
+      as.numeric(difftime(Sys.time(), cached$ts, units = "secs")) < 1800L) {
+    return(json_success(res, cached$payload))
+  }
+
   tryCatch({
     if (!has_international_matches(conn)) {
       return(json_error(res, 503, "International data not available."))
     }
 
-    meta <- with_statement_timeout(conn, meta_statement_timeout_ms(), fetch_international_meta(conn))
-    json_success(res, meta)
+    payload <- with_statement_timeout(conn, meta_statement_timeout_ms(), fetch_international_meta(conn))
+    .international_meta_cache[["meta"]] <- list(payload = payload, ts = Sys.time())
+    json_success(res, payload)
   }, error = function(error) {
     handle_request_error(error, res)
   })
@@ -2528,6 +2571,9 @@ function(pr) {
 
     # Pre-warm the latest round summary (most-visited page after home)
     build_round_summary_payload(conn, season = NULL, round = NULL)
+
+    # Pre-warm round preview for the upcoming round page
+    build_round_preview_payload(conn, season = NULL)
 
     api_log("INFO", "startup_warmup_complete", meta_ok = meta_ok)
   }, error = function(e) {

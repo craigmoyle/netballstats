@@ -2,6 +2,7 @@ const {
   buildUrl,
   fetchJson,
   formatNumber,
+  debounce = (fn) => fn,
   showStatusBanner = () => {},
   cycleStatusBanner = () => {},
 } = window.NetballStatsUI || {};
@@ -105,7 +106,7 @@ async function loadPlayers() {
   }
 }
 
-function handleSearch(event) {
+const handleSearch = debounce((event) => {
   const term = event.target.value.toLowerCase().trim();
   if (term === state.searchTerm) return;
   state.searchTerm = term;
@@ -114,7 +115,7 @@ function handleSearch(event) {
     ? state.allPlayers.filter((p) => p.player_name?.toLowerCase().includes(term))
     : state.allPlayers;
   renderPlayers(filtered);
-}
+}, 150);
 
 function initialize() {
   if (elements.searchInput) {

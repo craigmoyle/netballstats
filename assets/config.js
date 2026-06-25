@@ -368,6 +368,37 @@
     }
   }
 
+  let metaPromise = null;
+
+  async function getMeta({ retries = 0 } = {}) {
+    if (metaPromise) {
+      return metaPromise;
+    }
+
+    metaPromise = (async () => {
+      let attempt = 0;
+      let lastError = null;
+
+      while (attempt <= retries) {
+        try {
+          return await fetchJson("/meta");
+        } catch (error) {
+          lastError = error;
+          if (attempt >= retries) {
+            break;
+          }
+          await new Promise((resolve) => window.setTimeout(resolve, 1500 * (attempt + 1)));
+          attempt += 1;
+        }
+      }
+
+      metaPromise = null;
+      throw lastError;
+    })();
+
+    return metaPromise;
+  }
+
   function formatNumber(value) {
     if (value === null || value === undefined || value === "") {
       return "-";
@@ -607,6 +638,7 @@
       cycleStatusBanner,
       debounce,
       fetchJson,
+      getMeta,
       formatDate,
       formatNumber,
       formatStatAbbrev,

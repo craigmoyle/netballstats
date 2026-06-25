@@ -2,6 +2,7 @@ const {
   buildUrl,
   clearEmptyTableState = () => {},
   fetchJson,
+  getMeta,
   formatNumber,
   getCheckedValues = () => [],
   renderEmptyTableRow = () => {},
@@ -378,23 +379,11 @@ async function loadScoreflowData() {
 }
 
 async function loadMetadata(retries = 1) {
-  let attempt = 0;
-  let lastError = null;
-  while (attempt <= retries) {
-    try {
-      const meta = await fetchJson("/meta");
-      state.meta = meta;
-      renderSeasonChoices(meta.seasons || []);
-      renderTeamChoices(meta.teams || []);
-      return meta;
-    } catch (error) {
-      lastError = error;
-      if (attempt >= retries) break;
-      await wait(1500 * (attempt + 1));
-      attempt += 1;
-    }
-  }
-  throw lastError;
+  const meta = await getMeta({ retries });
+  state.meta = meta;
+  renderSeasonChoices(meta.seasons || []);
+  renderTeamChoices(meta.teams || []);
+  return meta;
 }
 
 function renderAll() {

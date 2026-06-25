@@ -1,6 +1,7 @@
 const {
   clearEmptyTableState = () => {},
   fetchJson,
+  getMeta,
   getCheckedValues = () => [],
   renderEmptyTableRow = () => {},
   renderSeasonCheckboxes = () => {},
@@ -118,7 +119,7 @@ function renderLead(rows) {
 
 async function loadMetadata() {
   try {
-    const meta = await fetchJson("/meta");
+    const meta = await getMeta({ retries: 1 });
     state.meta = meta;
     renderSeasonChoices(meta.seasons || []);
     return meta;
