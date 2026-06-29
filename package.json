@@ -8,6 +8,6 @@
     "build:verify": "npm run build && npm run verify"
   },
   "devDependencies": {
-    "esbuild": "^0.25.0"
+    "esbuild": "^0.28.1"
   }
 }
