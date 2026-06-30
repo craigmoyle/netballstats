@@ -47,7 +47,7 @@
       const img = document.createElement("img");
       img.className = "round-preview-team__logo";
       img.src = logoUrl;
-      img.alt = teamName || "";
+      img.alt = teamName ? `${teamName} logo` : "";
       img.width = 44;
       img.height = 44;
       div.appendChild(img);

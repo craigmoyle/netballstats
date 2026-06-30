@@ -17,21 +17,19 @@ const LEGACY_STAT_ALIASES = new Map([
 ]);
 const playerProfileCache = new Map();
 const {
-  clearChart,
-  formatNumber,
-  renderTrendChart
-} = window.NetballCharts;
-const {
   buildUrl,
   clearEmptyTableState = () => {},
   debounce = (fn) => fn,
+  ensureChartsModule = () => Promise.reject(new Error('Charts unavailable')),
   getCheckedValues = () => [],
   fetchJson,
+  formatNumber,
   getMeta,
   formatStatLabel = (stat) => stat,
   getThemePalette = () => [...DEFAULT_CHART_PALETTE],
   renderEmptyTableRow = () => {},
   renderSeasonCheckboxes = () => {},
+  setChartPlaceholder = () => {},
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
   statPrefersLowerValue = () => false,
@@ -43,6 +41,49 @@ const {
   bucketCount = () => "unknown",
   trackEvent = () => {}
 } = window.NetballStatsTelemetry || {};
+
+let chartsModule = null;
+let chartsModulePromise = null;
+
+function loadChartsModule() {
+  if (chartsModule) {
+    return Promise.resolve(chartsModule);
+  }
+  if (window.NetballCharts) {
+    chartsModule = window.NetballCharts;
+    return Promise.resolve(chartsModule);
+  }
+  if (!chartsModulePromise) {
+    chartsModulePromise = ensureChartsModule()
+      .then((mod) => {
+        chartsModule = mod;
+        return mod;
+      })
+      .catch((error) => {
+        chartsModulePromise = null;
+        throw error;
+      });
+  }
+  return chartsModulePromise;
+}
+
+function clearChart(container, message) {
+  if (chartsModule) {
+    chartsModule.clearChart(container, message);
+    return;
+  }
+  if (window.NetballCharts) {
+    chartsModule = window.NetballCharts;
+    chartsModule.clearChart(container, message);
+    return;
+  }
+  setChartPlaceholder(container, message);
+}
+
+function runWithCharts(run) {
+  return loadChartsModule().then(run).catch(() => {});
+}
+
 const COMPARE_LOADING_MESSAGES = [
   "Loading seasons…",
   "Lining up the records…",
@@ -945,17 +986,19 @@ async function fetchTeamComparisonRows() {
 }
 
 function renderComparisonChart(rows, entities) {
-  renderTrendChart(elements.compareChart, rows, {
-    ariaLabel: `${state.mode === "players" ? "Player" : "Team"} comparison trend chart for ${currentStatLabel()}`,
-    emptyMessage: "No shared comparison data for that stat and season range.",
-    singleSeasonMessage: "Choose at least two seasons to draw a trend.",
-    idAccessor: (row) => row.entity_id,
-    labelAccessor: (row) => row.entity_name,
-    valueAccessor: (row) => metricDisplayValue(row),
-    colourAccessor: (row, index) => {
-      const entity = entities.find((entry) => entry.id === `${row.entity_id}`);
-      return entity?.colour || row.colour || fallbackColour(index);
-    }
+  void runWithCharts(({ renderTrendChart }) => {
+    renderTrendChart(elements.compareChart, rows, {
+      ariaLabel: `${state.mode === "players" ? "Player" : "Team"} comparison trend chart for ${currentStatLabel()}`,
+      emptyMessage: "No shared comparison data for that stat and season range.",
+      singleSeasonMessage: "Choose at least two seasons to draw a trend.",
+      idAccessor: (row) => row.entity_id,
+      labelAccessor: (row) => row.entity_name,
+      valueAccessor: (row) => metricDisplayValue(row),
+      colourAccessor: (row, index) => {
+        const entity = entities.find((entry) => entry.id === `${row.entity_id}`);
+        return entity?.colour || row.colour || fallbackColour(index);
+      }
+    });
   });
 }
 

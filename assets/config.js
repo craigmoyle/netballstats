@@ -600,6 +600,55 @@
     syncResponsiveTable(table || tableBody.closest("table"));
   }
 
+  function resolveChartsScriptUrl() {
+    const appScript = document.querySelector('script[src*="app.js"]');
+    if (appScript?.src) {
+      return appScript.src.replace(/app(\.[a-f0-9]{10})?\.js(\?.*)?$/, 'charts$1.js$2');
+    }
+    return 'assets/charts.js';
+  }
+
+  let chartsModulePromise = null;
+
+  function ensureChartsModule() {
+    if (window.NetballCharts) {
+      return Promise.resolve(window.NetballCharts);
+    }
+    if (!chartsModulePromise) {
+      chartsModulePromise = new Promise((resolve, reject) => {
+        const script = document.createElement('script');
+        script.src = resolveChartsScriptUrl();
+        script.async = true;
+        script.onload = () => {
+          if (window.NetballCharts) {
+            resolve(window.NetballCharts);
+            return;
+          }
+          reject(new Error('NetballCharts unavailable'));
+        };
+        script.onerror = () => reject(new Error('Failed to load charts'));
+        document.head.appendChild(script);
+      });
+    }
+    return chartsModulePromise;
+  }
+
+  function setChartPlaceholder(container, message) {
+    if (!container) {
+      return;
+    }
+    container.replaceChildren();
+    container.dataset.state = 'empty';
+    container.removeAttribute('role');
+    container.removeAttribute('aria-label');
+    container.removeAttribute('aria-describedby');
+    container.setAttribute('aria-live', 'polite');
+    const empty = document.createElement('p');
+    empty.className = 'chart-empty';
+    empty.textContent = message;
+    container.appendChild(empty);
+  }
+
   function getThemePalette(fallback = []) {
     if (!window.getComputedStyle || !document?.documentElement) {
       return Array.isArray(fallback) ? [...fallback] : [];
@@ -655,6 +704,8 @@
       renderEmptyTableRow,
       renderSeasonCheckboxes,
       setCheckedValues,
+      ensureChartsModule,
+      setChartPlaceholder,
       statPrefersLowerValue,
       syncResponsiveTable
     }
