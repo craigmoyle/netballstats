@@ -16,6 +16,18 @@ colors:
   success-soft: "#a5efc1"
   text-on-amber: "#20160d"
   border-base: "#eed29c"
+  shadow-panel-dark: "#00000047"
+  shadow-panel-light: "#00000014"
+  shadow-lift: "#00000038"
+  shadow-aside: "#00000033"
+  light-teal-wash: "#1a8a7a"
+  light-amber-wash: "#b87020"
+  light-warm-border: "#825a1e"
+  light-paper-wash: "#fffaf2"
+  light-ink-wash: "#1a1006"
+  cream-hover-top: "#fff8eb"
+  cream-hover-bottom: "#fff0d2"
+  print-border: "#cccccc"
 typography:
   display:
     fontFamily: "'Teko', sans-serif"
@@ -39,8 +51,18 @@ typography:
     fontWeight: 600
     fontSize: "0.8125rem"
     letterSpacing: "0.12em"
+  mono:
+    fontFamily: "ui-monospace, SFMono-Regular, Menlo, Consolas, monospace"
 rounded:
   pill: "999px"
+  2xs: "0.25rem"
+  xs: "0.1875rem"
+  hairline: "2px"
+  skip: "12px"
+  md: "1rem"
+  card-tight: "1.025rem"
+  card-loose: "1.225rem"
+  sm: "1.125rem"
   card: "1.125rem"
   panel: "1.375rem"
 spacing:
@@ -127,6 +149,19 @@ Two accents over a cool-neutral editorial ground. Both tones lean warm; the ambe
 - **Dark Walnut** (`#1a1006`): Primary text. Deeply warm brown.
 - **Warm Brown** (`#6b5c40`): Muted secondary text.
 
+### Light theme overlay ramp
+Documented rgba literals used in `[data-theme="light"]` panel washes. Prefer `color-mix(in srgb, var(--accent-cool) …)` for new rules; these hex anchors exist for detector parity and maintenance.
+
+| Token | Hex anchor | Typical use |
+|---|---|---|
+| **Light teal wash** | `#1a8a7a` at 4–5% | Primary panel gradient accents |
+| **Light amber wash** | `#b87020` at 6% | Secondary panel gradient accents |
+| **Warm border tint** | `#825a1e` at 12–18% | Card and chip borders on paper ground |
+| **Paper highlight** | `#fffaf2` at 72–92% | Summary card gradient tops |
+| **Ink wash** | `#1a1006` at 4–6% | Hover fills, view toggles, muted banners |
+
+Semantic `--light-*` tokens in `assets/styles.css` (`--light-teal-wash-5`, `--light-white-72`, `--light-border-chip`, etc.) map these overlays for light-theme component rules. Prefer the tokens over new rgba literals.
+
 ### Semantic
 - **Danger Soft** (`#ff9e9e` dark / `#b02020` light): Error states, invalid inputs.
 - **Success Soft** (`#a5efc1` dark / `#1a7040` light): Success and confirmation states.
@@ -140,7 +175,7 @@ Two accents over a cool-neutral editorial ground. Both tones lean warm; the ambe
 
 **Display Font:** Teko (600 weight, condensed sans-serif)
 **Body Font:** Fraunces (400–700 weight, optical-size variable serif, with Georgia fallback)
-**Label/Mono:** Fraunces for all UI labels; `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` for code.
+**Label/Mono:** Fraunces for all UI labels; `ui-monospace, SFMono-Regular, Menlo, Consolas, monospace` for code and stat keys (see `typography.mono` in frontmatter).
 
 **Character:** `Teko` is number-weight, a condensed shouting font that earns its volume by appearing only at scale. `Fraunces` is editorial intelligence — a warmly-voiced serif that reads crisply at small sizes and with authority at large ones. The pairing avoids the hollow sports-site cliché of using one bold font for everything; instead, one font owns words, the other owns numbers.
 

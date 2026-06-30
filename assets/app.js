@@ -14,19 +14,14 @@ const DEFAULT_CHART_PALETTE = [
   "#6f9391"
 ];
 const {
-  clearChart,
-  formatNumber,
-  renderHorizontalBarChart,
-  renderTrendChart,
-  renderSeasonColumnChart
-} = window.NetballCharts;
-const {
   buildUrl,
   fetchJson,
   getMeta,
   formatDate,
   formatStatLabel = (stat) => stat,
   getThemePalette = () => [...DEFAULT_CHART_PALETTE],
+  ensureChartsModule = () => Promise.reject(new Error('Charts unavailable')),
+  setChartPlaceholder = () => {},
   getCheckedValues = () => [],
   clearEmptyTableState = () => {},
   playerProfileUrl = (playerId) => `/player/${encodeURIComponent(playerId)}/`,
@@ -42,6 +37,48 @@ const {
   bucketCount = () => "unknown",
   trackEvent = () => {}
 } = window.NetballStatsTelemetry || {};
+
+let chartsModule = null;
+let chartsModulePromise = null;
+
+function loadChartsModule() {
+  if (chartsModule) {
+    return Promise.resolve(chartsModule);
+  }
+  if (window.NetballCharts) {
+    chartsModule = window.NetballCharts;
+    return Promise.resolve(chartsModule);
+  }
+  if (!chartsModulePromise) {
+    chartsModulePromise = ensureChartsModule()
+      .then((mod) => {
+        chartsModule = mod;
+        return mod;
+      })
+      .catch((error) => {
+        chartsModulePromise = null;
+        throw error;
+      });
+  }
+  return chartsModulePromise;
+}
+
+function clearChart(container, message) {
+  if (chartsModule) {
+    chartsModule.clearChart(container, message);
+    return;
+  }
+  if (window.NetballCharts) {
+    chartsModule = window.NetballCharts;
+    chartsModule.clearChart(container, message);
+    return;
+  }
+  setChartPlaceholder(container, message);
+}
+
+function runWithCharts(run) {
+  return loadChartsModule().then(run).catch(() => {});
+}
 
 const state = {
   meta: null,
@@ -970,31 +1007,35 @@ function setPanelView(panel, mode) {
 }
 
 function renderCompetitionSeasonChart(rows, errorMessage) {
-  if (errorMessage) {
-    clearChart(elements.competitionSeasonChart, errorMessage);
-    return;
-  }
+  void runWithCharts(({ clearChart: clearChartSurface, renderSeasonColumnChart }) => {
+    if (errorMessage) {
+      clearChartSurface(elements.competitionSeasonChart, errorMessage);
+      return;
+    }
 
-  renderSeasonColumnChart(elements.competitionSeasonChart, rows, {
-    ariaLabel: `Competition ${statModeDescriptor()} chart by season for ${currentTeamStatLabel()}`,
-    emptyMessage: "No results for these filters.",
-    labelAccessor: (row) => row.season,
-    valueAccessor: (row) => statValue(row),
-    colourAccessor: (_row, index) => fallbackColour(index)
+    renderSeasonColumnChart(elements.competitionSeasonChart, rows, {
+      ariaLabel: `Competition ${statModeDescriptor()} chart by season for ${currentTeamStatLabel()}`,
+      emptyMessage: "No results for these filters.",
+      labelAccessor: (row) => row.season,
+      valueAccessor: (row) => statValue(row),
+      colourAccessor: (_row, index) => fallbackColour(index)
+    });
   });
 }
 
 function renderTeamLeaderChart(leaderRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
 
-  renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
-    ariaLabel: isRecordMode()
-      ? `${rankingModeLabel()} single-game team records chart for ${currentTeamStatLabel()}`
-      : `${rankingModeLabel()} team leaderboard ${statModeDescriptor()} chart for ${currentTeamStatLabel()}`,
-    emptyMessage: "No results for these filters.",
-    labelAccessor: (row) => row.squad_name,
-    valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
-    colourAccessor: (row, index) => resolveTeamColour(row.squad_name, row.squad_colour, index)
+  void runWithCharts(({ renderHorizontalBarChart }) => {
+    renderHorizontalBarChart(elements.teamLeadersChart, chartLeaderRows, {
+      ariaLabel: isRecordMode()
+        ? `${rankingModeLabel()} single-game team records chart for ${currentTeamStatLabel()}`
+        : `${rankingModeLabel()} team leaderboard ${statModeDescriptor()} chart for ${currentTeamStatLabel()}`,
+      emptyMessage: "No results for these filters.",
+      labelAccessor: (row) => row.squad_name,
+      valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
+      colourAccessor: (row, index) => resolveTeamColour(row.squad_name, row.squad_colour, index)
+    });
   });
 }
 
@@ -1004,33 +1045,37 @@ function renderTeamTrendChart(trendRows, errorMessage = "") {
     return;
   }
 
-  if (errorMessage) {
-    clearChart(elements.teamTrendChart, errorMessage);
-    return;
-  }
+  void runWithCharts(({ clearChart: clearChartSurface, renderTrendChart }) => {
+    if (errorMessage) {
+      clearChartSurface(elements.teamTrendChart, errorMessage);
+      return;
+    }
 
-  renderTrendChart(elements.teamTrendChart, trendRows, {
-    ariaLabel: `Team season ${statModeDescriptor()} chart for ${currentTeamStatLabel()}`,
-    emptyMessage: "No results for these filters.",
-    singleSeasonMessage: "Choose two or more seasons for a trend.",
-    idAccessor: (row) => row.squad_id,
-    labelAccessor: (row) => row.squad_name,
-    valueAccessor: (row) => statValue(row),
-    colourAccessor: (row, index) => resolveTeamColour(row.squad_name, row.squad_colour, index)
+    renderTrendChart(elements.teamTrendChart, trendRows, {
+      ariaLabel: `Team season ${statModeDescriptor()} chart for ${currentTeamStatLabel()}`,
+      emptyMessage: "No results for these filters.",
+      singleSeasonMessage: "Choose two or more seasons for a trend.",
+      idAccessor: (row) => row.squad_id,
+      labelAccessor: (row) => row.squad_name,
+      valueAccessor: (row) => statValue(row),
+      colourAccessor: (row, index) => resolveTeamColour(row.squad_name, row.squad_colour, index)
+    });
   });
 }
 
 function renderPlayerLeaderChart(leaderRows) {
   const chartLeaderRows = leaderRows.slice(0, CHART_RANK_LIMIT);
 
-  renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
-    ariaLabel: isRecordMode()
-      ? `${rankingModeLabel()} single-game player records chart for ${currentPlayerStatLabel()}`
-      : `${rankingModeLabel()} player leaderboard ${statModeDescriptor()} chart for ${currentPlayerStatLabel()}`,
-    emptyMessage: "No results for these filters.",
-    labelAccessor: (row) => row.player_name,
-    valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
-    colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
+  void runWithCharts(({ renderHorizontalBarChart }) => {
+    renderHorizontalBarChart(elements.playerLeadersChart, chartLeaderRows, {
+      ariaLabel: isRecordMode()
+        ? `${rankingModeLabel()} single-game player records chart for ${currentPlayerStatLabel()}`
+        : `${rankingModeLabel()} player leaderboard ${statModeDescriptor()} chart for ${currentPlayerStatLabel()}`,
+      emptyMessage: "No results for these filters.",
+      labelAccessor: (row) => row.player_name,
+      valueAccessor: (row) => isRecordMode() ? row.total_value : statValue(row),
+      colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
+    });
   });
 }
 
@@ -1040,19 +1085,21 @@ function renderPlayerTrendChart(trendRows, errorMessage = "") {
     return;
   }
 
-  if (errorMessage) {
-    clearChart(elements.playerTrendChart, errorMessage);
-    return;
-  }
+  void runWithCharts(({ clearChart: clearChartSurface, renderTrendChart }) => {
+    if (errorMessage) {
+      clearChartSurface(elements.playerTrendChart, errorMessage);
+      return;
+    }
 
-  renderTrendChart(elements.playerTrendChart, trendRows, {
-    ariaLabel: `Player season ${statModeDescriptor()} chart for ${currentPlayerStatLabel()}`,
-    emptyMessage: "No results for these filters.",
-    singleSeasonMessage: "Choose two or more seasons for a trend.",
-    idAccessor: (row) => row.player_id,
-    labelAccessor: (row) => row.player_name,
-    valueAccessor: (row) => statValue(row),
-    colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
+    renderTrendChart(elements.playerTrendChart, trendRows, {
+      ariaLabel: `Player season ${statModeDescriptor()} chart for ${currentPlayerStatLabel()}`,
+      emptyMessage: "No results for these filters.",
+      singleSeasonMessage: "Choose two or more seasons for a trend.",
+      idAccessor: (row) => row.player_id,
+      labelAccessor: (row) => row.player_name,
+      valueAccessor: (row) => statValue(row),
+      colourAccessor: (row, index) => resolvePlayerColour(row.player_name, row.squad_name, index)
+    });
   });
 }
 
@@ -1284,8 +1331,6 @@ async function runQueries() {
     renderTeamLeaders(teamLeaderRows.slice(0, LEADERS_LIMIT));
     renderPlayerLeaders(playerLeaderRows.slice(0, LEADERS_LIMIT));
     renderCompetitionLoadingState();
-    renderTeamLeaderChart(teamLeaderRows);
-    renderPlayerLeaderChart(playerLeaderRows);
     renderTrendLoadingStates();
     setPanelView("competition-season", state.views["competition-season"]);
     setPanelView("team-leaders", state.views["team-leaders"]);
