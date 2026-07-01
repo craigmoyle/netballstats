@@ -22,6 +22,7 @@ const {
   fetchJson,
   getMeta,
   formatDate,
+  formatNumber,
   formatStatLabel = (stat) => stat,
   getThemePalette = () => [...DEFAULT_CHART_PALETTE],
   ensureChartsModule = () => Promise.reject(new Error('Charts unavailable')),
