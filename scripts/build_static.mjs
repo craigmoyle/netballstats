@@ -17,8 +17,8 @@ const htmlEntries = ['changelog/index.html', 'home-court-advantage/index.html', 
 const fingerprintedAssets = ['app.js', 'charts.js', 'compare.js', 'config.js', 'home-court-advantage.js', 'league-composition.js', 'nwar.js', 'player.js', 'players.js', 'query.js', 'round.js', 'round-preview.js', 'scoreflow.js', 'styles.css', 'styles-query.css', 'styles-international.css', 'telemetry.js', 'theme.js', 'international.js', 'international-players.js', 'international-player.js', 'international-query.js', 'international-compare.js'];
 
 const CSS_SPLIT_RANGES = {
-  query: [[3963, 4987], [5467, 5945]],
-  international: [[5947, null]]
+  query: [[3963, 4987], [5870, 6348]],
+  international: [[6350, null]]
 };
 
 const htmlExtraStylesheets = {
