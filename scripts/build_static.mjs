@@ -31,9 +31,12 @@ const htmlExtraStylesheets = {
 };
 
 const hashContent = (content) => createHash('sha256').update(content).digest('hex').slice(0, 10);
-const fingerprintName = (assetName, content) => {
+const buildAssetFingerprint = (assetContents) => hashContent(
+  fingerprintedAssets.map((assetName) => assetContents.get(assetName)).join('\0')
+);
+const fingerprintName = (assetName, buildId) => {
   const parsed = path.parse(assetName);
-  return `${parsed.name}.${hashContent(content)}${parsed.ext}`;
+  return `${parsed.name}.${buildId}${parsed.ext}`;
 };
 
 function extractCssRanges(source, ranges) {
@@ -152,10 +155,11 @@ for (const assetName of fingerprintedAssets) {
   assetContents.set(assetName, await minifyAsset(assetName, rawContent));
 }
 
+const buildId = buildAssetFingerprint(assetContents);
 const assetManifest = new Map();
 for (const assetName of fingerprintedAssets) {
   const content = assetContents.get(assetName);
-  const outputName = fingerprintName(assetName, content);
+  const outputName = fingerprintName(assetName, buildId);
   assetManifest.set(`/assets/${assetName}`, `/assets/${outputName}`);
   assetManifest.set(`assets/${assetName}`, `assets/${outputName}`);
   await writeFile(path.join(assetOutputDir, outputName), content);
