@@ -1,5 +1,7 @@
 (function () {
 const {
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   showStatusBanner = () => {},
   cycleStatusBanner = () => {},
   clearEmptyTableState = () => {},
@@ -9,18 +11,25 @@ const {
   formatStatLabel = (stat) => stat,
   playerProfileUrl = (playerId) => `/player/${encodeURIComponent(playerId)}/`,
   renderEmptyTableRow = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
+
+  let roundCitationContext = {
+    seasonLabel: "",
+    refreshed: ""
+  };
 
   const elements = {
     status: document.querySelector("#round-status"),
+    heroMeta: document.querySelector("#round-hero-meta"),
     heroLabel: document.querySelector("#round-hero-label"),
     heroSummary: document.querySelector("#round-hero-summary"),
     heading: document.querySelector("#round-heading"),
     meta: document.querySelector("#round-meta"),
     intro: document.querySelector("#round-intro"),
     summaryMatches: document.querySelector("#round-summary-matches"),
-    summaryGoals: document.querySelector("#round-summary-goals"),
+    summaryPoints: document.querySelector("#round-summary-points"),
     summaryBiggestMargin: document.querySelector("#round-summary-biggest-margin"),
     summaryClosestMargin: document.querySelector("#round-summary-closest-margin"),
     factStrip: document.querySelector("#round-fact-strip"),
@@ -30,7 +39,11 @@ const {
     playerTable: document.querySelector("#round-player-table"),
     teamTable: document.querySelector("#round-team-table"),
     playerCaption: document.querySelector("#round-player-caption"),
-    teamCaption: document.querySelector("#round-team-caption")
+    teamCaption: document.querySelector("#round-team-caption"),
+    summaryBand: document.querySelector(".summary-band"),
+    roundCitation: document.querySelector("#round-citation"),
+    roundCitationText: document.querySelector("#round-citation-text"),
+    roundCitationCopy: document.querySelector("#round-citation-copy")
   };
 
   if (!elements.status || !elements.factStrip || !elements.matchGrid || !elements.playerBody || !elements.teamBody) {
@@ -358,6 +371,26 @@ const {
     syncResponsiveTable(tableBody.closest("table"));
   }
 
+  function buildRoundCitationText() {
+    return buildSurfaceCitationText({
+      scope: "domestic",
+      segments: [
+        "Round recap",
+        roundCitationContext.seasonLabel
+      ],
+      refreshed: roundCitationContext.refreshed
+    });
+  }
+
+  function renderRoundCitation(visible = false) {
+    updateSurfaceCitation(
+      elements.roundCitation,
+      elements.roundCitationText,
+      visible ? buildRoundCitationText() : "",
+      { visible }
+    );
+  }
+
   function renderSummary(payload) {
     const summary = payload.summary || {};
     const roundLabel = unwrapValue(payload.round_label) || "Latest completed round";
@@ -371,20 +404,34 @@ const {
       ? `Completed ${formatDate(payload.round_end_time, { includeTime: true, includeYear: false })}.`
       : "Latest completed fixtures.";
     if (elements.heroSummary) {
-      elements.heroSummary.textContent = `${formatNumber(summary.total_matches)} matches · ${formatNumber(summary.total_goals)} goals · biggest margin ${formatNumber(summary.biggest_margin)}`;
+      elements.heroSummary.textContent = `${formatNumber(summary.total_matches)} matches · ${formatNumber(summary.total_goals)} points · biggest margin ${formatNumber(summary.biggest_margin)}`;
+    }
+    if (elements.heroMeta) {
+      elements.heroMeta.hidden = false;
     }
     elements.intro.textContent = "Every scoreline, standout line, and low-turnover result from the round.";
 
+    roundCitationContext = {
+      seasonLabel,
+      refreshed: unwrapValue(payload.round_end_time)
+        ? `Completed ${formatDate(payload.round_end_time, { includeTime: true, includeYear: false })}`
+        : ""
+    };
+    if (elements.summaryBand) {
+      elements.summaryBand.hidden = false;
+    }
+    renderRoundCitation(true);
+
     elements.summaryMatches.textContent = formatNumber(summary.total_matches);
-    elements.summaryGoals.textContent = formatNumber(summary.total_goals);
+    elements.summaryPoints.textContent = formatNumber(summary.total_goals);
     elements.summaryBiggestMargin.textContent = summary.biggest_margin === null || summary.biggest_margin === undefined
       ? "--"
-      : `${formatNumber(summary.biggest_margin)} goals`;
+      : `${formatNumber(summary.biggest_margin)} points`;
     elements.summaryClosestMargin.textContent = summary.closest_margin === null || summary.closest_margin === undefined
       ? "--"
       : Number(summary.closest_margin) === 0
         ? "Draw"
-        : `${formatNumber(summary.closest_margin)} goal${Number(summary.closest_margin) === 1 ? "" : "s"}`;
+        : `${formatNumber(summary.closest_margin)} point${Number(summary.closest_margin) === 1 ? "" : "s"}`;
 
     elements.playerCaption.textContent = `Player spotlights from ${seasonLabel}.`;
     elements.teamCaption.textContent = `Team spotlights from ${seasonLabel}.`;
@@ -397,13 +444,20 @@ const {
     if (elements.heroSummary) {
       elements.heroSummary.textContent = message;
     }
+    if (elements.heroMeta) {
+      elements.heroMeta.hidden = false;
+    }
     elements.heading.textContent = "Round recap unavailable";
     elements.meta.textContent = "Try again shortly.";
     elements.intro.textContent = message;
     elements.summaryMatches.textContent = "--";
-    elements.summaryGoals.textContent = "--";
+    elements.summaryPoints.textContent = "--";
     elements.summaryBiggestMargin.textContent = "--";
     elements.summaryClosestMargin.textContent = "--";
+    if (elements.summaryBand) {
+      elements.summaryBand.hidden = true;
+    }
+    renderRoundCitation(false);
     elements.factStrip.replaceChildren(emptyState(message, "Recap"));
     elements.matchGrid.replaceChildren(emptyState(message, "Fixtures"));
     clearTable(elements.playerBody, message);
@@ -435,6 +489,15 @@ const {
       });
     }
   }
+
+  bindSurfaceCitationCopy(
+    elements.roundCitationCopy,
+    buildRoundCitationText,
+    {
+      onSuccess: () => showStatusBanner(elements.status, "Citation copied.", "success", { autoHideMs: 2200 }),
+      onError: () => showStatusBanner(elements.status, "Couldn't copy citation.", "error", { kicker: "Copy failed" })
+    }
+  );
 
   loadRoundRecap();
 })();

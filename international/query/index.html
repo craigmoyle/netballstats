@@ -3,9 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="application-name" content="Statsball International">
     <script src="/assets/theme.js"></script>
-    <title>Ask the Stats | International Netball</title>
+    <title>Ask the stats · Statsball International</title>
     <meta name="description" content="Ask questions about Australian Diamonds and international netball statistics in plain English.">
+    <meta property="og:title" content="Ask the stats · Statsball International">
+    <meta property="og:description" content="Ask questions about Australian Diamonds and international netball statistics in plain English.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/share-international-query.png">
+    <meta property="og:image:alt" content="Statsball International — netball archive">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Ask the stats · Statsball International">
+    <meta name="twitter:description" content="Ask questions about Australian Diamonds and international netball statistics in plain English.">
+    <meta name="twitter:image" content="/assets/share-international-query.png">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
@@ -17,24 +27,29 @@
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
-        <nav class="page-nav" aria-label="Site navigation">
-          <a class="page-nav__link" href="/">SSN/ANZC</a>
-          <a class="page-nav__link" href="/players/">Players</a>
-          <a class="page-nav__link" href="/query/">Ask the stats</a>
-          <a class="page-nav__link" href="/compare/">Compare</a>
-          <a class="page-nav__link" href="/round/">Round recap</a>
-          <a class="page-nav__link" href="/league-composition/">Composition</a>
-          <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
-          <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
-          <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <nav class="page-nav" aria-label="International netball archive">
+          <div class="page-nav__mode" role="group" aria-label="Switch archive">
+            <a class="page-nav__mode-link" href="/">Super Netball</a>
+            <a class="page-nav__mode-link page-nav__mode-link--active" href="/international/">International</a>
+          </div>
           <span class="page-nav__divider" aria-hidden="true"></span>
-          <a class="page-nav__link" href="/international/">International</a>
+          <a class="page-nav__link" href="/international/">Archive</a>
           <a class="page-nav__link" href="/international/players/">Players</a>
-          <a class="page-nav__link" href="/international/query/" aria-current="page">Ask the stats</a>
+          <a class="page-nav__link" href="/international/query/">Ask the stats</a>
           <a class="page-nav__link" href="/international/compare/">Compare</a>
+          <a class="page-nav__link" href="/round/">Round recap</a>
+                  <details class="page-nav__more">
+          <summary class="page-nav__more-summary">More tools</summary>
+          <div class="page-nav__more-menu" role="group" aria-label="Super Netball specialist tools">
+            <a class="page-nav__link" href="/league-composition/"><span class="page-nav__link-label">Composition</span><small class="page-nav__link-hint">Youth, age, and import share</small></a>
+            <a class="page-nav__link" href="/scoreflow/"><span class="page-nav__link-label">Scoreflow</span><small class="page-nav__link-hint">Comebacks and score control</small></a>
+            <a class="page-nav__link" href="/home-court-advantage/"><span class="page-nav__link-label">Court advantage</span><small class="page-nav__link-hint">Home win rate and margin swing</small></a>
+            <a class="page-nav__link" href="/nwar/"><span class="page-nav__link-label">nWAR</span><small class="page-nav__link-hint">Wins above replacement by position</small></a>
+          </div>
+        </details>
           <span class="page-nav__divider" aria-hidden="true"></span>
           <a class="page-nav__link" href="/changelog/">Changelog</a>
-          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Current theme dark. Switch to light theme"><span class="theme-toggle__kicker">Reading mode</span><span class="theme-toggle__value">Night desk</span></button>
         </nav>
 
       <section class="hero-panel query-hero">
@@ -43,6 +58,13 @@
           <h1>Ask the stats</h1>
           <p class="intro-copy">Ask questions about Australian Diamonds and international netball statistics in plain English.</p>
         </div>
+        <aside class="hero-aside" id="int-query-hero-aside" aria-label="International query scope">
+          <div class="hero-aside__card">
+            <span class="hero-aside__label">Query scope</span>
+            <strong>Australian Diamonds</strong>
+            <p id="int-query-scope-summary">International fixtures and player stats only. Fewer question shapes than the domestic archive.</p>
+          </div>
+        </aside>
       </section>
     </header>
 
@@ -53,7 +75,7 @@
         <form id="query-form" class="query-form" role="search">
           <label for="question-input" class="query-form__label">Ask a question</label>
           <div class="query-form__input-wrapper">
-            <input type="text" id="question-input" class="query-form__input" placeholder="e.g. Who has the most goals for the Diamonds?" autocomplete="off" autocapitalize="sentences">
+            <input type="text" id="question-input" class="query-form__input" placeholder="e.g. Who has the most points for the Diamonds?" autocomplete="off" autocapitalize="sentences">
             <button type="submit" class="query-form__submit" aria-label="Submit question">
               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                 <line x1="22" y1="2" x2="11" y2="13"></line>
@@ -66,7 +88,7 @@
         <div id="query-help" class="query-help" hidden>
           <p class="query-help__title">Try asking:</p>
           <ul class="query-help__examples">
-            <li>"Who has the most goals for the Diamonds?"</li>
+            <li>"Who has the most points for the Diamonds?"</li>
             <li>"What was Liz Watson's highest scoring game?"</li>
             <li>"Which team has the most wins against New Zealand?"</li>
             <li>"Show me players with over 100 intercepts"</li>

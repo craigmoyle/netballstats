@@ -1,0 +1,29 @@
+{
+  "hook": {
+    "enabled": true,
+    "limits": {
+      "maxFindings": 5,
+      "maxChars": 8000
+    }
+  },
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [
+      "nwar/index.html"
+    ],
+    "ignoreValues": [
+      {
+        "rule": "overused-font",
+        "value": "fraunces",
+        "reason": "Committed brand voice per DESIGN.md",
+        "createdAt": "2026-06-30T04:33:07.598Z"
+      },
+      {
+        "rule": "design-system-font",
+        "value": "sfmono-regular",
+        "reason": "Monospace for stat codes in DESIGN.md",
+        "createdAt": "2026-06-30T04:33:07.662Z"
+      }
+    ]
+  }
+}

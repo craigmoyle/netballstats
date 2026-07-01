@@ -1,4 +1,6 @@
 const {
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   clearEmptyTableState = () => {},
   fetchJson,
   getMeta,
@@ -7,7 +9,8 @@ const {
   renderSeasonCheckboxes = () => {},
   setCheckedValues = () => {},
   showStatusBanner = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 
 const state = {
@@ -26,8 +29,38 @@ const elements = {
   coverageNote: document.getElementById("league-composition-coverage-note"),
   seasonChoices: document.getElementById("league-composition-season-choices"),
   summaryBody: document.getElementById("league-composition-summary-body"),
-  bandBody: document.getElementById("league-composition-band-body")
+  bandBody: document.getElementById("league-composition-band-body"),
+  citation: document.getElementById("league-composition-citation"),
+  citationText: document.getElementById("league-composition-citation-text"),
+  citationCopy: document.getElementById("league-composition-citation-copy"),
+  resultsBody: document.getElementById("league-composition-results")
 };
+
+function describeSeasonFrame(seasons = selectedSeasons()) {
+  if (!seasons.length) return "All seasons";
+  if (seasons.length === 1) return `Season ${seasons[0]}`;
+  return `${seasons[0]}–${seasons[seasons.length - 1]}`;
+}
+
+function buildLeagueCompositionCitationText() {
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: [
+      "League composition",
+      describeSeasonFrame(),
+      state.summary.length ? `${state.summary.length} trend rows` : ""
+    ]
+  });
+}
+
+function renderLeagueCompositionCitation() {
+  updateSurfaceCitation(
+    elements.citation,
+    elements.citationText,
+    state.summary.length ? buildLeagueCompositionCitationText() : "",
+    { visible: state.summary.length > 0 }
+  );
+}
 
 function selectedSeasons() {
   return getCheckedValues(elements.seasonChoices).sort((a, b) => Number(a) - Number(b));
@@ -128,6 +161,12 @@ async function loadMetadata() {
   }
 }
 
+function revealResultsBody() {
+  if (elements.resultsBody) {
+    elements.resultsBody.hidden = false;
+  }
+}
+
 async function loadPage() {
   const loadToken = ++state.loadToken;
   showStatusBanner(elements.status, "Loading league composition…", "loading");
@@ -149,6 +188,8 @@ async function loadPage() {
     renderCoverage(summaryPayload);
     renderSummaryRows(state.summary);
     renderBandRows(state.bands);
+    renderLeagueCompositionCitation();
+    revealResultsBody();
     showStatusBanner(elements.status, "");
   } catch (error) {
     if (loadToken !== state.loadToken) return;
@@ -161,11 +202,20 @@ async function loadPage() {
     renderSummaryRows([]);
     renderBandRows([]);
     if (elements.meta) elements.meta.textContent = "League composition unavailable.";
+    revealResultsBody();
     showStatusBanner(elements.status, error.message || "Unable to load league composition data.", "error");
   }
 }
 
 async function initialise() {
+  bindSurfaceCitationCopy(
+    elements.citationCopy,
+    () => buildLeagueCompositionCitationText(),
+    {
+      onSuccess: () => showStatusBanner(elements.status, "Citation copied.", "success", { autoHideMs: 2000 }),
+      onError: () => showStatusBanner(elements.status, "Couldn't copy citation.", "error", { kicker: "Copy failed" })
+    }
+  );
   await loadMetadata();
   if (!selectedSeasons().length && state.meta?.default_season) {
     setCheckedValues(elements.seasonChoices, [String(state.meta.default_season)]);

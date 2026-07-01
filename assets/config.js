@@ -15,6 +15,17 @@
     return `${text || ""}`.replace(/\s+/g, " ").trim();
   }
 
+  const SITE_BRAND = Object.freeze({
+    domestic: "Statsball",
+    international: "Statsball International"
+  });
+
+  function formatPageTitle(pageTitle, scope = "domestic") {
+    const brand = scope === "international" ? SITE_BRAND.international : SITE_BRAND.domestic;
+    const clean = cleanLabel(pageTitle);
+    return clean ? `${clean} · ${brand}` : brand;
+  }
+
   const STAT_LABEL_OVERRIDES = Object.freeze({
     attempt_from_zone1: "Zone 1 Attempts",
     attempt_from_zone2: "Zone 2 Attempts",
@@ -83,7 +94,7 @@
     goalAssists: "G Ast",
     goalAttempts: "G Att",
     goalMisses: "G Miss",
-    goals: "Goals",
+    goals: "Points",
     goals1: "1Pt G",
     goals2: "SS",
     goalsFromCentrePass: "GfCP",
@@ -438,10 +449,72 @@
 
   function debounce(fn, delay = 200) {
     let timeoutId = null;
-    return function (...args) {
+    const debounced = function (...args) {
       window.clearTimeout(timeoutId);
-      timeoutId = window.setTimeout(() => fn.apply(this, args), delay);
+      timeoutId = window.setTimeout(() => {
+        timeoutId = null;
+        fn.apply(this, args);
+      }, delay);
     };
+    debounced.cancel = function () {
+      window.clearTimeout(timeoutId);
+      timeoutId = null;
+    };
+    return debounced;
+  }
+
+  function buildSurfaceCitationText(options = {}) {
+    const {
+      scope = "domestic",
+      segments = [],
+      refreshed = "",
+      url = typeof window !== "undefined" ? window.location.href : ""
+    } = options;
+    const brandLead = scope === "international"
+      ? "Statsball International archive."
+      : "Statsball Super Netball & ANZ Championship archive.";
+    const parts = [brandLead];
+    const cleanSegments = (segments || []).filter(Boolean);
+    if (cleanSegments.length) {
+      parts.push(`${cleanSegments.join("; ")}.`);
+    }
+    const refreshedNote = `${refreshed || ""}`.trim();
+    if (refreshedNote && !/^Loading/i.test(refreshedNote)) {
+      parts.push(`${refreshedNote}.`);
+    }
+    if (url) {
+      parts.push(url);
+    }
+    return parts.join(" ");
+  }
+
+  function updateSurfaceCitation(container, textElement, text, options = {}) {
+    const visible = options.visible !== false && Boolean(text);
+    if (textElement) {
+      textElement.textContent = text || "";
+    }
+    if (container) {
+      container.hidden = !visible;
+    }
+  }
+
+  function bindSurfaceCitationCopy(button, getText, options = {}) {
+    if (!button || typeof getText !== "function") {
+      return;
+    }
+
+    button.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(getText());
+        if (typeof options.onSuccess === "function") {
+          options.onSuccess();
+        }
+      } catch (_) {
+        if (typeof options.onError === "function") {
+          options.onError();
+        }
+      }
+    });
   }
 
   function getCheckedValues(container) {
@@ -462,6 +535,116 @@
     container.querySelectorAll("input[type='checkbox']").forEach((input) => {
       input.checked = selected.has(input.value);
     });
+  }
+
+  function syncArchiveFilterRail(options = {}) {
+    const {
+      rail,
+      summaryElement,
+      filterDesk,
+      getSummaryText = () => "",
+      isReady = () => true
+    } = options;
+
+    if (!rail) {
+      return;
+    }
+
+    if (summaryElement) {
+      summaryElement.textContent = getSummaryText();
+    }
+
+    rail.hidden = !isReady();
+  }
+
+  function bindArchiveFilterRailOpen(openButton, filterDesk) {
+    if (!openButton || !filterDesk) {
+      return;
+    }
+
+    openButton.addEventListener("click", () => {
+      filterDesk.open = true;
+      filterDesk.scrollIntoView({ behavior: "smooth", block: "start" });
+      openButton.blur();
+    });
+  }
+
+  function bindSeasonChoiceKeyboard(container) {
+    if (!container || container.dataset.seasonKeyboardBound === "true") {
+      return;
+    }
+
+    container.dataset.seasonKeyboardBound = "true";
+
+    const getLabels = () => [...container.querySelectorAll("label.season-choice")];
+
+    const syncTabIndices = (focusIndex = 0) => {
+      const labels = getLabels();
+      labels.forEach((label, index) => {
+        label.tabIndex = index === focusIndex ? 0 : -1;
+      });
+    };
+
+    const focusLabel = (index) => {
+      const labels = getLabels();
+      if (!labels.length) {
+        return;
+      }
+      const nextIndex = ((index % labels.length) + labels.length) % labels.length;
+      syncTabIndices(nextIndex);
+      labels[nextIndex].focus();
+    };
+
+    const toggleLabel = (label) => {
+      const input = label?.querySelector("input[type='checkbox']");
+      if (!input) {
+        return;
+      }
+      input.checked = !input.checked;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    };
+
+    container.addEventListener("keydown", (event) => {
+      const labels = getLabels();
+      if (!labels.length) {
+        return;
+      }
+
+      const currentIndex = labels.findIndex((label) => label === document.activeElement);
+      if (currentIndex === -1) {
+        return;
+      }
+
+      switch (event.key) {
+        case "ArrowRight":
+        case "ArrowDown":
+          event.preventDefault();
+          focusLabel(currentIndex + 1);
+          break;
+        case "ArrowLeft":
+        case "ArrowUp":
+          event.preventDefault();
+          focusLabel(currentIndex - 1);
+          break;
+        case "Home":
+          event.preventDefault();
+          focusLabel(0);
+          break;
+        case "End":
+          event.preventDefault();
+          focusLabel(labels.length - 1);
+          break;
+        case " ":
+        case "Spacebar":
+          event.preventDefault();
+          toggleLabel(labels[currentIndex]);
+          break;
+        default:
+          break;
+      }
+    });
+
+    syncTabIndices(0);
   }
 
   function renderCheckboxChoices(container, values = [], {
@@ -503,6 +686,7 @@
     });
 
     container.appendChild(fragment);
+    bindSeasonChoiceKeyboard(container);
   }
 
   function renderSeasonCheckboxes(container, seasons = [], options = {}) {
@@ -526,8 +710,313 @@
     if (normalized.startsWith("/player/")) {
       return "/players/";
     }
+    if (normalized.startsWith("/international/player/")) {
+      return "/international/players/";
+    }
     return normalized;
   }
+
+  const SITE_MODE_STORAGE_KEY = "ns-site-mode";
+
+  const INTERNATIONAL_FEATURE_LINKS = Object.freeze([
+    { href: "/international/", label: "Archive" },
+    { href: "/international/players/", label: "Players" },
+    { href: "/international/query/", label: "Ask the stats" },
+    { href: "/international/compare/", label: "Compare" }
+  ]);
+
+  function getSiteMode(pathname = window.location.pathname) {
+    return normalisePathname(pathname).startsWith("/international/")
+      ? "international"
+      : "domestic";
+  }
+
+  function readStoredSiteMode() {
+    try {
+      const stored = window.localStorage?.getItem(SITE_MODE_STORAGE_KEY);
+      if (stored === "international" || stored === "domestic") {
+        return stored;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function persistSiteMode(mode) {
+    if (mode !== "domestic" && mode !== "international") {
+      return;
+    }
+    try {
+      window.localStorage?.setItem(SITE_MODE_STORAGE_KEY, mode);
+    } catch (_) {}
+  }
+
+  function mapRouteAcrossModes(pathname = "/", targetMode = "domestic") {
+    const normalized = normalisePathname(pathname);
+    if (targetMode === "international") {
+      if (normalized === "/") {
+        return "/international/";
+      }
+      if (normalized.startsWith("/player/") || normalized === "/players/") {
+        return "/international/players/";
+      }
+      if (normalized.startsWith("/query/")) {
+        return "/international/query/";
+      }
+      if (normalized.startsWith("/compare/")) {
+        return "/international/compare/";
+      }
+      return "/international/";
+    }
+
+    if (normalized === "/international/") {
+      return "/";
+    }
+    if (normalized.startsWith("/international/player/") || normalized === "/international/players/") {
+      return "/players/";
+    }
+    if (normalized.startsWith("/international/query/")) {
+      return "/query/";
+    }
+    if (normalized.startsWith("/international/compare/")) {
+      return "/compare/";
+    }
+    return "/";
+  }
+
+  function hasDirectCrossModeRoute(pathname = "/", targetMode = "domestic") {
+    const normalized = normalisePathname(pathname);
+    if (targetMode === "international") {
+      if (normalized === "/") {
+        return true;
+      }
+      if (normalized.startsWith("/player/") || normalized === "/players/") {
+        return true;
+      }
+      if (normalized.startsWith("/query/")) {
+        return true;
+      }
+      if (normalized.startsWith("/compare/")) {
+        return true;
+      }
+      return false;
+    }
+
+    if (normalized === "/international/") {
+      return true;
+    }
+    if (normalized.startsWith("/international/player/") || normalized === "/international/players/") {
+      return true;
+    }
+    if (normalized.startsWith("/international/query/")) {
+      return true;
+    }
+    if (normalized.startsWith("/international/compare/")) {
+      return true;
+    }
+    return false;
+  }
+
+  function ensureModeFallbackNote(nav) {
+    if (!nav) {
+      return null;
+    }
+
+    let note = nav.querySelector(".page-nav__mode-fallback");
+    if (!note) {
+      note = document.createElement("p");
+      note.className = "page-nav__mode-fallback";
+      note.hidden = true;
+      const modeGroup = nav.querySelector(".page-nav__mode");
+      if (modeGroup) {
+        modeGroup.insertAdjacentElement("afterend", note);
+      } else {
+        nav.prepend(note);
+      }
+    }
+    return note;
+  }
+
+  function prepareChangelogNav(nav) {
+    if (!nav || nav.dataset.siteNavPrepared === "true") {
+      return;
+    }
+
+    const dividers = nav.querySelectorAll(".page-nav__divider");
+    if (dividers.length < 2) {
+      return;
+    }
+
+    const featureDivider = dividers[0];
+    const tailDivider = dividers[1];
+    const domesticContainer = document.createElement("div");
+    domesticContainer.className = "page-nav__links page-nav__links--domestic";
+    domesticContainer.dataset.siteModeLinks = "domestic";
+
+    let node = featureDivider.nextSibling;
+    while (node && node !== tailDivider) {
+      const next = node.nextSibling;
+      if (
+        node.nodeType === Node.ELEMENT_NODE
+        && (node.classList.contains("page-nav__link") || node.classList.contains("page-nav__more"))
+      ) {
+        domesticContainer.appendChild(node);
+      }
+      node = next;
+    }
+
+    nav.insertBefore(domesticContainer, tailDivider);
+
+    const internationalContainer = document.createElement("div");
+    internationalContainer.className = "page-nav__links page-nav__links--international";
+    internationalContainer.dataset.siteModeLinks = "international";
+    internationalContainer.hidden = true;
+
+    INTERNATIONAL_FEATURE_LINKS.forEach(({ href, label }) => {
+      const link = document.createElement("a");
+      link.className = "page-nav__link";
+      link.href = href;
+      link.textContent = label;
+      internationalContainer.appendChild(link);
+    });
+
+    nav.insertBefore(internationalContainer, tailDivider);
+    nav.dataset.siteNavPrepared = "true";
+  }
+
+  function setChangelogNavMode(nav, mode) {
+    prepareChangelogNav(nav);
+    const domesticLinks = nav.querySelector('[data-site-mode-links="domestic"]');
+    const internationalLinks = nav.querySelector('[data-site-mode-links="international"]');
+    if (!domesticLinks || !internationalLinks) {
+      return;
+    }
+
+    const isInternational = mode === "international";
+    domesticLinks.hidden = isInternational;
+    internationalLinks.hidden = !isInternational;
+  }
+
+  function syncSiteModeNav(root = document) {
+    const nav = root.querySelector(".page-nav");
+    if (!nav) {
+      return;
+    }
+
+    const currentRoute = navRouteForPath(window.location.pathname);
+    const routeMode = getSiteMode(window.location.pathname);
+    let activeMode = routeMode;
+
+    if (currentRoute === "/changelog/") {
+      activeMode = readStoredSiteMode() || routeMode;
+      setChangelogNavMode(nav, activeMode);
+    } else {
+      persistSiteMode(routeMode);
+    }
+
+    document.documentElement.dataset.siteMode = activeMode;
+    nav.dataset.siteMode = activeMode;
+    nav.setAttribute(
+      "aria-label",
+      activeMode === "international" ? "International netball archive" : "Super Netball archive"
+    );
+
+    nav.querySelectorAll(".page-nav__mode-link").forEach((link) => {
+      const href = link.getAttribute("href") || "";
+      let linkMode = "domestic";
+      try {
+        linkMode = getSiteMode(new URL(href, window.location.origin).pathname);
+      } catch (_) {}
+
+      const isActive = linkMode === activeMode;
+      link.classList.toggle("page-nav__mode-link--active", isActive);
+      if (isActive) {
+        link.setAttribute("aria-current", "true");
+      } else {
+        link.removeAttribute("aria-current");
+      }
+
+      if (currentRoute === "/changelog/") {
+        link.href = "/changelog/";
+        link.classList.remove("page-nav__mode-link--fallback");
+        link.removeAttribute("title");
+        if (isActive) {
+          link.removeAttribute("data-site-mode-target");
+        } else {
+          link.dataset.siteModeTarget = linkMode;
+        }
+        return;
+      }
+
+      link.removeAttribute("data-site-mode-target");
+      link.href = mapRouteAcrossModes(window.location.pathname, linkMode);
+
+      const hasDirectRoute = hasDirectCrossModeRoute(window.location.pathname, linkMode);
+      link.classList.toggle("page-nav__mode-link--fallback", !isActive && !hasDirectRoute);
+      if (!isActive && !hasDirectRoute) {
+        link.setAttribute(
+          "title",
+          linkMode === "international"
+            ? "This Super Netball page has no International equivalent — opens the International archive home."
+            : "This International page has no Super Netball equivalent — opens the Super Netball archive home."
+        );
+      } else {
+        link.removeAttribute("title");
+      }
+    });
+
+    const fallbackNote = ensureModeFallbackNote(nav);
+    if (fallbackNote) {
+      if (currentRoute === "/changelog/") {
+        fallbackNote.hidden = true;
+        fallbackNote.textContent = "";
+      } else {
+        const otherMode = activeMode === "international" ? "domestic" : "international";
+        const canCrossDirectly = hasDirectCrossModeRoute(window.location.pathname, otherMode);
+        fallbackNote.hidden = canCrossDirectly;
+        fallbackNote.textContent = canCrossDirectly
+          ? ""
+          : activeMode === "international"
+            ? "Switch to Super Netball opens the archive home — this International page has no direct match."
+            : "Switch to International opens the archive home — this Super Netball page has no direct match.";
+      }
+    }
+  }
+
+  function initSiteModeNav(root = document) {
+    const nav = root.querySelector(".page-nav");
+    if (!nav) {
+      return;
+    }
+
+    if (nav.dataset.siteModeInit !== "true") {
+      nav.dataset.siteModeInit = "true";
+      nav.addEventListener("click", (event) => {
+        const link = event.target.closest(".page-nav__mode-link[data-site-mode-target]");
+        if (!link) {
+          return;
+        }
+
+        event.preventDefault();
+        const targetMode = link.dataset.siteModeTarget;
+        if (targetMode !== "domestic" && targetMode !== "international") {
+          return;
+        }
+
+        persistSiteMode(targetMode);
+        syncSiteModeNav(root);
+        markCurrentNavLinks(root);
+      });
+    }
+
+    syncSiteModeNav(root);
+  }
+
+  const DOMESTIC_MORE_ROUTES = new Set([
+    "/league-composition/",
+    "/scoreflow/",
+    "/home-court-advantage/",
+    "/nwar/"
+  ]);
 
   function markCurrentNavLinks(root = document) {
     if (!root?.querySelectorAll || !window.location) {
@@ -550,11 +1039,17 @@
         return;
       }
 
-      if (targetRoute === currentRoute && currentRoute !== "/") {
+      if (targetRoute === currentRoute) {
         link.setAttribute("aria-current", "page");
       } else {
         link.removeAttribute("aria-current");
       }
+    });
+
+    root.querySelectorAll(".page-nav__more").forEach((details) => {
+      const isMoreRoute = DOMESTIC_MORE_ROUTES.has(currentRoute);
+      details.open = isMoreRoute;
+      details.classList.toggle("page-nav__more--active", isMoreRoute);
     });
   }
 
@@ -671,6 +1166,7 @@
   }
 
   document.addEventListener("DOMContentLoaded", () => {
+    initSiteModeNav();
     markCurrentNavLinks();
     document.querySelectorAll(".stack-table").forEach((table) => {
       syncResponsiveTable(table);
@@ -682,20 +1178,28 @@
     window.NetballStatsUI || {},
     {
       buildUrl,
+      buildSurfaceCitationText,
+      bindSurfaceCitationCopy,
+      bindArchiveFilterRailOpen,
       clearEmptyTableState,
       clearStatusTimers,
       cycleStatusBanner,
       debounce,
       fetchJson,
+      formatPageTitle,
       getMeta,
       formatDate,
       formatNumber,
       formatStatAbbrev,
       formatStatLabel,
+      getSiteMode,
+      initSiteModeNav,
       unwrapValue,
       getThemePalette,
       getCheckedValues,
       markCurrentNavLinks,
+      mapRouteAcrossModes,
+      hasDirectCrossModeRoute,
       showStatusBanner,
       showElementLoadingStatus,
       showElementStatus,
@@ -707,7 +1211,11 @@
       ensureChartsModule,
       setChartPlaceholder,
       statPrefersLowerValue,
-      syncResponsiveTable
+      syncArchiveFilterRail,
+      syncResponsiveTable,
+      syncSiteModeNav,
+      updateSurfaceCitation,
+      SITE_BRAND
     }
   );
 })();

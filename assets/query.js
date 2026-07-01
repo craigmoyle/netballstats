@@ -2,6 +2,8 @@ const config = window.NETBALL_STATS_CONFIG || {};
 const API_BASE_URL = (config.apiBaseUrl || "/api").replace(/\/$/, "");
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   clearEmptyTableState = () => {},
   fetchJson,
   getMeta,
@@ -12,7 +14,8 @@ const {
   renderEmptyTableRow = () => {},
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   applyMetaConfig = () => {},
@@ -49,7 +52,7 @@ const DEFAULT_QUERY_STATE = {
   ]
 };
 const FALLBACK_EXAMPLES = [
-  "How many times has Grace Nweke scored 50 goals or more against the Vixens?",
+  "How many times has Grace Nweke scored 50 points or more against the Vixens?",
   "What is Liz Watson's highest goal assist total against the Firebirds?",
   "Which players had 5+ gains in 2025?",
   "Which teams had the lowest general play turnovers in 2025?",
@@ -88,6 +91,7 @@ const elements = {
   apiBase: document.getElementById("api-base"),
   heroSeasonRange: document.getElementById("hero-season-range"),
   querySeasonSummary: document.getElementById("query-season-summary"),
+  queryHeroAside: document.getElementById("query-hero-aside"),
   queryStatus: document.getElementById("query-status"),
   queryForm: document.getElementById("query-form"),
   queryStepShape: document.getElementById("query-step-shape"),
@@ -118,10 +122,42 @@ const elements = {
   errorBannerMessage: document.getElementById("error-banner-message"),
   errorBannerActions: document.getElementById("error-banner-actions"),
   queryPulseSection: document.getElementById("query-pulse-section"),
-  openBuilderTrigger: document.getElementById("open-builder-trigger")
+  openBuilderTrigger: document.getElementById("open-builder-trigger"),
+  queryCitation: document.getElementById("query-citation"),
+  queryCitationText: document.getElementById("query-citation-text"),
+  queryCitationCopy: document.getElementById("query-citation-copy")
 };
 
 elements.submitButton = elements.queryForm.querySelector('[type="submit"]');
+
+let lastQueryCitation = {
+  question: "",
+  segments: []
+};
+
+function buildQueryCitationText() {
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: [
+      lastQueryCitation.question ? `Question: ${lastQueryCitation.question}` : "",
+      ...lastQueryCitation.segments
+    ]
+  });
+}
+
+function renderQueryCitation({ question = "", segments = [], visible = false } = {}) {
+  lastQueryCitation = { question, segments };
+  updateSurfaceCitation(
+    elements.queryCitation,
+    elements.queryCitationText,
+    visible ? buildQueryCitationText() : "",
+    { visible }
+  );
+}
+
+function hideQueryCitation() {
+  renderQueryCitation({ visible: false });
+}
 
 const exampleButtons = Array.from(elements.exampleStrip.querySelectorAll("[data-example]"));
 const templateButtons = Array.from((elements.queryTemplateStrip?.querySelectorAll("[data-template]")) || []);
@@ -502,12 +538,16 @@ function setIdleState() {
   }
   elements.tableMeta.textContent = "";
   clearTable("Run a question to load the matching rows.");
+  hideQueryCitation();
   updateQuestionComposerState(elements.questionInput.value);
 }
 
 function renderMeta(meta) {
   if (!meta || !Array.isArray(meta.seasons) || !meta.seasons.length) {
     elements.querySeasonSummary.textContent = "Questions work across the archive.";
+    if (elements.queryHeroAside) {
+      elements.queryHeroAside.hidden = false;
+    }
     return;
   }
 
@@ -515,6 +555,9 @@ function renderMeta(meta) {
   const firstFullSeason = seasons.length > 1 ? seasons[1] : seasons[0];
   if (elements.heroSeasonRange) elements.heroSeasonRange.textContent = `${seasons[0]} finals + ${firstFullSeason}\u2013${seasons[seasons.length - 1]}`;
   elements.querySeasonSummary.textContent = `${seasons[0]} finals only · full seasons ${firstFullSeason}-${seasons[seasons.length - 1]} · ${meta.player_stats.length} player stats · ${meta.team_stats.length} team stats.`;
+  if (elements.queryHeroAside) {
+    elements.queryHeroAside.hidden = false;
+  }
 }
 
 function renderInterpretation(parsed = {}) {
@@ -908,6 +951,7 @@ function renderUnsupported(result) {
 
   elements.tableMeta.textContent = "";
   clearTable("Rewrite the question, or open the builder to load matching rows.");
+  hideQueryCitation();
 }
 
 function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK_EXAMPLES, builderPrefill = null } = {}) {
@@ -937,6 +981,7 @@ function renderParserGuidance({ message, confidence = "LOW", examples = FALLBACK
   }
   elements.tableMeta.textContent = "";
   clearTable("Pick a working example, or open the builder to keep going.");
+  hideQueryCitation();
 }
 
 function renderResult(result) {
@@ -988,6 +1033,7 @@ function renderResult(result) {
     elements.answerMeta.textContent = "Try the suggested rewrite, or open the builder if you want to build it piece by piece.";
     elements.interpretationGrid.replaceChildren();
     clearTable("No rows yet. Try the rewrite, or open the builder to continue.");
+    hideQueryCitation();
     return;
   }
 
@@ -1019,6 +1065,15 @@ function renderResult(result) {
   renderInterpretation(parsed);
   renderRows(normalized?.rows || [], tableKind);
   elements.tableMeta.textContent = normalized?.tableMeta || "No matching records.";
+  renderQueryCitation({
+    question: elements.questionInput.value.trim().slice(0, 120),
+    segments: [
+      normalized?.summary?.questionType ? `Shape: ${normalized.summary.questionType}` : "",
+      normalized?.summary?.stat ? `Stat: ${normalized.summary.stat}` : "",
+      normalized?.tableMeta || ""
+    ].filter(Boolean),
+    visible: true
+  });
 }
 
 function updateUrl(question) {
@@ -1175,7 +1230,7 @@ async function runQuestion(question, source = "manual") {
       status: "unsupported",
       reason: error.message || "Something went wrong.",
       examples: [
-        "How many times has Fowler scored 50 goals or more against the Vixens?",
+        "How many times has Fowler scored 50 points or more against the Vixens?",
         "What is Liz Watson's highest goal assist total against the Firebirds?",
         "Which teams had the lowest general play turnovers in 2025?"
       ]
@@ -1785,6 +1840,9 @@ async function init() {
     await loadBuilderMetadata(meta);
   } catch (error) {
     elements.querySeasonSummary.textContent = "Archive metadata is unavailable right now. Questions may still work.";
+    if (elements.queryHeroAside) {
+      elements.queryHeroAside.hidden = false;
+    }
     try {
       await loadBuilderMetadata({});
     } catch (builderError) {
@@ -1857,5 +1915,14 @@ elements.exampleStrip.addEventListener("click", async (event) => {
   applyQuestionText(example, { focus: false });
   await runQuestion(example, "example");
 });
+
+bindSurfaceCitationCopy(
+  elements.queryCitationCopy,
+  buildQueryCitationText,
+  {
+    onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2200 }),
+    onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+  }
+);
 
 void init();

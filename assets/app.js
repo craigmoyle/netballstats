@@ -15,6 +15,10 @@ const DEFAULT_CHART_PALETTE = [
 ];
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
+  bindArchiveFilterRailOpen,
+  debounce = (fn) => fn,
   fetchJson,
   getMeta,
   formatDate,
@@ -30,7 +34,9 @@ const {
   setCheckedValues = () => {},
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  syncArchiveFilterRail = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   applyMetaConfig = () => {},
@@ -119,12 +125,24 @@ const ARCHIVE_STARTUP_MESSAGES = [
   "Waking the stats service…",
   "Starting the archive…"
 ];
+const ALL_SEASONS_URL_TOKEN = "all";
 
 const elements = {
   statusBanner: document.getElementById("status-banner"),
   filtersForm: document.getElementById("filters-form"),
   seasonChoices: document.getElementById("season-choices"),
   activeFilterSummary: document.getElementById("active-filter-summary"),
+  archiveFilterRail: document.getElementById("archive-filter-rail"),
+  archiveFilterRailSummary: document.getElementById("archive-filter-rail-summary"),
+  archiveFilterRailOpen: document.getElementById("archive-filter-rail-open"),
+  seasonScopeNote: document.getElementById("season-scope-note"),
+  playerLeadersPanel: document.getElementById("player-leaders-panel"),
+  teamLeadersPanel: document.getElementById("team-leaders-panel"),
+  archiveFilterDesk: document.getElementById("archive-filter-desk"),
+  archiveCitationText: document.getElementById("archive-citation-text"),
+  archiveCitationCopy: document.getElementById("archive-citation-copy"),
+  archiveCitation: document.querySelector(".archive-citation"),
+  homeOverview: document.querySelector(".home-overview"),
   teamId: document.getElementById("team-id"),
   round: document.getElementById("round"),
   teamStat: document.getElementById("team-stat"),
@@ -138,16 +156,16 @@ const elements = {
   rankingButtons: document.querySelectorAll("[data-ranking-mode]"),
   playerSearch: document.getElementById("player-search"),
   resetFilters: document.getElementById("reset-filters"),
-  heroTotalGoals: document.getElementById("hero-total-goals"),
+  heroTotalPoints: document.getElementById("hero-total-points"),
   heroRefreshNote: document.getElementById("hero-refresh-note"),
   summaryMatches: document.getElementById("summary-matches"),
   summaryTeams: document.getElementById("summary-teams"),
   summaryPlayers: document.getElementById("summary-players"),
-  summaryGoals: document.getElementById("summary-goals"),
+  summaryPoints: document.getElementById("summary-points"),
   summaryRefreshed: document.getElementById("summary-refreshed"),
+  editorialLead: document.querySelector(".editorial-lead"),
   editorialLeadHeadline: document.getElementById("editorial-lead-headline"),
   editorialLeadCopy: document.getElementById("editorial-lead-copy"),
-  editorialLeadNote: document.getElementById("editorial-lead-note"),
   editorialLeadFactLabel: document.getElementById("editorial-lead-fact-label"),
   editorialLeadFactValue: document.getElementById("editorial-lead-fact-value"),
   editorialLeadFactCopy: document.getElementById("editorial-lead-fact-copy"),
@@ -184,6 +202,22 @@ const elements = {
   panelViewButtons: document.querySelectorAll("[data-panel][data-view-mode]"),
   seasonActionButtons: document.querySelectorAll("[data-season-action]")
 };
+
+let autoApplyReady = false;
+let archiveResultsReady = false;
+const scheduleFilterApply = debounce(() => {
+  if (!autoApplyReady || !state.meta) {
+    return;
+  }
+  trackEvent("archive_filters_applied", archiveTelemetryProperties());
+  runQueries();
+}, 450);
+
+function flushFilterApply() {
+  if (typeof scheduleFilterApply.cancel === "function") {
+    scheduleFilterApply.cancel();
+  }
+}
 
 
 function isLocalApiConfigured() {
@@ -241,35 +275,53 @@ function createLinkCell(href, text, className) {
   return cell;
 }
 
+function revealLeaderPanels() {
+  if (elements.playerLeadersPanel) {
+    elements.playerLeadersPanel.hidden = false;
+  }
+  if (elements.teamLeadersPanel) {
+    elements.teamLeadersPanel.hidden = false;
+  }
+}
+
+function syncArchiveFilterRailState() {
+  syncArchiveFilterRail({
+    rail: elements.archiveFilterRail,
+    summaryElement: elements.archiveFilterRailSummary,
+    filterDesk: elements.archiveFilterDesk,
+    getSummaryText: () => elements.activeFilterSummary?.textContent?.trim() || "",
+    isReady: () => archiveResultsReady
+  });
+}
+
 function renderEditorialLead(payload) {
-  if (!elements.editorialLeadHeadline || !elements.editorialLeadCopy || !elements.editorialLeadNote) {
+  if (!elements.editorialLeadHeadline || !elements.editorialLeadCopy) {
     return;
   }
 
   if (!payload || payload.error) {
     elements.editorialLeadHeadline.textContent = "The archive is ready for a fresh read.";
-    elements.editorialLeadCopy.textContent = "Start with the latest completed round, then use the filters below to chase the player, team, or stat thread you care about.";
-    elements.editorialLeadNote.textContent = "Open the round recap for the newest scorelines, or stay here and cut a custom slice of the archive.";
+    elements.editorialLeadCopy.textContent = "Start with the latest completed round, then filter the leaders below.";
     elements.editorialLeadFactLabel.textContent = "Archive route";
     elements.editorialLeadFactValue.textContent = "Round recap";
     elements.editorialLeadFactCopy.textContent = "The latest completed round is the quickest way into the live archive.";
     elements.editorialLeadSecondaryLabel.textContent = "Next move";
-    elements.editorialLeadSecondaryValue.textContent = "Choose the slice";
-    elements.editorialLeadSecondaryCopy.textContent = "Use seasons and stat selectors first, then tighten the frame only if you need it.";
+    elements.editorialLeadSecondaryValue.textContent = "Filter leaders";
+    elements.editorialLeadSecondaryCopy.textContent = "Set seasons and stats, then open a dossier from the player table.";
+    if (elements.editorialLead) {
+      elements.editorialLead.hidden = false;
+    }
     return;
   }
 
   const summary = payload.summary || {};
   const leadFact = Array.isArray(payload.notable_facts) && payload.notable_facts.length ? payload.notable_facts[0] : null;
-  const secondFact = Array.isArray(payload.notable_facts) && payload.notable_facts.length > 1 ? payload.notable_facts[1] : null;
   const roundName = payload.round_label || "Latest completed round";
   const roundLabel = payload.season ? `${roundName}, ${payload.season}` : roundName;
 
   elements.editorialLeadHeadline.textContent = `${roundLabel} is now on the shelf.`;
   elements.editorialLeadCopy.textContent = leadFact?.detail
-    || `${formatNumber(summary.total_matches)} matches and ${formatNumber(summary.total_goals)} points are now logged in the latest completed round.`;
-  elements.editorialLeadNote.textContent = secondFact?.detail
-    || "Use the recap for the full slate, then come back here to compare names, trace patterns, or narrow the archive.";
+    || `${formatNumber(summary.total_matches)} matches and ${formatNumber(summary.total_goals)} points logged in the latest completed round.`;
   elements.editorialLeadFactLabel.textContent = leadFact?.title || "Lead note";
   elements.editorialLeadFactValue.textContent = leadFact?.value || `${formatNumber(summary.total_goals)} points`;
   elements.editorialLeadFactCopy.textContent = leadFact?.detail || "The archive has logged the latest round totals.";
@@ -280,6 +332,10 @@ function renderEditorialLead(payload) {
   elements.editorialLeadSecondaryCopy.textContent = summary.biggest_margin === null || summary.biggest_margin === undefined
     ? "Biggest margin unavailable."
     : `Biggest margin ${formatNumber(summary.biggest_margin)}.`;
+
+  if (elements.editorialLead) {
+    elements.editorialLead.hidden = false;
+  }
 }
 
 function createPlayerLinkCell(playerId, text) {
@@ -366,12 +422,16 @@ function renderSeasonChoices(seasons) {
   renderSeasonCheckboxes(elements.seasonChoices, seasons, { inputName: "season-choice" });
 }
 
+function isAllSeasonsScope(seasons = state.filters.seasons) {
+  return !seasons.length;
+}
+
 function seasonSummaryLabel(seasons) {
   if (!state.meta || !state.meta.seasons.length) {
     return "No seasons available";
   }
-  if (!seasons.length) {
-    return "All seasons selected";
+  if (isAllSeasonsScope(seasons)) {
+    return "All seasons · full archive";
   }
   if (seasons.length === 1) {
     return `Season ${seasons[0]}`;
@@ -383,8 +443,8 @@ function describeSeasonScope() {
   if (!state.meta || !state.meta.seasons.length) {
     return "the available seasons";
   }
-  if (!state.filters.seasons.length) {
-    return "all seasons";
+  if (isAllSeasonsScope()) {
+    return "all seasons (full archive)";
   }
   if (state.filters.seasons.length === 1) {
     return `season ${state.filters.seasons[0]}`;
@@ -613,6 +673,115 @@ function syncFiltersFromForm() {
   };
 }
 
+function syncHomeUrlState() {
+  if (!window.history || typeof window.history.replaceState !== "function") {
+    return;
+  }
+
+  syncFiltersFromForm();
+  const params = new URLSearchParams();
+  const filters = state.filters;
+
+  if (filters.seasons.length) {
+    params.set("seasons", filters.seasons.join(","));
+  } else if (state.meta?.seasons?.length) {
+    params.set("seasons", ALL_SEASONS_URL_TOKEN);
+  }
+  if (filters.teamId) {
+    params.set("team_id", filters.teamId);
+  }
+  if (filters.round) {
+    params.set("round", filters.round);
+  }
+  if (filters.teamStat) {
+    params.set("team_stat", filters.teamStat);
+  }
+  if (filters.playerStat) {
+    params.set("player_stat", filters.playerStat);
+  }
+  if (filters.statMode) {
+    params.set("metric", filters.statMode);
+  }
+  if (filters.rankingMode) {
+    params.set("ranking", filters.rankingMode);
+  }
+  if (filters.archiveMode) {
+    params.set("archive_mode", filters.archiveMode);
+  }
+  if (filters.playerSearch) {
+    params.set("player_search", filters.playerSearch);
+  }
+
+  const nextUrl = params.toString()
+    ? `${window.location.pathname}?${params.toString()}`
+    : window.location.pathname;
+  window.history.replaceState(null, "", nextUrl);
+}
+
+function applyHomeUrlState(meta) {
+  const url = new URL(window.location.href);
+  if (!url.searchParams.toString()) {
+    return false;
+  }
+
+  const validSeasons = new Set((meta.seasons || []).map((season) => `${season}`));
+  const seasonsParam = (url.searchParams.get("seasons") || "").trim();
+  if (seasonsParam.toLowerCase() === ALL_SEASONS_URL_TOKEN) {
+    setSelectedSeasons([]);
+  } else {
+    const seasons = seasonsParam
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => validSeasons.has(value));
+    if (seasons.length) {
+      setSelectedSeasons(seasons);
+    }
+  }
+
+  const teamId = (url.searchParams.get("team_id") || "").trim();
+  if (teamId && meta.teams.some((team) => `${team.squad_id}` === teamId)) {
+    elements.teamId.value = teamId;
+  }
+
+  const round = (url.searchParams.get("round") || "").trim();
+  if (round && Number(round) >= 1 && Number(round) <= 30) {
+    elements.round.value = round;
+  }
+
+  const teamStat = (url.searchParams.get("team_stat") || "").trim();
+  if (teamStat && meta.team_stats.includes(teamStat)) {
+    elements.teamStat.value = teamStat;
+  }
+
+  const playerStat = (url.searchParams.get("player_stat") || "").trim();
+  if (playerStat && meta.player_stats.includes(playerStat)) {
+    elements.playerStat.value = playerStat;
+  }
+
+  const metric = (url.searchParams.get("metric") || "").trim();
+  if (metric === "total" || metric === "average") {
+    elements.statMode.value = metric;
+  }
+
+  const ranking = (url.searchParams.get("ranking") || "").trim();
+  if (ranking === "highest" || ranking === "lowest") {
+    setRankingMode(ranking);
+  }
+
+  const archiveMode = (url.searchParams.get("archive_mode") || "").trim();
+  if (archiveMode === "aggregate" || archiveMode === "records") {
+    setArchiveMode(archiveMode);
+  }
+
+  const playerSearch = (url.searchParams.get("player_search") || "").trim().slice(0, 80);
+  if (playerSearch) {
+    elements.playerSearch.value = playerSearch;
+  }
+
+  renderFilterSummary();
+  return true;
+}
+
 function archiveTelemetryProperties() {
   syncFiltersFromForm();
   return {
@@ -646,6 +815,9 @@ function renderFilterSummary() {
   }
 
   elements.activeFilterSummary.textContent = segments.join(" • ");
+  if (elements.seasonScopeNote) {
+    elements.seasonScopeNote.hidden = !isAllSeasonsScope(state.filters.seasons);
+  }
   if (elements.archiveAdvanced) {
     const hasTighterSlice = Boolean(
       state.filters.teamId
@@ -666,6 +838,58 @@ function renderFilterSummary() {
       : `${rankingModeLabel()} players by ${currentPlayerStatLabel()}`;
   }
   updateValueHeadings();
+  renderArchiveCitation();
+  syncArchiveFilterDeskOpen();
+  syncArchiveFilterRailState();
+}
+
+function buildArchiveCitationSegments() {
+  syncFiltersFromForm();
+  return [
+    seasonSummaryLabel(state.filters.seasons),
+    teamLabel(state.filters.teamId),
+    state.filters.round ? `Round ${state.filters.round}` : "All rounds",
+    archiveModeLabel(),
+    isRecordMode() ? "single-game records" : statModeDescriptor(),
+    rankingModeDescriptor(),
+    `Team stat: ${currentTeamStatLabel()}`,
+    `Player stat: ${currentPlayerStatLabel()}`
+  ].concat(state.filters.playerSearch ? [`Player search: ${state.filters.playerSearch}`] : []);
+}
+
+function buildArchiveCitationText() {
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: buildArchiveCitationSegments(),
+    refreshed: elements.summaryRefreshed?.textContent?.trim() || ""
+  });
+}
+
+function renderArchiveCitation() {
+  updateSurfaceCitation(
+    elements.archiveCitation,
+    elements.archiveCitationText,
+    archiveResultsReady ? buildArchiveCitationText() : "",
+    { visible: archiveResultsReady }
+  );
+}
+
+function syncArchiveFilterDeskOpen() {
+  if (!elements.archiveFilterDesk) {
+    return;
+  }
+
+  const urlHasFilters = Boolean(new URL(window.location.href).searchParams.toString());
+  syncFiltersFromForm();
+  const hasTighterSlice = Boolean(
+    state.filters.teamId
+    || state.filters.round
+    || state.filters.playerSearch
+    || state.filters.rankingMode !== "highest"
+    || state.filters.archiveMode !== "aggregate"
+    || state.filters.statMode !== "total"
+  );
+  elements.archiveFilterDesk.open = urlHasFilters || hasTighterSlice;
 }
 
 function applyMeta(meta) {
@@ -705,13 +929,20 @@ function applyMeta(meta) {
 }
 
 function renderSummary(summary) {
-  if (elements.heroTotalGoals) elements.heroTotalGoals.textContent = formatNumber(summary.total_goals);
+  if (elements.heroTotalPoints) elements.heroTotalPoints.textContent = formatNumber(summary.total_goals);
   if (elements.heroRefreshNote) elements.heroRefreshNote.textContent = "Updated " + formatDate(summary.refreshed_at, { includeTime: true });
   elements.summaryMatches.textContent = formatNumber(summary.total_matches);
   if (elements.summaryTeams) elements.summaryTeams.textContent = formatNumber(summary.total_teams);
   elements.summaryPlayers.textContent = formatNumber(summary.total_players);
-  if (elements.summaryGoals) elements.summaryGoals.textContent = formatNumber(summary.total_goals);
+  if (elements.summaryPoints) elements.summaryPoints.textContent = formatNumber(summary.total_goals);
   elements.summaryRefreshed.textContent = formatDate(summary.refreshed_at, { includeTime: true });
+  if (elements.summaryRefreshed) {
+    elements.summaryRefreshed.hidden = false;
+  }
+  if (elements.homeOverview) {
+    elements.homeOverview.hidden = false;
+  }
+  renderArchiveCitation();
 }
 
 function renderMatches(matches) {
@@ -958,7 +1189,7 @@ function setPanelView(panel, mode) {
     }
 
     if (!state.deferredPanels.queryKey) {
-      clearChart(elements.competitionSeasonChart, "Loading season context…");
+      clearChart(elements.competitionSeasonChart, "Switch to chart to see season context.");
       return;
     }
 
@@ -978,7 +1209,7 @@ function setPanelView(panel, mode) {
     }
 
     if (!state.deferredPanels.queryKey) {
-      clearChart(elements.teamTrendChart, "Loading team trend…");
+      clearChart(elements.teamTrendChart, "Switch to chart to load season trends.");
       return;
     }
 
@@ -998,7 +1229,7 @@ function setPanelView(panel, mode) {
     }
 
     if (!state.deferredPanels.queryKey) {
-      clearChart(elements.playerTrendChart, "Loading player trend…");
+      clearChart(elements.playerTrendChart, "Switch to chart to load season trends.");
       return;
     }
 
@@ -1111,11 +1342,8 @@ function renderCompetitionLoadingState() {
     return;
   }
 
-  renderCompetitionSeasonTable([], "Loading season context…");
-  clearChart(
-    elements.competitionSeasonChart,
-    state.views["competition-season"] === "chart" ? "Loading season context…" : "Switch to chart to see season context."
-  );
+  renderCompetitionSeasonTable([], "Season totals load with the archive filters.");
+  clearChart(elements.competitionSeasonChart, "Switch to chart to see season context.");
 }
 
 function renderTrendLoadingStates() {
@@ -1125,14 +1353,8 @@ function renderTrendLoadingStates() {
     return;
   }
 
-  clearChart(
-    elements.teamTrendChart,
-    state.views["team-leaders"] === "chart" ? "Loading team trend…" : "Switch to chart to load season trends."
-  );
-  clearChart(
-    elements.playerTrendChart,
-    state.views["player-leaders"] === "chart" ? "Loading player trend…" : "Switch to chart to load season trends."
-  );
+  clearChart(elements.teamTrendChart, "Switch to chart to load season trends.");
+  clearChart(elements.playerTrendChart, "Switch to chart to load season trends.");
 }
 
 function competitionSeriesParams() {
@@ -1190,7 +1412,7 @@ function renderDeferredPanel(panel) {
 
   if (panel === "team") {
     if (payload.status === "loading") {
-      clearChart(elements.teamTrendChart, "Loading team trend…");
+      clearChart(elements.teamTrendChart, "Switch to chart to load season trends.");
       return;
     }
 
@@ -1203,7 +1425,7 @@ function renderDeferredPanel(panel) {
 
   if (panel === "player") {
     if (payload.status === "loading") {
-      clearChart(elements.playerTrendChart, "Loading player trend…");
+      clearChart(elements.playerTrendChart, "Switch to chart to load season trends.");
       return;
     }
 
@@ -1336,6 +1558,11 @@ async function runQueries() {
     setPanelView("team-leaders", state.views["team-leaders"]);
     setPanelView("player-leaders", state.views["player-leaders"]);
     showStatus("Archive ready.", "success", { kicker: "Ready", autoHideMs: 2200 });
+    syncHomeUrlState();
+    archiveResultsReady = true;
+    revealLeaderPanels();
+    renderArchiveCitation();
+    syncArchiveFilterRailState();
 
     if (!isRecordMode()) {
       void fetchDeferredPanel("competition", seq);
@@ -1345,6 +1572,7 @@ async function runQueries() {
     showStatus(error.message || "Couldn't load the archive.", "error", { kicker: "Archive unavailable" });
     clearAllTables("Couldn't load the archive.");
     clearAllCharts("Couldn't load charts.");
+    revealLeaderPanels();
   } finally {
     if (seq === runQuerySeq && submitBtn) {
       submitBtn.disabled = false;
@@ -1354,9 +1582,8 @@ async function runQueries() {
 }
 
 async function initialise() {
-  clearAllTables("Loading…");
-  clearAllCharts("Loading…");
   renderEditorialLead(null);
+  bindArchiveFilterRailOpen(elements.archiveFilterRailOpen, elements.archiveFilterDesk);
 
   try {
     let meta;
@@ -1382,8 +1609,10 @@ async function initialise() {
 
     applyMeta(meta);
     applyMetaConfig(meta);
+    applyHomeUrlState(meta);
     const editorialLeadPromise = fetchOptionalJson("/round-summary")
       .then((payload) => renderEditorialLead(payload));
+    autoApplyReady = true;
     await runQueries();
     await editorialLeadPromise;
   } catch (error) {
@@ -1398,16 +1627,19 @@ async function initialise() {
 
 elements.filtersForm.addEventListener("submit", (event) => {
   event.preventDefault();
+  flushFilterApply();
   trackEvent("archive_filters_applied", archiveTelemetryProperties());
   runQueries();
 });
 
 elements.filtersForm.addEventListener("input", () => {
   renderFilterSummary();
+  scheduleFilterApply();
 });
 
 elements.filtersForm.addEventListener("change", () => {
   renderFilterSummary();
+  scheduleFilterApply();
 });
 
 elements.seasonActionButtons.forEach((button) => {
@@ -1426,6 +1658,7 @@ elements.seasonActionButtons.forEach((button) => {
     }
 
     renderFilterSummary();
+    scheduleFilterApply();
   });
 });
 
@@ -1435,7 +1668,9 @@ elements.resetFilters.addEventListener("click", () => {
   }
 
   trackEvent("archive_filters_reset", archiveTelemetryProperties());
+  flushFilterApply();
   applyMeta(state.meta);
+  syncHomeUrlState();
   runQueries();
 });
 
@@ -1443,6 +1678,7 @@ elements.rankingButtons.forEach((button) => {
   button.addEventListener("click", () => {
     setRankingMode(button.dataset.rankingMode);
     renderFilterSummary();
+    scheduleFilterApply();
   });
 });
 
@@ -1450,6 +1686,7 @@ elements.archiveModeButtons.forEach((button) => {
   button.addEventListener("click", () => {
     setArchiveMode(button.dataset.archiveMode);
     renderFilterSummary();
+    scheduleFilterApply();
   });
 });
 
@@ -1458,6 +1695,17 @@ elements.panelViewButtons.forEach((button) => {
     setPanelView(button.dataset.panel, button.dataset.viewMode);
   });
 });
+
+if (elements.archiveCitationCopy) {
+  bindSurfaceCitationCopy(
+    elements.archiveCitationCopy,
+    buildArchiveCitationText,
+    {
+      onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2200 }),
+      onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+    }
+  );
+}
 
 setPanelView("competition-season", "table");
 setPanelView("team-leaders", "table");

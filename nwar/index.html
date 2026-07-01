@@ -3,9 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="application-name" content="Statsball">
     <script src="/assets/theme.js"></script>
-    <title>nWAR — Netball Wins Above Replacement | Netball Stats Database</title>
-    <meta name="description" content="Netball Wins Above Replacement (nWAR) ranks players by their estimated contribution to wins, using a fantasy-score-based metric to compare across all seasons and positions.">
+    <title>nWAR · Statsball</title>
+    <meta name="description" content="Netball Wins Above Replacement ranks players by estimated contribution to wins across seasons and positions.">
+    <meta property="og:title" content="nWAR · Statsball">
+    <meta property="og:description" content="Netball Wins Above Replacement ranks players by estimated contribution to wins across seasons and positions.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/share-domestic.png">
+    <meta property="og:image:alt" content="Statsball — Super Netball and ANZ Championship archive">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="nWAR · Statsball">
+    <meta name="twitter:description" content="Netball Wins Above Replacement ranks players by estimated contribution to wins across seasons and positions.">
+    <meta name="twitter:image" content="/assets/share-domestic.png">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
@@ -17,24 +27,29 @@
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
-        <nav class="page-nav" aria-label="Site navigation">
-          <a class="page-nav__link" href="/">SSN/ANZC</a>
+        <nav class="page-nav" aria-label="Super Netball archive">
+          <div class="page-nav__mode" role="group" aria-label="Switch archive">
+            <a class="page-nav__mode-link page-nav__mode-link--active" href="/">Super Netball</a>
+            <a class="page-nav__mode-link" href="/international/">International</a>
+          </div>
+          <span class="page-nav__divider" aria-hidden="true"></span>
+          <a class="page-nav__link" href="/">Archive</a>
           <a class="page-nav__link" href="/players/">Players</a>
           <a class="page-nav__link" href="/query/">Ask the stats</a>
           <a class="page-nav__link" href="/compare/">Compare</a>
           <a class="page-nav__link" href="/round/">Round recap</a>
-          <a class="page-nav__link" href="/league-composition/">Composition</a>
-          <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
-          <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
-          <a class="page-nav__link" href="/nwar/" aria-current="page">nWAR</a>
-          <span class="page-nav__divider" aria-hidden="true"></span>
-          <a class="page-nav__link" href="/international/">International</a>
-          <a class="page-nav__link" href="/international/players/">Players</a>
-          <a class="page-nav__link" href="/international/query/">Ask the stats</a>
-          <a class="page-nav__link" href="/international/compare/">Compare</a>
+                  <details class="page-nav__more">
+          <summary class="page-nav__more-summary">More tools</summary>
+          <div class="page-nav__more-menu" role="group" aria-label="Specialist archive tools">
+            <a class="page-nav__link" href="/league-composition/"><span class="page-nav__link-label">Composition</span><small class="page-nav__link-hint">Youth, age, and import share</small></a>
+            <a class="page-nav__link" href="/scoreflow/"><span class="page-nav__link-label">Scoreflow</span><small class="page-nav__link-hint">Comebacks and score control</small></a>
+            <a class="page-nav__link" href="/home-court-advantage/"><span class="page-nav__link-label">Court advantage</span><small class="page-nav__link-hint">Home win rate and margin swing</small></a>
+            <a class="page-nav__link" href="/nwar/"><span class="page-nav__link-label">nWAR</span><small class="page-nav__link-hint">Wins above replacement by position</small></a>
+          </div>
+        </details>
           <span class="page-nav__divider" aria-hidden="true"></span>
           <a class="page-nav__link" href="/changelog/">Changelog</a>
-          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Current theme dark. Switch to light theme"><span class="theme-toggle__kicker">Reading mode</span><span class="theme-toggle__value">Night desk</span></button>
         </nav>
 
       <section class="hero-panel">
@@ -44,11 +59,11 @@
           <p class="intro-copy">How many extra wins has each player contributed compared to a replacement-level player?</p>
         </div>
 
-        <aside class="hero-aside" aria-label="nWAR summary">
+        <aside class="hero-aside" id="nwar-hero-aside" aria-label="nWAR summary" hidden>
           <div class="hero-aside__card">
             <span class="hero-aside__label">Top performer</span>
-            <strong id="nwar-hero-label">Loading…</strong>
-            <p id="nwar-hero-summary">Loading the nWAR leaderboard.</p>
+            <strong id="nwar-hero-label">--</strong>
+            <p id="nwar-hero-summary">Rankings update when filters are applied.</p>
           </div>
         </aside>
       </section>
@@ -61,9 +76,14 @@
           <div>
             <h2>Player nWAR rankings</h2>
           </div>
-          <p class="muted" id="nwar-meta">Loading rankings…</p>
+          <p class="muted" id="nwar-meta">Adjust filters to rank players by estimated contribution.</p>
         </div>
 
+
+        <div id="nwar-citation" class="archive-citation" aria-label="nWAR citation" hidden>
+          <p id="nwar-citation-text" class="archive-citation__text muted"></p>
+          <button type="button" id="nwar-citation-copy" class="button button--ghost button--small">Copy citation</button>
+        </div>
         <form id="nwar-filters" class="filters filters--dashboard" aria-label="nWAR filters">
           <div class="field field--compact nwar-filters__field nwar-filters__field--season">
             <label for="nwar-season">Season</label>
@@ -119,9 +139,7 @@
                 <th scope="col" id="nwar-value-heading">nWAR</th>
               </tr>
             </thead>
-            <tbody id="nwar-tbody">
-              <tr><td colspan="9" class="empty-state" data-kicker="Loading">Loading the nWAR leaderboard…</td></tr>
-            </tbody>
+            <tbody id="nwar-tbody"></tbody>
           </table>
         </div>
       </section>

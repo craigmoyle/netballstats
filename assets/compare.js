@@ -18,6 +18,8 @@ const LEGACY_STAT_ALIASES = new Map([
 const playerProfileCache = new Map();
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   clearEmptyTableState = () => {},
   debounce = (fn) => fn,
   ensureChartsModule = () => Promise.reject(new Error('Charts unavailable')),
@@ -34,7 +36,8 @@ const {
   showElementStatus = () => {},
   statPrefersLowerValue = () => false,
   setCheckedValues = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   applyMetaConfig = () => {},
@@ -93,6 +96,7 @@ const COMPARE_META_LOADING_MESSAGES = [
   "Loading comparison options…",
   "Loading teams, players, and seasons…"
 ];
+const ALL_SEASONS_URL_TOKEN = "all";
 
 const state = {
   meta: null,
@@ -110,6 +114,9 @@ const state = {
 
 const elements = {
   statusBanner: document.getElementById("compare-status"),
+  errorBanner: document.getElementById("compare-error-banner"),
+  errorBannerMessage: document.getElementById("compare-error-banner-message"),
+  errorBannerActions: document.getElementById("compare-error-banner-actions"),
   compareForm: document.getElementById("compare-form"),
   compareSummary: document.getElementById("compare-summary"),
   heroMode: document.getElementById("compare-hero-mode"),
@@ -142,7 +149,10 @@ const elements = {
   compareTableCaption: document.getElementById("compare-table-caption"),
   compareTableHead: document.getElementById("compare-table-head"),
   compareTableBody: document.getElementById("compare-table-body"),
-  compareTableFoot: document.getElementById("compare-table-foot")
+  compareTableFoot: document.getElementById("compare-table-foot"),
+  compareCitation: document.getElementById("compare-citation"),
+  compareCitationText: document.getElementById("compare-citation-text"),
+  compareCitationCopy: document.getElementById("compare-citation-copy")
 };
 
 elements.submitButton = elements.compareForm.querySelector('[type="submit"]');
@@ -153,6 +163,42 @@ function showStatus(message, tone = "neutral", options = {}) {
 
 function showLoadingStatus(messages, kicker) {
   showElementLoadingStatus(elements.statusBanner, messages, kicker);
+}
+
+function showErrorBanner(message, actions = []) {
+  if (!elements.errorBanner) {
+    return;
+  }
+
+  elements.errorBanner.hidden = false;
+  if (elements.errorBannerMessage) {
+    elements.errorBannerMessage.textContent = message;
+  }
+  if (elements.errorBannerActions) {
+    elements.errorBannerActions.replaceChildren();
+    actions.forEach(({ label, onClick, className = "button button--primary" }) => {
+      const button = document.createElement("button");
+      button.type = "button";
+      button.className = className;
+      button.textContent = label;
+      button.addEventListener("click", onClick);
+      elements.errorBannerActions.appendChild(button);
+    });
+  }
+}
+
+function hideErrorBanner() {
+  if (!elements.errorBanner) {
+    return;
+  }
+
+  elements.errorBanner.hidden = true;
+  if (elements.errorBannerMessage) {
+    elements.errorBannerMessage.textContent = "";
+  }
+  if (elements.errorBannerActions) {
+    elements.errorBannerActions.replaceChildren();
+  }
 }
 
 function normaliseColour(value) {
@@ -223,7 +269,7 @@ function describeSeasons(seasons) {
     return "available seasons";
   }
   if (!seasons.length) {
-    return "all seasons";
+    return "All seasons · full archive";
   }
   if (seasons.length === 1) {
     return `season ${seasons[0]}`;
@@ -262,6 +308,7 @@ function clearComparison(message) {
   renderEmptyTable(message);
   elements.compareResultsMeta.textContent = message;
   elements.compareTableCaption.textContent = message;
+  hideCompareCitation();
   if (elements.compareVerdict) {
     elements.compareVerdict.hidden = true;
   }
@@ -655,6 +702,8 @@ function syncUrlState() {
   const seasons = getSelectedSeasons();
   if (seasons.length) {
     params.set("seasons", seasons.join(","));
+  } else if (state.meta?.seasons?.length) {
+    params.set("seasons", ALL_SEASONS_URL_TOKEN);
   }
 
   const nextUrl = params.toString()
@@ -1126,6 +1175,35 @@ function renderComparisonSummary(entities, rows) {
   elements.compareResultsMeta.textContent = `${entityLabel} • ${currentStatLabel()} • ${currentMetricLabel()} • ${seasonLabel}`;
   elements.compareTableCaption.textContent = `${currentStatLabel()} comparison by season for the selected ${state.mode}.`;
   renderComparisonVerdict(entities, rows);
+  renderCompareCitation(entities);
+}
+
+function buildCompareCitationText(entities = selectedEntities()) {
+  const names = entities.map((entity) => entity.name).filter(Boolean);
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: [
+      `Compare ${state.mode}`,
+      names.length ? names.join(" vs ") : "Selected names",
+      currentStatLabel(),
+      currentMetricLabel(),
+      describeSeasons(getSelectedSeasons())
+    ]
+  });
+}
+
+function renderCompareCitation(entities = selectedEntities()) {
+  const visible = entities.length >= 2;
+  updateSurfaceCitation(
+    elements.compareCitation,
+    elements.compareCitationText,
+    visible ? buildCompareCitationText(entities) : "",
+    { visible }
+  );
+}
+
+function hideCompareCitation() {
+  updateSurfaceCitation(elements.compareCitation, elements.compareCitationText, "", { visible: false });
 }
 
 async function runComparison() {
@@ -1137,6 +1215,7 @@ async function runComparison() {
   }
 
   trackEvent("compare_submitted", comparisonTelemetryProperties(entities.length));
+  hideErrorBanner();
   showLoadingStatus(COMPARE_LOADING_MESSAGES, "Loading comparison");
   try {
     let rows;
@@ -1171,7 +1250,15 @@ async function runComparison() {
       ...comparisonTelemetryProperties(entities.length),
       outcome: "error"
     });
-    showStatus(error.message || "Comparison data is unavailable right now.", "error", { kicker: "Comparison unavailable" });
+    const message = error.message || "Comparison data is unavailable right now.";
+    showErrorBanner(message, [{
+      label: "Try again",
+      onClick: () => {
+        hideErrorBanner();
+        void runComparison();
+      }
+    }]);
+    showStatus("");
   }
 }
 
@@ -1187,10 +1274,7 @@ async function applyUrlState() {
   const mode = url.searchParams.get("mode");
   const metric = url.searchParams.get("metric");
   const stat = url.searchParams.get("stat");
-  const seasons = (url.searchParams.get("seasons") || "")
-    .split(",")
-    .map((value) => value.trim())
-    .filter(Boolean);
+  const seasonsParam = (url.searchParams.get("seasons") || "").trim();
   const ids = (url.searchParams.get("ids") || "")
     .split(",")
     .map((value) => value.trim())
@@ -1202,8 +1286,17 @@ async function applyUrlState() {
   if (metric === "total" || metric === "average") {
     setMetric(metric);
   }
-  if (seasons.length) {
-    setSelectedSeasons(seasons);
+  if (seasonsParam.toLowerCase() === ALL_SEASONS_URL_TOKEN) {
+    setSelectedSeasons([]);
+  } else if (seasonsParam) {
+    const validSeasons = new Set((state.meta?.seasons || []).map((season) => `${season}`));
+    const seasons = seasonsParam
+      .split(",")
+      .map((value) => value.trim())
+      .filter((value) => validSeasons.has(value));
+    if (seasons.length) {
+      setSelectedSeasons(seasons);
+    }
   }
   if (stat && currentStatCatalog().includes(stat)) {
     state.statSelections[state.mode] = stat;
@@ -1350,8 +1443,18 @@ function initialiseEventListeners() {
   });
 }
 
+bindSurfaceCitationCopy(
+  elements.compareCitationCopy,
+  buildCompareCitationText,
+  {
+    onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2200 }),
+    onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+  }
+);
+
 async function initialise() {
-  clearComparison("Loading comparison options…");
+  clearComparison(promptMessage());
+  hideErrorBanner();
   showLoadingStatus(COMPARE_META_LOADING_MESSAGES, "Loading builder");
 
   try {
@@ -1368,7 +1471,15 @@ async function initialise() {
       showStatus("");
     }
   } catch (error) {
-    showStatus(error.message || "Comparison options are unavailable right now.", "error", { kicker: "Builder unavailable" });
+    const message = error.message || "Comparison options are unavailable right now.";
+    showErrorBanner(message, [{
+      label: "Try again",
+      onClick: () => {
+        hideErrorBanner();
+        void initialise();
+      }
+    }]);
+    showStatus("");
     clearComparison("Comparison options are unavailable right now.");
   }
 }

@@ -1,5 +1,7 @@
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   clearEmptyTableState = () => {},
   fetchJson,
   getMeta,
@@ -8,7 +10,8 @@ const {
   renderEmptyTableRow = () => {},
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   trackEvent = () => {},
@@ -41,6 +44,7 @@ const elements = {
   nwarStatus: document.getElementById("nwar-status"),
   nwarHeroLabel: document.getElementById("nwar-hero-label"),
   nwarHeroSummary: document.getElementById("nwar-hero-summary"),
+  nwarHeroAside: document.getElementById("nwar-hero-aside"),
   nwarMeta: document.getElementById("nwar-meta"),
   nwarFilters: document.getElementById("nwar-filters"),
   nwarSeason: document.getElementById("nwar-season"),
@@ -48,7 +52,10 @@ const elements = {
   nwarEra: document.getElementById("nwar-era"),
   nwarPositionGroup: document.getElementById("nwar-position-group"),
   nwarValueHeading: document.getElementById("nwar-value-heading"),
-  nwarTbody: document.getElementById("nwar-tbody")
+  nwarTbody: document.getElementById("nwar-tbody"),
+  nwarCitation: document.getElementById("nwar-citation"),
+  nwarCitationText: document.getElementById("nwar-citation-text"),
+  nwarCitationCopy: document.getElementById("nwar-citation-copy")
 };
 
 function showStatus(message, tone = "neutral", options = {}) {
@@ -210,6 +217,39 @@ async function loadMetadata() {
   }
 }
 
+function buildNwarCitationText() {
+  const season = elements.nwarSeason?.value || "";
+  const allSeasonsView = isAllSeasonsView();
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: [
+      "nWAR rankings",
+      buildContextLabel({
+        season,
+        era: season ? "" : (elements.nwarEra?.value || ""),
+        positionGroup: elements.nwarPositionGroup?.value || "",
+        allSeasonsView
+      }),
+      elements.nwarMinGames?.value ? `Min games ${elements.nwarMinGames.value}` : ""
+    ]
+  });
+}
+
+function renderNwarCitation() {
+  updateSurfaceCitation(
+    elements.nwarCitation,
+    elements.nwarCitationText,
+    state.rows.length ? buildNwarCitationText() : "",
+    { visible: state.rows.length > 0 }
+  );
+}
+
+function revealNwarHeroAside() {
+  if (elements.nwarHeroAside) {
+    elements.nwarHeroAside.hidden = false;
+  }
+}
+
 async function loadNwar() {
   if (!elements.nwarSeason || !elements.nwarMinGames || !elements.nwarTbody) return;
   const season = elements.nwarSeason.value;
@@ -264,6 +304,8 @@ async function loadNwar() {
       season: season || "all",
       player_count: state.rows.length
     });
+    renderNwarCitation();
+    revealNwarHeroAside();
     showStatus("nWAR leaderboard ready.", "success", { kicker: "Rankings updated", autoHideMs: 2200 });
   } catch (error) {
     showStatus(error.message || "Unable to load nWAR rankings.", "error", { kicker: "Rankings unavailable" });
@@ -272,6 +314,7 @@ async function loadNwar() {
     renderMessageRow("The nWAR rankings are unavailable. Try again shortly.", "Archive note");
     if (elements.nwarHeroLabel) elements.nwarHeroLabel.textContent = "Unavailable";
     if (elements.nwarHeroSummary) elements.nwarHeroSummary.textContent = "Unable to load the nWAR leaderboard.";
+    revealNwarHeroAside();
   }
 }
 
@@ -284,6 +327,14 @@ if (elements.nwarFilters) {
 
 async function initialise() {
   trackPageView("nwar");
+  bindSurfaceCitationCopy(
+    elements.nwarCitationCopy,
+    () => buildNwarCitationText(),
+    {
+      onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2000 }),
+      onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+    }
+  );
   await loadMetadata();
   hydrateFiltersFromUrl();
   await loadNwar();

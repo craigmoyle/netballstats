@@ -1,8 +1,9 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import * as esbuild from 'esbuild';
+import sharp from 'sharp';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -102,6 +103,17 @@ function injectExtraStylesheets(html, extras, manifest) {
   return nextHtml;
 }
 
+async function rasterizeShareCard(svgName) {
+  const svgPath = path.join(assetSourceDir, svgName);
+  const pngName = svgName.replace(/\.svg$/i, '.png');
+  const pngBuffer = await sharp(svgPath, { density: 144 })
+    .resize(1200, 630)
+    .png()
+    .toBuffer();
+  await writeFile(path.join(assetOutputDir, pngName), pngBuffer);
+  return pngName;
+}
+
 await rm(outputDir, { recursive: true, force: true });
 await mkdir(outputDir, { recursive: true });
 await mkdir(assetOutputDir, { recursive: true });
@@ -114,6 +126,11 @@ await rm(assetOutputDir, { recursive: true, force: true });
 await mkdir(assetOutputDir, { recursive: true });
 await cp(path.join(assetSourceDir, 'fonts'), path.join(assetOutputDir, 'fonts'), { recursive: true });
 await cp(path.join(assetSourceDir, 'noise.svg'), path.join(assetOutputDir, 'noise.svg'));
+const shareSvgNames = (await readdir(assetSourceDir)).filter((name) => name.startsWith('share-') && name.endsWith('.svg'));
+for (const svgName of shareSvgNames) {
+  await cp(path.join(assetSourceDir, svgName), path.join(assetOutputDir, svgName));
+  await rasterizeShareCard(svgName);
+}
 
 const fullCssSource = await readFile(path.join(assetSourceDir, 'styles.css'), 'utf8');
 const stylesQuerySource = extractCssRanges(fullCssSource, CSS_SPLIT_RANGES.query);
