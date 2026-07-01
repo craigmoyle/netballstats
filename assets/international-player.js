@@ -1,13 +1,21 @@
 const SUPER_SHOT_START_SEASON = 2020;
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   fetchJson,
   formatNumber,
   formatStatAbbrev = (stat) => stat,
   formatStatLabel = (stat) => stat,
+  formatPageTitle = (pageTitle, scope = "domestic") => {
+    const brand = scope === "international" ? "Statsball International" : "Statsball";
+    const clean = `${pageTitle || ""}`.replace(/\s+/g, " ").trim();
+    return clean ? `${clean} · ${brand}` : brand;
+  },
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   bucketCount = () => "unknown",
@@ -55,6 +63,7 @@ const state = {
 
 const elements = {
   playerStatus: document.getElementById("player-status"),
+  playerHero: document.getElementById("player-hero"),
   playerName: document.getElementById("player-name"),
   playerSubtitle: document.getElementById("player-subtitle"),
   playerIntro: document.getElementById("player-intro"),
@@ -70,6 +79,8 @@ const elements = {
   summaryTeams: document.getElementById("summary-teams"),
   summaryStats: document.getElementById("summary-stats"),
   summaryPrimary: document.getElementById("summary-primary"),
+  playerSummaryBand: document.getElementById("player-summary-band"),
+  playerDossierBody: document.getElementById("player-dossier-body"),
   careerStatsBody: document.getElementById("career-stats-body"),
   seasonTableCaption: document.getElementById("season-table-caption"),
   seasonStatsHead: document.getElementById("season-stats-head"),
@@ -77,7 +88,10 @@ const elements = {
   playerPillars: document.getElementById("player-pillars"),
   playerMarginalia: document.getElementById("player-marginalia"),
   seasonLedgerNotes: document.getElementById("season-ledger-notes"),
-  metricButtons: Array.from(document.querySelectorAll("[data-metric]"))
+  metricButtons: Array.from(document.querySelectorAll("[data-metric]")),
+  playerCitation: document.getElementById("player-citation"),
+  playerCitationText: document.getElementById("player-citation-text"),
+  playerCitationCopy: document.getElementById("player-citation-copy")
 };
 
 function showStatus(message, tone = "neutral", options = {}) {
@@ -349,6 +363,44 @@ function renderDossierNotes(notes) {
   });
 }
 
+function metricLabel(metric = state.metric) {
+  return metric === "average" ? "Avg/game season ledger" : "Total season ledger";
+}
+
+function buildPlayerCitationText(profile = state.profile) {
+  if (!profile) {
+    return "";
+  }
+
+  const playerName = profile.player?.canonical_name || profile.player?.player_name || "Unknown player";
+  const seasonKeys = Object.keys(profile.stats?.seasons || {}).map(Number).filter(Number.isFinite);
+  const seasonSpan = seasonKeys.length
+    ? `${Math.min(...seasonKeys)}\u2013${Math.max(...seasonKeys)}`
+    : "Single-season";
+  const squadNames = [...new Set(Object.values(profile.stats?.seasons || {}).flat().map((entry) => entry.squad_name).filter(Boolean))];
+  const gamesPlayed = profile.stats?.games_played || 0;
+  const teamsCount = squadNames.length;
+
+  return buildSurfaceCitationText({
+    scope: "international",
+    segments: [
+      `Player dossier: ${playerName}`,
+      `${seasonSpan} · ${formatNumber(gamesPlayed)} games · ${formatNumber(teamsCount)} teams`,
+      squadNames.length ? `Teams: ${squadNames.join(", ")}` : "",
+      metricLabel()
+    ]
+  });
+}
+
+function renderPlayerCitation(profile = state.profile) {
+  updateSurfaceCitation(
+    elements.playerCitation,
+    elements.playerCitationText,
+    profile ? buildPlayerCitationText(profile) : "",
+    { visible: Boolean(profile) }
+  );
+}
+
 function updateSeasonLedgerNotes() {
   if (!elements.seasonLedgerNotes) return;
   elements.seasonLedgerNotes.textContent = state.metric === "average"
@@ -368,6 +420,7 @@ function setMetric(nextMetric) {
   if (state.profile) {
     renderSeasonTable(state.profile.stats?.career, state.profile.stats?.seasons);
     updateSeasonLedgerNotes();
+    renderPlayerCitation(state.profile);
   }
 }
 
@@ -408,7 +461,10 @@ function renderProfile(profile) {
   const pillars = buildDossierPillars(gamesPlayed, seasonsCount, teamsCount, profile.stats?.career, topCareerStat);
   const notes = buildDossierNotes(gamesPlayed, squadNames, profile.stats?.career, topCareerStat);
 
-  document.title = `${playerName} | International Netball Stats`;
+  document.title = formatPageTitle(playerName, "international");
+  if (elements.playerHero) {
+    elements.playerHero.hidden = false;
+  }
   elements.playerName.textContent = playerName;
   elements.playerSubtitle.textContent = `International record ${profile.player?.player_id ?? ""}`.trim();
   elements.playerIntro.textContent = `${Object.keys(profile.stats?.seasons || {}).length ? `${Math.min(...Object.keys(profile.stats?.seasons || {}).map(Number))}\u2013${Math.max(...Object.keys(profile.stats?.seasons || {}).map(Number))}` : "Single-season"} dossier · ${formatNumber(gamesPlayed)} games across ${formatNumber(seasonsCount)} seasons and ${formatNumber(teamsCount)} teams.`;
@@ -420,6 +476,12 @@ function renderProfile(profile) {
   elements.summaryPrimary.textContent = topCareerStat
     ? `${statLabel(topCareerStat.stat)} · ${formatNumber(topCareerStat.total)}`
     : "No totals yet";
+  if (elements.playerSummaryBand) {
+    elements.playerSummaryBand.hidden = false;
+  }
+  if (elements.playerDossierBody) {
+    elements.playerDossierBody.hidden = false;
+  }
 
   renderSquads(squadNames);
   renderHeroProfile(profile.identity);
@@ -428,6 +490,7 @@ function renderProfile(profile) {
   renderDossierNotes(notes);
   updateSeasonLedgerNotes();
   renderSeasonTable(profile.stats?.career, profile.stats?.seasons);
+  renderPlayerCitation(profile);
 }
 
 async function initialise() {
@@ -459,5 +522,14 @@ elements.metricButtons.forEach((button) => {
     setMetric(button.dataset.metric || "total");
   });
 });
+
+bindSurfaceCitationCopy(
+  elements.playerCitationCopy,
+  () => buildPlayerCitationText(),
+  {
+    onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2000 }),
+    onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+  }
+);
 
 initialise();

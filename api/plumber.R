@@ -2518,6 +2518,123 @@ function(type = "player", stat = "points", seasons = "", competitions = "", stat
   })
 }
 
+parse_international_competitions <- function(competitions = "") {
+  if (nzchar(trimws(competitions))) {
+    Filter(nzchar, trimws(strsplit(competitions, ",", fixed = TRUE)[[1]]))
+  } else {
+    NULL
+  }
+}
+
+#* @get /international/season-totals-series
+#* @get /api/international/season-totals-series
+function(seasons = "", stat = "points", stat_mode = "total", competitions = "", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_matches(conn)) {
+      return(json_error(res, 503, "International data not available."))
+    }
+
+    parsed_seasons <- parse_season_filter("", seasons)
+    parsed_stat_mode <- parse_metric(stat_mode, "stat_mode")
+    parsed_competitions <- parse_international_competitions(competitions)
+    stat <- trimws(stat)
+    if (!nzchar(stat)) {
+      stop("stat is required.", call. = FALSE)
+    }
+
+    rows <- fetch_international_season_totals_series(
+      conn,
+      seasons = parsed_seasons,
+      stat = stat,
+      competition_names = parsed_competitions
+    )
+    json_success(res, list(data = apply_metric_value(rows, parsed_stat_mode)))
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /international/player-season-series
+#* @get /api/international/player-season-series
+function(seasons = "", stat = "points", stat_mode = "total", ranking = "highest", limit = "10", competitions = "", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_matches(conn)) {
+      return(json_error(res, 503, "International data not available."))
+    }
+
+    parsed_seasons <- parse_season_filter("", seasons)
+    parsed_stat_mode <- parse_metric(stat_mode, "stat_mode")
+    parsed_ranking <- parse_ranking_mode(ranking, "ranking")
+    parsed_competitions <- parse_international_competitions(competitions)
+    limit <- parse_limit(limit, default = 10L, maximum = 10L)
+    stat <- trimws(stat)
+    if (!nzchar(stat)) {
+      stop("stat is required.", call. = FALSE)
+    }
+
+    rows <- fetch_international_player_season_series(
+      conn,
+      seasons = parsed_seasons,
+      stat = stat,
+      stat_mode = parsed_stat_mode,
+      ranking = parsed_ranking,
+      limit = limit,
+      competition_names = parsed_competitions
+    )
+    json_success(res, list(data = apply_metric_value(rows, parsed_stat_mode)))
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
+#* @get /international/team-season-series
+#* @get /api/international/team-season-series
+function(seasons = "", stat = "points", stat_mode = "total", ranking = "highest", limit = "10", competitions = "", res) {
+  conn <- tryCatch(get_db_conn(), error = function(error) error)
+  if (inherits(conn, "error")) {
+    return(database_unavailable(res, conn))
+  }
+
+  tryCatch({
+    if (!has_international_matches(conn)) {
+      return(json_error(res, 503, "International data not available."))
+    }
+
+    parsed_seasons <- parse_season_filter("", seasons)
+    parsed_stat_mode <- parse_metric(stat_mode, "stat_mode")
+    parsed_ranking <- parse_ranking_mode(ranking, "ranking")
+    parsed_competitions <- parse_international_competitions(competitions)
+    limit <- parse_limit(limit, default = 10L, maximum = 10L)
+    stat <- trimws(stat)
+    if (!nzchar(stat)) {
+      stop("stat is required.", call. = FALSE)
+    }
+
+    rows <- fetch_international_team_season_series(
+      conn,
+      seasons = parsed_seasons,
+      stat = stat,
+      stat_mode = parsed_stat_mode,
+      ranking = parsed_ranking,
+      limit = limit,
+      competition_names = parsed_competitions
+    )
+    json_success(res, list(data = apply_metric_value(rows, parsed_stat_mode)))
+  }, error = function(error) {
+    handle_request_error(error, res)
+  })
+}
+
 #* @get /international/matches
 #* @get /api/international/matches
 function(season = "", seasons = "", limit = "20", res) {

@@ -3,38 +3,54 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="application-name" content="Statsball International">
     <script src="/assets/theme.js"></script>
-    <title>International Netball | Stats Database</title>
-    <meta name="description" content="International netball statistics for Australia, New Zealand, England and more — World Cups, Constellation Cup, and other major competitions.">
+    <title>International archive · Statsball International</title>
+    <meta name="description" content="International netball statistics for Australia, New Zealand, England, and major tournaments.">
+    <meta property="og:title" content="International archive · Statsball International">
+    <meta property="og:description" content="International netball statistics for Australia, New Zealand, England, and major tournaments.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/share-international.png">
+    <meta property="og:image:alt" content="Statsball International — netball archive">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="International archive · Statsball International">
+    <meta name="twitter:description" content="International netball statistics for Australia, New Zealand, England, and major tournaments.">
+    <meta name="twitter:image" content="/assets/share-international.png">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
     <script defer src="/assets/config.js"></script>
     <script defer src="/assets/telemetry.js"></script>
+    <script defer src="/assets/charts.js"></script>
     <script defer src="/assets/international.js"></script>
   </head>
   <body class="archive-home-page">
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
-        <nav class="page-nav" aria-label="Site navigation">
-          <a class="page-nav__link" href="/">SSN/ANZC</a>
-          <a class="page-nav__link" href="/players/">Players</a>
-          <a class="page-nav__link" href="/query/">Ask the stats</a>
-          <a class="page-nav__link" href="/compare/">Compare</a>
-          <a class="page-nav__link" href="/round/">Round recap</a>
-          <a class="page-nav__link" href="/league-composition/">Composition</a>
-          <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
-          <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
-          <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <nav class="page-nav" aria-label="International netball archive">
+          <div class="page-nav__mode" role="group" aria-label="Switch archive">
+            <a class="page-nav__mode-link" href="/">Super Netball</a>
+            <a class="page-nav__mode-link page-nav__mode-link--active" href="/international/">International</a>
+          </div>
           <span class="page-nav__divider" aria-hidden="true"></span>
-          <a class="page-nav__link" href="/international/" aria-current="page">International</a>
+          <a class="page-nav__link" href="/international/">Archive</a>
           <a class="page-nav__link" href="/international/players/">Players</a>
           <a class="page-nav__link" href="/international/query/">Ask the stats</a>
           <a class="page-nav__link" href="/international/compare/">Compare</a>
+          <a class="page-nav__link" href="/round/">Round recap</a>
+                  <details class="page-nav__more">
+          <summary class="page-nav__more-summary">More tools</summary>
+          <div class="page-nav__more-menu" role="group" aria-label="Super Netball specialist tools">
+            <a class="page-nav__link" href="/league-composition/"><span class="page-nav__link-label">Composition</span><small class="page-nav__link-hint">Youth, age, and import share</small></a>
+            <a class="page-nav__link" href="/scoreflow/"><span class="page-nav__link-label">Scoreflow</span><small class="page-nav__link-hint">Comebacks and score control</small></a>
+            <a class="page-nav__link" href="/home-court-advantage/"><span class="page-nav__link-label">Court advantage</span><small class="page-nav__link-hint">Home win rate and margin swing</small></a>
+            <a class="page-nav__link" href="/nwar/"><span class="page-nav__link-label">nWAR</span><small class="page-nav__link-hint">Wins above replacement by position</small></a>
+          </div>
+        </details>
           <span class="page-nav__divider" aria-hidden="true"></span>
           <a class="page-nav__link" href="/changelog/">Changelog</a>
-          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Current theme dark. Switch to light theme"><span class="theme-toggle__kicker">Reading mode</span><span class="theme-toggle__value">Night desk</span></button>
         </nav>
 
       <section class="hero-panel archive-hero">
@@ -46,119 +62,84 @@
         </div>
       </section>
 
-      <section class="home-overview reveal" aria-label="Archive overview">
-        <div class="home-overview__intro">
-          <p class="panel__eyebrow">Archive at a glance</p>
-          <h2>See the archive before you narrow it</h2>
-        </div>
-        <div class="home-overview__stats">
-          <section class="summary-band" aria-label="Archive totals">
+      <section class="home-overview reveal" aria-label="Archive totals" hidden>
+        <section class="summary-band" aria-label="Archive totals">
             <article class="summary-card summary-card--accent">
               <span class="summary-card__label">Matches</span>
-              <span id="int-summary-matches" class="summary-card__value">–</span>
+              <span id="int-summary-matches" class="summary-card__value"></span>
             </article>
             <article class="summary-card">
               <span class="summary-card__label">Players</span>
-              <span id="int-summary-players" class="summary-card__value">–</span>
+              <span id="int-summary-players" class="summary-card__value"></span>
             </article>
             <article class="summary-card">
               <span class="summary-card__label">Nations</span>
-              <span id="int-summary-teams" class="summary-card__value">–</span>
+              <span id="int-summary-teams" class="summary-card__value"></span>
             </article>
           </section>
-        </div>
+        <p id="int-summary-refreshed" class="muted refresh-note" hidden></p>
       </section>
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel query-panel query-panel--home archive-control-desk reveal">
-        <div id="int-status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
-        <div class="archive-control-desk__header">
-          <div class="panel__heading panel__heading--split">
-            <div>
-              <p class="panel__eyebrow">Start here</p>
-              <h2>Choose the slice</h2>
-            </div>
-            <p id="int-active-filter-summary" class="muted filter-summary">Loading query options…</p>
-          </div>
+      <div id="int-status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
+
+      <section class="panel editorial-lead reveal editorial-lead--international" aria-label="International archive lead" hidden>
+        <div class="editorial-lead__feature">
+          <p class="panel__eyebrow">Archive lead</p>
+          <h2 id="int-editorial-lead-headline">The international archive is ready for a fresh read.</h2>
+          <p id="int-editorial-lead-copy" class="editorial-lead__copy">Start with player leaders, then open a dossier or compare careers across nations.</p>
         </div>
-
-        <form id="int-filters-form" class="filters filters--dashboard" novalidate>
-          <div class="field field--wide field--season-block field--season-hub">
-            <div class="field__label-row">
-              <span class="field-label">Seasons</span>
-              <div class="season-actions" role="group" aria-label="Season quick actions">
-                <button type="button" class="button button--ghost button--small" data-int-season-action="latest">Latest</button>
-                <button type="button" class="button button--ghost button--small" data-int-season-action="all">All</button>
-                <button type="button" class="button button--ghost button--small" data-int-season-action="clear">Clear</button>
-              </div>
-            </div>
-            <div id="int-season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
-          </div>
-
-          <div id="int-competition-filter-field" class="field field--wide field--season-block" hidden>
-            <div class="field__label-row">
-              <span class="field-label">Competitions</span>
-            </div>
-            <div id="int-competition-choices" class="season-choices" role="group" aria-label="Competition choices"></div>
-          </div>
-
-          <div class="field field--stat-picker">
-            <label for="int-team-stat">Team stat</label>
-            <select id="int-team-stat" name="int-team-stat"></select>
-          </div>
-          <div class="field field--stat-picker">
-            <label for="int-player-stat">Player stat</label>
-            <select id="int-player-stat" name="int-player-stat"></select>
-          </div>
-
-          <details id="int-archive-advanced" class="archive-advanced field--wide">
-            <summary class="archive-advanced__summary">
-              <span>Need a tighter slice?</span>
-              <small>Change how the leaderboards read.</small>
-            </summary>
-            <div class="archive-advanced__grid">
-              <div class="field field--secondary field--compact">
-                <label for="int-stat-mode">Stat mode</label>
-                <select id="int-stat-mode" name="int-stat-mode">
-                  <option value="total" selected>Total</option>
-                  <option value="average">Average per match</option>
-                </select>
-              </div>
-              <div class="field field--secondary field--compact field--toggle">
-                <span class="field-label">Leaderboard order</span>
-                <input id="int-ranking-mode" name="int-ranking-mode" type="hidden" value="highest">
-                <div class="view-toggle" role="group" aria-label="Leaderboard order">
-                  <button type="button" class="button button--small is-active" data-int-ranking-mode="highest" aria-pressed="true">Highest</button>
-                  <button type="button" class="button button--small button--ghost" data-int-ranking-mode="lowest" aria-pressed="false">Lowest</button>
-                </div>
-                <div class="field-hint-wrap">
-                  <small class="field-hint">Use Lowest for error stats such as general play turnovers.</small>
-                </div>
-              </div>
-            </div>
-          </details>
-
-          <div class="filter-actions filter-actions--primary field--wide">
-            <div class="filter-actions__buttons">
-              <button type="submit">Apply filters</button>
-              <button type="button" id="int-reset-filters" class="button button--ghost">Reset</button>
-            </div>
-          </div>
-        </form>
+        <div class="editorial-lead__facts" aria-label="Archive snapshot">
+          <article class="editorial-lead__fact">
+            <span id="int-editorial-lead-fact-label" class="summary-card__label">Archive route</span>
+            <strong id="int-editorial-lead-fact-value">Ask the stats</strong>
+            <p id="int-editorial-lead-fact-copy">Plain-language questions across Diamonds fixtures and major tournaments.</p>
+          </article>
+          <article class="editorial-lead__fact">
+            <span id="int-editorial-lead-secondary-label" class="summary-card__label">Next move</span>
+            <strong id="int-editorial-lead-secondary-value">Filter leaders</strong>
+            <p id="int-editorial-lead-secondary-copy">Set seasons and competitions, then open a dossier from the player table.</p>
+          </article>
+        </div>
+        <div class="editorial-lead__links" aria-label="Archive routes">
+          <a class="editorial-lead__link editorial-lead__link--primary" href="/international/query/">Ask the stats</a>
+          <a class="editorial-lead__link" href="/international/compare/">Compare players</a>
+        </div>
       </section>
 
+      <div id="int-archive-filter-rail" class="archive-filter-rail reveal" hidden>
+        <p id="int-archive-filter-rail-summary" class="archive-filter-rail__summary muted"></p>
+        <button type="button" id="int-archive-filter-rail-open" class="button button--ghost button--small">Open filters</button>
+      </div>
+
       <section class="results-grid results-grid--home" aria-label="Stat leaderboards">
-        <section class="panel results-panel results-panel--lead reveal">
+        <section class="archive-results-intro reveal" aria-label="Archive reading order">
+          <p class="results-panel__eyebrow">Reading order</p>
+          <p class="archive-results-intro__copy">Start with player leaders and open a dossier from any row. Scan national teams next. Open Filter the leaders when you need a tighter slice. Recent results stay folded below.</p>
+          <div id="int-archive-citation" class="archive-citation reveal" aria-label="Leaderboard citation" hidden>
+            <p id="int-archive-citation-text" class="archive-citation__text muted"></p>
+            <button type="button" id="int-archive-citation-copy" class="button button--ghost button--small">Copy citation</button>
+          </div>
+        </section>
+
+        <section id="int-player-leaders-panel" class="panel results-panel results-panel--lead reveal" hidden>
           <div class="panel__heading panel__heading--split">
             <div>
               <p class="results-panel__eyebrow">Player leaders</p>
               <h2 id="int-player-panel-title">Player leaderboard</h2>
             </div>
-            <p id="int-player-panel-summary" class="muted">Top player lines for Points across selected seasons.</p>
+            <div class="panel__meta-stack">
+              <p id="int-player-panel-summary" class="muted">Top player lines for Points across selected seasons.</p>
+              <div class="view-toggle" role="group" aria-label="Player leaderboard view">
+                <button type="button" class="button button--ghost button--small is-active" data-panel="player-leaders" data-view-mode="table" aria-pressed="true">Table</button>
+                <button type="button" class="button button--ghost button--small" data-panel="player-leaders" data-view-mode="chart" aria-pressed="false">Chart</button>
+              </div>
+            </div>
           </div>
-          <div class="table-wrapper">
-            <table id="int-player-leaders-table" class="stack-table">
+          <div class="panel-view" data-panel-view="player-leaders" data-panel-mode="table">
+            <div class="table-wrapper">
+              <table id="int-player-leaders-table" class="stack-table">
               <thead id="int-player-leaders-head">
                 <tr>
                   <th scope="col">Rank</th>
@@ -171,20 +152,44 @@
               </thead>
               <tbody id="int-player-leaders-body"></tbody>
             </table>
+            </div>
+          </div>
+          <div class="panel-view panel-view--charts" data-panel-view="player-leaders" data-panel-mode="chart" hidden>
+            <div class="chart-stack">
+              <article class="chart-card">
+                <div class="chart-card__header">
+                  <h3 id="int-player-leaders-chart-title" class="chart-card__title">Top international players</h3>
+                </div>
+                <div id="int-player-leaders-chart" class="chart-shell"></div>
+              </article>
+              <article id="int-player-trend-card" class="chart-card">
+                <div class="chart-card__header">
+                  <h3 id="int-player-trend-title" class="chart-card__title">Season trend for top players</h3>
+                </div>
+                <div id="int-player-trend-chart" class="chart-shell"></div>
+              </article>
+            </div>
           </div>
           <p id="int-player-leaders-unavailable" class="panel__lead" hidden>Player statistics not available for this filter.</p>
         </section>
 
-        <section class="panel results-panel results-panel--anchor reveal">
+        <section id="int-team-leaders-panel" class="panel results-panel results-panel--anchor reveal" hidden>
           <div class="panel__heading panel__heading--split">
             <div>
               <p class="results-panel__eyebrow">National teams</p>
               <h2 id="int-team-panel-title">Team leaderboard</h2>
             </div>
-            <p id="int-team-panel-summary" class="muted">Team view of Points across selected seasons.</p>
+            <div class="panel__meta-stack">
+              <p id="int-team-panel-summary" class="muted">Team view of Points across selected seasons.</p>
+              <div class="view-toggle" role="group" aria-label="Team leaderboard view">
+                <button type="button" class="button button--ghost button--small is-active" data-panel="team-leaders" data-view-mode="table" aria-pressed="true">Table</button>
+                <button type="button" class="button button--ghost button--small" data-panel="team-leaders" data-view-mode="chart" aria-pressed="false">Chart</button>
+              </div>
+            </div>
           </div>
-          <div class="table-wrapper">
-            <table id="int-team-leaders-table" class="stack-table">
+          <div class="panel-view" data-panel-view="team-leaders" data-panel-mode="table">
+            <div class="table-wrapper">
+              <table id="int-team-leaders-table" class="stack-table">
               <thead id="int-team-leaders-head">
                 <tr>
                   <th scope="col">Rank</th>
@@ -196,33 +201,172 @@
               </thead>
               <tbody id="int-team-leaders-body"></tbody>
             </table>
+            </div>
+          </div>
+          <div class="panel-view panel-view--charts" data-panel-view="team-leaders" data-panel-mode="chart" hidden>
+            <div class="chart-stack">
+              <article class="chart-card">
+                <div class="chart-card__header">
+                  <h3 id="int-team-leaders-chart-title" class="chart-card__title">Top national teams</h3>
+                </div>
+                <div id="int-team-leaders-chart" class="chart-shell"></div>
+              </article>
+              <article id="int-team-trend-card" class="chart-card">
+                <div class="chart-card__header">
+                  <h3 id="int-team-trend-title" class="chart-card__title">Season trend for top teams</h3>
+                </div>
+                <div id="int-team-trend-chart" class="chart-shell"></div>
+              </article>
+            </div>
           </div>
           <p id="int-team-leaders-unavailable" class="panel__lead" hidden>Team statistics not available for this filter.</p>
         </section>
+
+        <details id="int-competition-season-panel" class="home-secondary home-secondary--panel reveal">
+          <summary class="home-secondary__summary">
+            <span>Season totals</span>
+            <small id="int-competition-season-summary" class="home-secondary__hint">Season context for Points.</small>
+          </summary>
+          <div class="home-secondary__body">
+            <div class="panel results-panel results-panel--rail">
+              <div class="panel__heading panel__heading--split">
+                <div>
+                  <p class="results-panel__eyebrow">Season snapshot</p>
+                  <h2>Season totals</h2>
+                </div>
+                <div class="panel__meta-stack">
+                  <div class="view-toggle" role="group" aria-label="International season totals view">
+                    <button type="button" class="button button--ghost button--small is-active" data-panel="competition-season" data-view-mode="table" aria-pressed="true">Table</button>
+                    <button type="button" class="button button--ghost button--small" data-panel="competition-season" data-view-mode="chart" aria-pressed="false">Chart</button>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-view" data-panel-view="competition-season" data-panel-mode="table">
+                <div class="table-wrapper">
+                  <table id="int-competition-season-table" class="stack-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Season</th>
+                        <th scope="col">Stat</th>
+                        <th id="int-competition-value-heading" scope="col">Total</th>
+                        <th scope="col">Matches</th>
+                      </tr>
+                    </thead>
+                    <tbody id="int-competition-season-body"></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="panel-view panel-view--charts" data-panel-view="competition-season" data-panel-mode="chart" hidden>
+                <article class="chart-card">
+                  <div class="chart-card__header">
+                    <h3 id="int-competition-season-chart-title" class="chart-card__title">International trend by season for Points</h3>
+                  </div>
+                  <div id="int-competition-season-chart" class="chart-shell"></div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </details>
       </section>
 
-      <section class="panel results-panel results-panel--wide results-panel--spotlight reveal" aria-label="Recent matches">
-        <div class="panel__heading panel__heading--split">
-          <div>
-            <p class="results-panel__eyebrow">Match log</p>
-            <h2>Recent results</h2>
+      <details id="int-archive-filter-desk" class="home-secondary home-secondary--panel home-secondary--filter-desk reveal">
+        <summary class="home-secondary__summary">
+          <span>Filter the leaders</span>
+          <small id="int-active-filter-summary" class="home-secondary__hint">Seasons and stats update when the archive loads.</small>
+        </summary>
+        <div class="home-secondary__body">
+          <section class="panel query-panel query-panel--home archive-control-desk">
+            <form id="int-filters-form" class="filters filters--dashboard" novalidate>
+              <div class="field field--wide field--season-block field--season-hub">
+                <div class="field__label-row">
+                  <span class="field-label">Seasons</span>
+                  <div class="season-actions" role="group" aria-label="Season quick actions">
+                    <button type="button" class="button button--ghost button--small" data-int-season-action="latest">Latest</button>
+                    <button type="button" class="button button--ghost button--small" data-int-season-action="all">All</button>
+                    <button type="button" class="button button--ghost button--small" data-int-season-action="clear">Clear</button>
+                  </div>
+                </div>
+                <div id="int-season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
+                <p id="int-season-scope-note" class="muted season-scope-note" hidden>No seasons checked means the full archive across every season.</p>
+              </div>
+
+              <div id="int-competition-filter-field" class="field field--wide field--season-block" hidden>
+                <div class="field__label-row">
+                  <span class="field-label">Competitions</span>
+                </div>
+                <div id="int-competition-choices" class="season-choices" role="group" aria-label="Competition choices"></div>
+              </div>
+
+              <div class="field field--stat-picker">
+                <label for="int-team-stat">Team stat</label>
+                <select id="int-team-stat" name="int-team-stat"></select>
+              </div>
+              <div class="field field--stat-picker">
+                <label for="int-player-stat">Player stat</label>
+                <select id="int-player-stat" name="int-player-stat"></select>
+              </div>
+
+              <details id="int-archive-advanced" class="archive-advanced field--wide">
+                <summary class="archive-advanced__summary">
+                  <span>Need a tighter slice?</span>
+                  <small>Change how the leaderboards read.</small>
+                </summary>
+                <div class="archive-advanced__grid">
+                  <div class="field field--secondary field--compact">
+                    <label for="int-stat-mode">Stat mode</label>
+                    <select id="int-stat-mode" name="int-stat-mode">
+                      <option value="total" selected>Total</option>
+                      <option value="average">Average per match</option>
+                    </select>
+                  </div>
+                  <div class="field field--secondary field--compact field--toggle">
+                    <span class="field-label">Leaderboard order</span>
+                    <input id="int-ranking-mode" name="int-ranking-mode" type="hidden" value="highest">
+                    <div class="view-toggle" role="group" aria-label="Leaderboard order">
+                      <button type="button" class="button button--small is-active" data-int-ranking-mode="highest" aria-pressed="true">Highest</button>
+                      <button type="button" class="button button--small button--ghost" data-int-ranking-mode="lowest" aria-pressed="false">Lowest</button>
+                    </div>
+                    <div class="field-hint-wrap">
+                      <small class="field-hint">Use Lowest for error stats such as general play turnovers.</small>
+                    </div>
+                  </div>
+                </div>
+              </details>
+              <div class="filter-actions filter-actions--primary field--wide">
+                <p class="filter-actions__hint">Leaderboards update as you change filters. <button type="submit" class="button button--link">Apply immediately</button></p>
+                <div class="filter-actions__buttons">
+                  <button type="button" id="int-reset-filters" class="button button--ghost">Reset</button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      </details>
+
+      <details class="home-secondary panel reveal">
+        <summary class="home-secondary__summary">
+          <span>Recent results</span>
+          <small class="home-secondary__hint">Latest scorelines for the selected slice</small>
+        </summary>
+        <div class="home-secondary__body">
+          <div class="panel results-panel results-panel--wide results-panel--spotlight">
+            <div class="table-wrapper table-wrapper--spotlight">
+              <table id="int-matches-table" class="stack-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Season</th>
+                    <th scope="col">Round</th>
+                    <th scope="col">Date</th>
+                    <th scope="col">Result</th>
+                  </tr>
+                </thead>
+                <tbody id="int-matches-body"></tbody>
+              </table>
+            </div>
+            <p id="int-matches-empty" class="panel__lead" hidden>No matches found for this filter.</p>
           </div>
         </div>
-        <div class="table-wrapper table-wrapper--spotlight">
-          <table id="int-matches-table" class="stack-table">
-            <thead>
-              <tr>
-                <th scope="col">Season</th>
-                <th scope="col">Round</th>
-                <th scope="col">Date</th>
-                <th scope="col">Result</th>
-              </tr>
-            </thead>
-            <tbody id="int-matches-body"></tbody>
-          </table>
-        </div>
-        <p id="int-matches-empty" class="panel__lead" hidden>No matches found for this filter.</p>
-      </section>
+      </details>
     </main>
   </body>
 </html>

@@ -563,3 +563,183 @@ build_international_player_profile_payload <- function(player_row, stats_data, i
   
   result
 }
+
+# Season totals across the international archive (one row per season).
+fetch_international_season_totals_series <- function(conn, seasons = NULL, stat = "points", competition_names = NULL) {
+  if (!has_international_player_match_stats(conn)) {
+    return(data.frame())
+  }
+
+  need_match_join <- !is.null(competition_names) && length(competition_names) > 0
+
+  base_query <- paste(
+    "SELECT stats.season, ?stat AS stat,",
+    "  SUM(stats.match_value) AS total_value,",
+    "  COUNT(DISTINCT stats.match_id) AS matches_played,",
+    "  SUM(stats.match_value) * 1.0 / NULLIF(COUNT(DISTINCT stats.match_id), 0) AS average_value",
+    "FROM international_player_match_stats stats",
+    if (need_match_join) "JOIN international_matches m ON m.match_id = stats.match_id" else "",
+    "WHERE stats.stat = ?stat"
+  )
+  params <- list(stat = stat)
+
+  if (need_match_join) {
+    result <- append_string_in_filter(base_query, params, "m.competition_name", competition_names, "comp")
+    base_query <- result$query
+    params <- result$params
+  }
+
+  if (!is.null(seasons) && length(seasons)) {
+    result <- append_integer_in_filter(base_query, params, "stats.season", as.integer(seasons), "season")
+    base_query <- result$query
+    params <- result$params
+  }
+
+  query_rows(
+    conn,
+    paste(base_query, "GROUP BY stats.season ORDER BY stats.season ASC"),
+    params
+  )
+}
+
+# Per-player season rows for trend charts; limited to top entities by aggregate stat.
+fetch_international_player_season_series <- function(conn, seasons = NULL, stat = "points", stat_mode = "total", ranking = "highest", limit = 10L, competition_names = NULL) {
+  if (!has_international_player_match_stats(conn)) {
+    return(data.frame())
+  }
+
+  need_match_join <- !is.null(competition_names) && length(competition_names) > 0
+
+  base_query <- paste(
+    "SELECT p.player_id, p.player_name,",
+    "  MAX(COALESCE(t.squad_name, stats.squad_name)) AS squad_name,",
+    "  stats.season, ?stat AS stat,",
+    "  SUM(stats.match_value) AS total_value,",
+    "  COUNT(stats.match_id) AS matches_played,",
+    "  AVG(stats.match_value) AS average_value",
+    "FROM international_player_match_stats stats",
+    "JOIN international_players p ON p.player_id = stats.player_id",
+    "LEFT JOIN international_teams t ON t.squad_id = stats.squad_id",
+    if (need_match_join) "JOIN international_matches m ON m.match_id = stats.match_id" else "",
+    "WHERE stats.stat = ?stat"
+  )
+  params <- list(stat = stat)
+
+  if (need_match_join) {
+    result <- append_string_in_filter(base_query, params, "m.competition_name", competition_names, "comp")
+    base_query <- result$query
+    params <- result$params
+  }
+
+  if (!is.null(seasons) && length(seasons)) {
+    result <- append_integer_in_filter(base_query, params, "stats.season", as.integer(seasons), "season")
+    base_query <- result$query
+    params <- result$params
+  }
+
+  rows <- query_rows(
+    conn,
+    paste(
+      base_query,
+      "GROUP BY p.player_id, p.player_name, stats.season",
+      "ORDER BY stats.season ASC, p.player_name ASC"
+    ),
+    params
+  )
+
+  ranked_ids <- top_player_ids_from_series_rows(rows, metric = stat_mode, ranking = ranking, limit = limit)
+  if (length(ranked_ids)) {
+    rows <- rows[rows$player_id %in% ranked_ids, , drop = FALSE]
+  } else {
+    rows <- rows[0, , drop = FALSE]
+  }
+
+  sort_player_series_rows(rows, metric = stat_mode, ranking = ranking)
+}
+
+# Per-team season rows for trend charts.
+fetch_international_team_season_series <- function(conn, seasons = NULL, stat = "points", stat_mode = "total", ranking = "highest", limit = 10L, competition_names = NULL) {
+  if (!has_international_player_match_stats(conn)) {
+    return(data.frame())
+  }
+
+  need_match_join <- !is.null(competition_names) && length(competition_names) > 0
+  ranked_order_column <- if (identical(stat_mode, "average")) "average_value" else "grand_total"
+  sort_dir <- ranking_order_sql(ranking)
+
+  ranked_query <- paste(
+    "SELECT stats.squad_id,",
+    "  COALESCE(t.squad_name, stats.squad_name) AS squad_name,",
+    "  SUM(stats.match_value) AS grand_total,",
+    "  COUNT(DISTINCT stats.match_id) AS matches_played,",
+    "  SUM(stats.match_value) * 1.0 / NULLIF(COUNT(DISTINCT stats.match_id), 0) AS average_value",
+    "FROM international_player_match_stats stats",
+    "LEFT JOIN international_teams t ON t.squad_id = stats.squad_id",
+    if (need_match_join) "JOIN international_matches m ON m.match_id = stats.match_id" else "",
+    "WHERE stats.stat = ?stat"
+  )
+  params <- list(stat = stat)
+
+  if (need_match_join) {
+    result <- append_string_in_filter(ranked_query, params, "m.competition_name", competition_names, "comp")
+    ranked_query <- result$query
+    params <- result$params
+  }
+
+  if (!is.null(seasons) && length(seasons)) {
+    result <- append_integer_in_filter(ranked_query, params, "stats.season", as.integer(seasons), "season")
+    ranked_query <- result$query
+    params <- result$params
+  }
+
+  ranked_filters <- paste(
+    ranked_query,
+    "GROUP BY stats.squad_id, COALESCE(t.squad_name, stats.squad_name)",
+    sprintf("ORDER BY %s %s, squad_name ASC LIMIT ?limit", ranked_order_column, sort_dir)
+  )
+  params$limit <- as.integer(limit)
+  ranked_ids <- query_rows(conn, ranked_filters, params)$squad_id
+  if (!length(ranked_ids)) {
+    return(data.frame())
+  }
+
+  series_query <- paste(
+    "SELECT stats.squad_id,",
+    "  COALESCE(t.squad_name, stats.squad_name) AS squad_name,",
+    "  stats.season, ?stat AS stat,",
+    "  SUM(stats.match_value) AS total_value,",
+    "  COUNT(DISTINCT stats.match_id) AS matches_played,",
+    "  SUM(stats.match_value) * 1.0 / NULLIF(COUNT(DISTINCT stats.match_id), 0) AS average_value",
+    "FROM international_player_match_stats stats",
+    "LEFT JOIN international_teams t ON t.squad_id = stats.squad_id",
+    if (need_match_join) "JOIN international_matches m ON m.match_id = stats.match_id" else "",
+    "WHERE stats.stat = ?stat"
+  )
+  series_params <- list(stat = stat)
+
+  if (need_match_join) {
+    result <- append_string_in_filter(series_query, series_params, "m.competition_name", competition_names, "comp")
+    series_query <- result$query
+    series_params <- result$params
+  }
+
+  if (!is.null(seasons) && length(seasons)) {
+    result <- append_integer_in_filter(series_query, series_params, "stats.season", as.integer(seasons), "season")
+    series_query <- result$query
+    series_params <- result$params
+  }
+
+  result <- append_integer_in_filter(series_query, series_params, "stats.squad_id", as.integer(ranked_ids), "squad")
+  series_query <- result$query
+  series_params <- result$params
+
+  query_rows(
+    conn,
+    paste(
+      series_query,
+      "GROUP BY stats.squad_id, COALESCE(t.squad_name, stats.squad_name), stats.season",
+      "ORDER BY stats.season ASC, squad_name ASC"
+    ),
+    series_params
+  )
+}

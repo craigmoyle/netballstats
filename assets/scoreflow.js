@@ -1,5 +1,7 @@
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   clearEmptyTableState = () => {},
   fetchJson,
   getMeta,
@@ -10,7 +12,8 @@ const {
   setCheckedValues = () => {},
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   trackEvent = () => {}
@@ -62,8 +65,34 @@ const elements = {
   teamTitle: document.getElementById("scoreflow-team-title"),
   teamTable: document.getElementById("scoreflow-team-table"),
   teamBody: document.getElementById("scoreflow-team-body"),
-  glossary: document.getElementById("scoreflow-glossary")
+  glossary: document.getElementById("scoreflow-glossary"),
+  citation: document.getElementById("scoreflow-citation"),
+  citationText: document.getElementById("scoreflow-citation-text"),
+  citationCopy: document.getElementById("scoreflow-citation-copy")
 };
+
+function buildScoreflowCitationText() {
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: [
+      "Scoreflow records",
+      state.filters.seasons.length ? `Seasons ${state.filters.seasons.join(", ")}` : "All seasons",
+      state.filters.teamId ? `Team ${state.filters.teamId}` : "All teams",
+      state.filters.scenario || "All scenarios",
+      state.filters.metric || "comeback_deficit_points"
+    ]
+  });
+}
+
+function renderScoreflowCitation() {
+  const ready = Boolean(state.gameRecords?.length || state.teamSummary?.length);
+  updateSurfaceCitation(
+    elements.citation,
+    elements.citationText,
+    ready ? buildScoreflowCitationText() : "",
+    { visible: ready }
+  );
+}
 
 function showStatus(message, tone = "neutral", options = {}) {
   showElementStatus(elements.status, message, tone, options);
@@ -391,6 +420,7 @@ function renderAll() {
   updateRecordsHeading();
   renderRecordsTable();
   renderTeamSummaryTable();
+  renderScoreflowCitation();
 }
 
 async function loadAndRender() {
@@ -433,6 +463,14 @@ if (elements.filters) {
 }
 
 async function initScoreflowPage() {
+  bindSurfaceCitationCopy(
+    elements.citationCopy,
+    () => buildScoreflowCitationText(),
+    {
+      onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2000 }),
+      onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+    }
+  );
   renderGlossary();
   try {
     await loadMetadata(1);

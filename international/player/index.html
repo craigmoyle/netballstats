@@ -3,9 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="application-name" content="Statsball International">
     <script src="/assets/theme.js"></script>
-    <title>Player Profile | International Netball Stats</title>
-    <meta name="description" content="International netball player profile with games played, career totals, and season stats.">
+    <title>Player profile · Statsball International</title>
+    <meta name="description" content="International player dossier with career totals and season stats.">
+    <meta property="og:title" content="Player profile · Statsball International">
+    <meta property="og:description" content="International player dossier with career totals and season stats.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/share-international-player.png">
+    <meta property="og:image:alt" content="Statsball International — netball archive">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Player profile · Statsball International">
+    <meta name="twitter:description" content="International player dossier with career totals and season stats.">
+    <meta name="twitter:image" content="/assets/share-international-player.png">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
@@ -17,33 +27,38 @@
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
-        <nav class="page-nav" aria-label="Site navigation">
-          <a class="page-nav__link" href="/">SSN/ANZC</a>
-          <a class="page-nav__link" href="/players/">Players</a>
-          <a class="page-nav__link" href="/query/">Ask the stats</a>
-          <a class="page-nav__link" href="/compare/">Compare</a>
-          <a class="page-nav__link" href="/round/">Round recap</a>
-          <a class="page-nav__link" href="/league-composition/">Composition</a>
-          <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
-          <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
-          <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <nav class="page-nav" aria-label="International netball archive">
+          <div class="page-nav__mode" role="group" aria-label="Switch archive">
+            <a class="page-nav__mode-link" href="/">Super Netball</a>
+            <a class="page-nav__mode-link page-nav__mode-link--active" href="/international/">International</a>
+          </div>
           <span class="page-nav__divider" aria-hidden="true"></span>
-          <a class="page-nav__link" href="/international/">International</a>
-          <a class="page-nav__link" href="/international/players/" aria-current="page">Players</a>
+          <a class="page-nav__link" href="/international/">Archive</a>
+          <a class="page-nav__link" href="/international/players/">Players</a>
           <a class="page-nav__link" href="/international/query/">Ask the stats</a>
           <a class="page-nav__link" href="/international/compare/">Compare</a>
+          <a class="page-nav__link" href="/round/">Round recap</a>
+                  <details class="page-nav__more">
+          <summary class="page-nav__more-summary">More tools</summary>
+          <div class="page-nav__more-menu" role="group" aria-label="Super Netball specialist tools">
+            <a class="page-nav__link" href="/league-composition/"><span class="page-nav__link-label">Composition</span><small class="page-nav__link-hint">Youth, age, and import share</small></a>
+            <a class="page-nav__link" href="/scoreflow/"><span class="page-nav__link-label">Scoreflow</span><small class="page-nav__link-hint">Comebacks and score control</small></a>
+            <a class="page-nav__link" href="/home-court-advantage/"><span class="page-nav__link-label">Court advantage</span><small class="page-nav__link-hint">Home win rate and margin swing</small></a>
+            <a class="page-nav__link" href="/nwar/"><span class="page-nav__link-label">nWAR</span><small class="page-nav__link-hint">Wins above replacement by position</small></a>
+          </div>
+        </details>
           <span class="page-nav__divider" aria-hidden="true"></span>
           <a class="page-nav__link" href="/changelog/">Changelog</a>
-          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Current theme dark. Switch to light theme"><span class="theme-toggle__kicker">Reading mode</span><span class="theme-toggle__value">Night desk</span></button>
         </nav>
 
-      <section class="hero-panel player-hero player-dossier">
+      <section id="player-hero" class="hero-panel player-hero player-dossier" hidden>
         <div class="hero-copy">
           <p class="eyebrow">Player dossier</p>
-          <p id="player-subtitle" class="player-subtitle">Loading player record…</p>
-          <h1 id="player-name" class="player-title">Loading player profile</h1>
+          <p id="player-subtitle" class="player-subtitle">International record</p>
+          <h1 id="player-name" class="player-title">Player dossier</h1>
           <p id="player-intro" class="intro-copy player-intro">
-            Loading career totals and season splits.
+            Career totals and season ledger across the international archive.
           </p>
           <div id="player-squads" class="tag-list" aria-label="Player clubs"></div>
         </div>
@@ -73,31 +88,39 @@
     <main id="main-content" class="page-shell page-main">
       <section class="panel reveal player-dossier__summary-panel">
         <div id="player-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+      </section>
+
+      <div id="player-dossier-body" hidden>
+      <section class="panel reveal player-dossier__summary-panel">
         <div class="panel__heading">
           <p class="panel__eyebrow">Reading order</p>
           <h2>Career snapshot</h2>
           <p class="panel__lead">Start with the career line, then move through the pillars, totals table, and season ledger for the fuller picture.</p>
         </div>
-        <div class="summary-band player-dossier__summary">
+        <div id="player-citation" class="archive-citation" aria-label="Player dossier citation" hidden>
+          <p id="player-citation-text" class="archive-citation__text muted"></p>
+          <button type="button" id="player-citation-copy" class="button button--ghost button--small">Copy citation</button>
+        </div>
+        <div id="player-summary-band" class="summary-band player-dossier__summary" hidden>
           <article class="summary-card summary-card--accent">
             <span class="summary-card__label">Games played</span>
-            <span id="summary-games" class="summary-card__value">--</span>
+            <span id="summary-games" class="summary-card__value"></span>
           </article>
           <article class="summary-card">
             <span class="summary-card__label">Seasons</span>
-            <span id="summary-seasons" class="summary-card__value">--</span>
+            <span id="summary-seasons" class="summary-card__value"></span>
           </article>
           <article class="summary-card">
             <span class="summary-card__label">Clubs</span>
-            <span id="summary-teams" class="summary-card__value">--</span>
+            <span id="summary-teams" class="summary-card__value"></span>
           </article>
           <article class="summary-card">
             <span class="summary-card__label">Tracked stats</span>
-            <span id="summary-stats" class="summary-card__value">--</span>
+            <span id="summary-stats" class="summary-card__value"></span>
           </article>
           <article class="summary-card">
             <span class="summary-card__label">Primary record</span>
-            <span id="summary-primary" class="summary-card__value summary-card__value--small">--</span>
+            <span id="summary-primary" class="summary-card__value summary-card__value--small"></span>
           </article>
         </div>
       </section>
@@ -159,6 +182,7 @@
           </table>
         </div>
       </section>
+      </div>
     </main>
   </body>
 </html>

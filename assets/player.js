@@ -1,13 +1,21 @@
 const SUPER_SHOT_START_SEASON = 2020;
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   fetchJson,
   formatNumber,
   formatStatAbbrev = (stat) => stat,
   formatStatLabel = (stat) => stat,
+  formatPageTitle = (pageTitle, scope = "domestic") => {
+    const brand = scope === "international" ? "Statsball International" : "Statsball";
+    const clean = `${pageTitle || ""}`.replace(/\s+/g, " ").trim();
+    return clean ? `${clean} · ${brand}` : brand;
+  },
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   bucketCount = () => "unknown",
@@ -51,18 +59,24 @@ const state = {
 
 const elements = {
   playerStatus: document.getElementById("player-status"),
+  playerHero: document.getElementById("player-hero"),
   playerName: document.getElementById("player-name"),
   playerSubtitle: document.getElementById("player-subtitle"),
   playerIntro: document.getElementById("player-intro"),
   playerSquads: document.getElementById("player-squads"),
   heroProfileBirthday: document.getElementById("hero-profile-birthday"),
+  heroProfileBirthdayRow: document.getElementById("hero-profile-birthday-row"),
   heroProfileNationality: document.getElementById("hero-profile-nationality"),
+  heroProfileNationalityRow: document.getElementById("hero-profile-nationality-row"),
   heroProfileDebutSeason: document.getElementById("hero-profile-debut-season"),
+  heroProfileDebutRow: document.getElementById("hero-profile-debut-row"),
   summaryGames: document.getElementById("summary-games"),
   summarySeasons: document.getElementById("summary-seasons"),
   summaryTeams: document.getElementById("summary-teams"),
   summaryStats: document.getElementById("summary-stats"),
   summaryPrimary: document.getElementById("summary-primary"),
+  playerSummaryBand: document.getElementById("player-summary-band"),
+  playerDossierBody: document.getElementById("player-dossier-body"),
   careerStatsBody: document.getElementById("career-stats-body"),
   seasonTableCaption: document.getElementById("season-table-caption"),
   seasonStatsHead: document.getElementById("season-stats-head"),
@@ -70,7 +84,10 @@ const elements = {
   playerPillars: document.getElementById("player-pillars"),
   playerMarginalia: document.getElementById("player-marginalia"),
   seasonLedgerNotes: document.getElementById("season-ledger-notes"),
-  metricButtons: Array.from(document.querySelectorAll("[data-metric]"))
+  metricButtons: Array.from(document.querySelectorAll("[data-metric]")),
+  playerCitation: document.getElementById("player-citation"),
+  playerCitationText: document.getElementById("player-citation-text"),
+  playerCitationCopy: document.getElementById("player-citation-copy")
 };
 
 function showStatus(message, tone = "neutral", options = {}) {
@@ -343,6 +360,42 @@ function renderDossierNotes(notes) {
   });
 }
 
+function metricLabel(metric = state.metric) {
+  return metric === "average" ? "Avg/game season ledger" : "Total season ledger";
+}
+
+function buildPlayerCitationText(profile = state.profile) {
+  if (!profile) {
+    return "";
+  }
+
+  const playerName = profile.player?.canonical_name || profile.player?.player_name || "Unknown player";
+  const overview = profile.overview || {};
+  const seasonSpan = overview.first_season && overview.last_season
+    ? `${overview.first_season}\u2013${overview.last_season}`
+    : "Single-season";
+  const clubs = (overview.squad_names || []).filter(Boolean);
+
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: [
+      `Player dossier: ${playerName}`,
+      `${seasonSpan} · ${formatNumber(overview.games_played)} games · ${formatNumber(overview.teams_played)} clubs`,
+      clubs.length ? `Clubs: ${clubs.join(", ")}` : "",
+      metricLabel()
+    ]
+  });
+}
+
+function renderPlayerCitation(profile = state.profile) {
+  updateSurfaceCitation(
+    elements.playerCitation,
+    elements.playerCitationText,
+    profile ? buildPlayerCitationText(profile) : "",
+    { visible: Boolean(profile) }
+  );
+}
+
 function updateSeasonLedgerNotes() {
   if (!elements.seasonLedgerNotes) return;
   elements.seasonLedgerNotes.textContent = state.metric === "average"
@@ -362,14 +415,29 @@ function setMetric(nextMetric) {
   if (state.profile) {
     renderSeasonTable(state.profile);
     updateSeasonLedgerNotes();
+    renderPlayerCitation(state.profile);
   }
 }
 
 function renderHeroProfile(profile) {
   const identity = profile.identity || {};
-  elements.heroProfileBirthday.textContent = identity.date_of_birth || "Not yet verified";
-  elements.heroProfileNationality.textContent = identity.nationality || "Not yet verified";
-  elements.heroProfileDebutSeason.textContent = identity.debut_season != null ? `${identity.debut_season}` : "Not yet verified";
+  const fields = [
+    { row: elements.heroProfileBirthdayRow, el: elements.heroProfileBirthday, value: identity.date_of_birth || null },
+    { row: elements.heroProfileNationalityRow, el: elements.heroProfileNationality, value: identity.nationality || null },
+    { row: elements.heroProfileDebutRow, el: elements.heroProfileDebutSeason, value: identity.debut_season != null ? String(identity.debut_season) : null },
+  ];
+  let visible = 0;
+  fields.forEach(({ row, el, value }) => {
+    if (value && row && el) {
+      el.textContent = value;
+      row.hidden = false;
+      visible++;
+    } else if (row) {
+      row.hidden = true;
+    }
+  });
+  const aside = elements.heroProfileBirthday?.closest(".hero-aside");
+  if (aside) aside.hidden = visible === 0;
 }
 
 function renderProfile(profile) {
@@ -384,7 +452,10 @@ function renderProfile(profile) {
   const pillars = buildDossierPillars(profile, topCareerStat);
   const notes = buildDossierNotes(profile, topCareerStat);
 
-  document.title = `${playerName} | Netball Stats Database`;
+  document.title = formatPageTitle(playerName);
+  if (elements.playerHero) {
+    elements.playerHero.hidden = false;
+  }
   elements.playerName.textContent = playerName;
   elements.playerSubtitle.textContent = `Archive record ${profile.player?.player_id ?? ""}`.trim();
   elements.playerIntro.textContent = `${overview.first_season && overview.last_season ? `${overview.first_season}\u2013${overview.last_season}` : "Single-season"} dossier · ${formatNumber(overview.games_played)} games across ${formatNumber(overview.seasons_played)} seasons and ${formatNumber(overview.teams_played)} clubs.`;
@@ -396,6 +467,12 @@ function renderProfile(profile) {
   elements.summaryPrimary.textContent = topCareerStat
     ? `${statLabel(topCareerStat.stat)} · ${formatNumber(topCareerStat.total_value)}`
     : "No totals yet";
+  if (elements.playerSummaryBand) {
+    elements.playerSummaryBand.hidden = false;
+  }
+  if (elements.playerDossierBody) {
+    elements.playerDossierBody.hidden = false;
+  }
 
   renderSquads(overview.squad_names || []);
   renderHeroProfile(profile);
@@ -404,6 +481,7 @@ function renderProfile(profile) {
   renderDossierNotes(notes);
   updateSeasonLedgerNotes();
   renderSeasonTable(profile);
+  renderPlayerCitation(profile);
 }
 
 async function initialise() {
@@ -435,5 +513,14 @@ elements.metricButtons.forEach((button) => {
     setMetric(button.dataset.metric || "total");
   });
 });
+
+bindSurfaceCitationCopy(
+  elements.playerCitationCopy,
+  () => buildPlayerCitationText(),
+  {
+    onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2000 }),
+    onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+  }
+);
 
 initialise();

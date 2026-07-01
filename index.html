@@ -3,9 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="application-name" content="Statsball">
     <script src="assets/theme.js"></script>
-    <title>Netball Stats Database</title>
-    <meta name="description" content="Netball statistics archive covering ANZ Championship and Super Netball — 2008 finals only, then full-season leaders, totals, and historical records from 2009 to 2026.">
+    <title>Super Netball & ANZ Stats · Statsball</title>
+    <meta name="description" content="Super Netball and ANZ Championship stats — leaders, records, and round context from the Statsball archive. 2008 finals only; full seasons from 2009.">
+    <meta property="og:title" content="Super Netball & ANZ Stats · Statsball">
+    <meta property="og:description" content="Super Netball and ANZ Championship stats — leaders, records, and round context from the Statsball archive. 2008 finals only; full seasons from 2009.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/share-domestic.png">
+    <meta property="og:image:alt" content="Statsball — Super Netball and ANZ Championship archive">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Super Netball & ANZ Stats · Statsball">
+    <meta name="twitter:description" content="Super Netball and ANZ Championship stats — leaders, records, and round context from the Statsball archive. 2008 finals only; full seasons from 2009.">
+    <meta name="twitter:image" content="/assets/share-domestic.png">
     <link rel="preload" href="assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="assets/styles.css">
@@ -17,24 +27,29 @@
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
-      <nav class="page-nav" aria-label="Site navigation">
-        <a class="page-nav__link" href="/" aria-current="page">SSN/ANZC</a>
+      <nav class="page-nav" aria-label="Super Netball archive">
+        <div class="page-nav__mode" role="group" aria-label="Switch archive">
+          <a class="page-nav__mode-link page-nav__mode-link--active" href="/">Super Netball</a>
+          <a class="page-nav__mode-link" href="/international/">International</a>
+        </div>
+        <span class="page-nav__divider" aria-hidden="true"></span>
+        <a class="page-nav__link" href="/" aria-current="page">Archive</a>
         <a class="page-nav__link" href="/players/">Players</a>
         <a class="page-nav__link" href="/query/">Ask the stats</a>
         <a class="page-nav__link" href="/compare/">Compare</a>
         <a class="page-nav__link" href="/round/">Round recap</a>
-        <a class="page-nav__link" href="/league-composition/">Composition</a>
-        <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
-        <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
-        <a class="page-nav__link" href="/nwar/">nWAR</a>
-        <span class="page-nav__divider" aria-hidden="true"></span>
-        <a class="page-nav__link" href="/international/">International</a>
-        <a class="page-nav__link" href="/international/players/">Players</a>
-        <a class="page-nav__link" href="/international/query/">Ask the stats</a>
-        <a class="page-nav__link" href="/international/compare/">Compare</a>
+                <details class="page-nav__more">
+          <summary class="page-nav__more-summary">More tools</summary>
+          <div class="page-nav__more-menu" role="group" aria-label="Specialist archive tools">
+            <a class="page-nav__link" href="/league-composition/"><span class="page-nav__link-label">Composition</span><small class="page-nav__link-hint">Youth, age, and import share</small></a>
+            <a class="page-nav__link" href="/scoreflow/"><span class="page-nav__link-label">Scoreflow</span><small class="page-nav__link-hint">Comebacks and score control</small></a>
+            <a class="page-nav__link" href="/home-court-advantage/"><span class="page-nav__link-label">Court advantage</span><small class="page-nav__link-hint">Home win rate and margin swing</small></a>
+            <a class="page-nav__link" href="/nwar/"><span class="page-nav__link-label">nWAR</span><small class="page-nav__link-hint">Wins above replacement by position</small></a>
+          </div>
+        </details>
         <span class="page-nav__divider" aria-hidden="true"></span>
         <a class="page-nav__link" href="/changelog/">Changelog</a>
-        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+        <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Current theme dark. Switch to light theme"><span class="theme-toggle__kicker">Reading mode</span><span class="theme-toggle__value">Night desk</span></button>
       </nav>
 
       <section class="hero-panel hero-panel--home">
@@ -45,183 +60,72 @@
         </div>
       </section>
 
-      <section class="home-overview reveal" aria-label="Archive overview">
-        <div class="home-overview__intro">
-          <p class="panel__eyebrow">Archive at a glance</p>
-          <h2>See the archive before you narrow it</h2>
-        </div>
-        <div class="home-overview__stats">
-          <section class="summary-band" aria-label="Archive totals">
-            <article class="summary-card summary-card--accent">
-              <span class="summary-card__label">Matches</span>
-              <span id="summary-matches" class="summary-card__value">-</span>
-            </article>
-            <article class="summary-card">
-              <span class="summary-card__label">Players</span>
-              <span id="summary-players" class="summary-card__value">-</span>
-            </article>
-            <article class="summary-card">
-              <span class="summary-card__label">Teams</span>
-              <span id="summary-teams" class="summary-card__value">-</span>
-            </article>
-            <article class="summary-card">
-              <span class="summary-card__label">Goals</span>
-              <span id="summary-goals" class="summary-card__value">-</span>
-            </article>
-          </section>
-          <p id="summary-refreshed" class="muted refresh-note">Loading archive totals…</p>
-        </div>
+      <section class="home-overview reveal" aria-label="Archive totals" hidden>
+        <section class="summary-band" aria-label="Archive totals">
+          <article class="summary-card summary-card--accent">
+            <span class="summary-card__label">Matches</span>
+            <span id="summary-matches" class="summary-card__value"></span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Players</span>
+            <span id="summary-players" class="summary-card__value"></span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Teams</span>
+            <span id="summary-teams" class="summary-card__value"></span>
+          </article>
+          <article class="summary-card">
+            <span class="summary-card__label">Points</span>
+            <span id="summary-points" class="summary-card__value"></span>
+          </article>
+        </section>
+        <p id="summary-refreshed" class="muted refresh-note" hidden></p>
       </section>
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel query-panel query-panel--home archive-control-desk reveal">
-        <div id="status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
-        <div class="archive-control-desk__header">
-          <div class="panel__heading panel__heading--split">
-            <div>
-              <p class="panel__eyebrow">Start here</p>
-              <h2>Choose the slice</h2>
-            </div>
-            <p id="active-filter-summary" class="muted filter-summary">Loading query options…</p>
-          </div>
-        </div>
+      <div id="status-banner" class="status-banner" role="status" aria-live="polite" hidden></div>
 
-        <form id="filters-form" class="filters filters--dashboard" novalidate>
-          <div class="field field--wide field--season-block field--season-hub">
-            <div class="field__label-row">
-              <span class="field-label">Seasons</span>
-              <div class="season-actions" role="group" aria-label="Season quick actions">
-                <button type="button" class="button button--ghost button--small" data-season-action="latest">Latest</button>
-                <button type="button" class="button button--ghost button--small" data-season-action="all">All</button>
-                <button type="button" class="button button--ghost button--small" data-season-action="clear">Clear</button>
-              </div>
-            </div>
-            <div id="season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
-          </div>
-
-          <div class="field field--stat-picker">
-            <label for="team-stat">Team stat</label>
-            <select id="team-stat" name="team-stat"></select>
-          </div>
-          <div class="field field--stat-picker">
-            <label for="player-stat">Player stat</label>
-            <select id="player-stat" name="player-stat"></select>
-          </div>
-
-          <details id="archive-advanced" class="archive-advanced field--wide">
-            <summary class="archive-advanced__summary">
-              <span>Need a tighter slice?</span>
-              <small>Add a player, club, round, or change how the leaderboards read.</small>
-            </summary>
-            <div class="archive-advanced__grid">
-              <div class="field field--secondary field--compact field--toggle">
-                <span class="field-label">Archive mode</span>
-                <input id="archive-mode" name="archive-mode" type="hidden" value="aggregate">
-                <div class="view-toggle" role="group" aria-label="Archive mode">
-                  <button type="button" class="button button--small is-active" data-archive-mode="aggregate" aria-pressed="true">Totals</button>
-                  <button type="button" class="button button--small button--ghost" data-archive-mode="records" aria-pressed="false">Single-game records</button>
-                </div>
-                <div class="field-hint-wrap">
-                  <small id="archive-mode-hint" class="field-hint">Switch between totals and one-game peaks.</small>
-                </div>
-              </div>
-              <div class="field field--secondary field--compact">
-                <label for="stat-mode">Stat mode</label>
-                <select id="stat-mode" name="stat-mode">
-                  <option value="total" selected>Total</option>
-                  <option value="average">Average per game</option>
-                </select>
-              </div>
-              <div class="field field--wide field--search-bar">
-                <label for="player-search">Player search</label>
-                <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler, Harten, Koenen">
-                <div class="field-hint-wrap">
-                  <small class="field-hint">Surname changes still map to the same player.</small>
-                </div>
-              </div>
-              <div class="field field--secondary field--compact">
-                <label for="team-id">Team</label>
-                <select id="team-id" name="team-id"></select>
-              </div>
-              <div class="field field--secondary field--compact">
-                <label for="round">Round</label>
-                <input id="round" name="round" type="number" min="1" max="30" inputmode="numeric" placeholder="Any round">
-              </div>
-              <div class="field field--secondary field--compact field--toggle">
-                <span class="field-label">Leaderboard order</span>
-                <input id="ranking-mode" name="ranking-mode" type="hidden" value="highest">
-                <div class="view-toggle" role="group" aria-label="Leaderboard order">
-                  <button type="button" class="button button--small is-active" data-ranking-mode="highest" aria-pressed="true">Highest</button>
-                  <button type="button" class="button button--small button--ghost" data-ranking-mode="lowest" aria-pressed="false">Lowest</button>
-                </div>
-                <div class="field-hint-wrap">
-                  <small class="field-hint">Use Lowest for error stats such as general play turnovers.</small>
-                </div>
-              </div>
-            </div>
-          </details>
-          <div class="filter-actions filter-actions--primary field--wide">
-            <div class="filter-actions__buttons">
-              <button type="submit">Apply filters</button>
-              <button type="button" id="reset-filters" class="button button--ghost">Reset</button>
-            </div>
-          </div>
-        </form>
-      </section>
-
-      <section class="panel editorial-lead reveal" aria-label="Latest archive lead">
+      <section class="panel editorial-lead reveal" aria-label="Latest archive lead" hidden>
         <div class="editorial-lead__feature">
           <p class="panel__eyebrow">Latest archive lead</p>
-          <h2 id="editorial-lead-headline">Loading the latest completed round…</h2>
-          <p id="editorial-lead-copy" class="editorial-lead__copy">Pulling a fresh note from the most recent completed round.</p>
-          <p id="editorial-lead-note" class="editorial-lead__note">Open the recap for the full slate, then use the archive tools below to keep following the thread.</p>
+          <h2 id="editorial-lead-headline">The archive is ready for a fresh read.</h2>
+          <p id="editorial-lead-copy" class="editorial-lead__copy">Start with the latest completed round, then filter the leaders below.</p>
         </div>
         <div class="editorial-lead__facts" aria-label="Latest round snapshot">
           <article class="editorial-lead__fact">
-            <span id="editorial-lead-fact-label" class="summary-card__label">Lead note</span>
-            <strong id="editorial-lead-fact-value">--</strong>
-            <p id="editorial-lead-fact-copy">Loading the standout line.</p>
+            <span id="editorial-lead-fact-label" class="summary-card__label">Archive route</span>
+            <strong id="editorial-lead-fact-value">Round recap</strong>
+            <p id="editorial-lead-fact-copy">The latest completed round is the quickest way into the live archive.</p>
           </article>
           <article class="editorial-lead__fact">
-            <span id="editorial-lead-secondary-label" class="summary-card__label">Round frame</span>
-            <strong id="editorial-lead-secondary-value">--</strong>
-            <p id="editorial-lead-secondary-copy">Loading the latest round totals.</p>
+            <span id="editorial-lead-secondary-label" class="summary-card__label">Next move</span>
+            <strong id="editorial-lead-secondary-value">Filter leaders</strong>
+            <p id="editorial-lead-secondary-copy">Set seasons and stats, then open a dossier from the player table.</p>
           </article>
         </div>
         <div class="editorial-lead__links" aria-label="Archive routes">
-          <a class="editorial-lead__link" href="/round/">Read the round recap</a>
-          <a class="editorial-lead__link" href="/round-preview/">Preview the next round</a>
+          <a class="editorial-lead__link editorial-lead__link--primary" href="/round/">Read the round recap</a>
           <a class="editorial-lead__link" href="/query/">Ask the stats</a>
-          <a class="editorial-lead__link" href="/compare/">Build a comparison</a>
         </div>
       </section>
 
-      <section class="panel results-panel results-panel--wide results-panel--spotlight reveal">
-        <div class="panel__heading panel__heading--split">
-          <div>
-            <p class="results-panel__eyebrow">Match log</p>
-            <h2>Recent results</h2>
-          </div>
-        </div>
-        <div class="table-wrapper table-wrapper--spotlight">
-            <table id="matches-table" class="stack-table">
-            <thead>
-              <tr>
-                <th scope="col">Season</th>
-                <th scope="col">Round</th>
-                <th scope="col">Result</th>
-                <th scope="col">Venue</th>
-                <th scope="col">Local start</th>
-              </tr>
-            </thead>
-            <tbody></tbody>
-          </table>
-        </div>
-      </section>
+      <div id="archive-filter-rail" class="archive-filter-rail reveal" hidden>
+        <p id="archive-filter-rail-summary" class="archive-filter-rail__summary muted"></p>
+        <button type="button" id="archive-filter-rail-open" class="button button--ghost button--small">Open filters</button>
+      </div>
 
       <section class="results-grid results-grid--home" aria-label="Stat tables">
-        <section class="panel results-panel results-panel--lead reveal">
+        <section class="archive-results-intro reveal" aria-label="Archive reading order">
+          <p class="results-panel__eyebrow">Reading order</p>
+          <p class="archive-results-intro__copy">Start with player leaders and open a dossier from any row. Scan clubs next. Open Filter the leaders when you need a tighter slice. Season totals and recent results stay folded below.</p>
+          <div class="archive-citation" aria-label="Leaderboard citation" hidden>
+            <p id="archive-citation-text" class="archive-citation__text muted"></p>
+            <button type="button" id="archive-citation-copy" class="button button--ghost button--small">Copy citation</button>
+          </div>
+        </section>
+
+        <section id="player-leaders-panel" class="panel results-panel results-panel--lead reveal" hidden>
           <div class="panel__heading panel__heading--split">
             <div>
               <p class="results-panel__eyebrow">Player leaders</p>
@@ -270,46 +174,7 @@
           </div>
         </section>
 
-        <section id="competition-season-panel" class="panel results-panel results-panel--rail reveal">
-          <div class="panel__heading panel__heading--split">
-            <div>
-              <p class="results-panel__eyebrow">Season snapshot</p>
-              <h2>Season totals</h2>
-            </div>
-            <div class="panel__meta-stack">
-              <p id="competition-season-summary" class="muted">Season context for Points.</p>
-              <div class="view-toggle" role="group" aria-label="Competition season totals view">
-                <button type="button" class="button button--ghost button--small is-active" data-panel="competition-season" data-view-mode="table" aria-pressed="true">Table</button>
-                <button type="button" class="button button--ghost button--small" data-panel="competition-season" data-view-mode="chart" aria-pressed="false">Chart</button>
-              </div>
-            </div>
-          </div>
-          <div class="panel-view" data-panel-view="competition-season" data-panel-mode="table">
-            <div class="table-wrapper">
-              <table id="competition-season-table" class="stack-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Season</th>
-                    <th scope="col">Stat</th>
-                    <th id="competition-value-heading" scope="col">Total</th>
-                    <th scope="col">Matches</th>
-                  </tr>
-                </thead>
-                <tbody></tbody>
-              </table>
-            </div>
-          </div>
-          <div class="panel-view panel-view--charts" data-panel-view="competition-season" data-panel-mode="chart" hidden>
-            <article class="chart-card">
-              <div class="chart-card__header">
-                  <h3 id="competition-season-chart-title" class="chart-card__title">Competition trend by season for Points</h3>
-              </div>
-              <div id="competition-season-chart" class="chart-shell"></div>
-            </article>
-          </div>
-        </section>
-
-        <section class="panel results-panel results-panel--anchor reveal">
+        <section id="team-leaders-panel" class="panel results-panel results-panel--anchor reveal" hidden>
           <div class="panel__heading panel__heading--split">
             <div>
               <p class="results-panel__eyebrow">Club comparison</p>
@@ -357,7 +222,169 @@
           </div>
         </section>
 
+        <details id="competition-season-panel" class="home-secondary home-secondary--panel reveal">
+          <summary class="home-secondary__summary">
+            <span>Season totals</span>
+            <small id="competition-season-summary" class="home-secondary__hint">Season context for Points.</small>
+          </summary>
+          <div class="home-secondary__body">
+            <div class="panel results-panel results-panel--rail">
+              <div class="panel__heading panel__heading--split">
+                <div>
+                  <p class="results-panel__eyebrow">Season snapshot</p>
+                  <h2>Season totals</h2>
+                </div>
+                <div class="panel__meta-stack">
+                  <div class="view-toggle" role="group" aria-label="Competition season totals view">
+                    <button type="button" class="button button--ghost button--small is-active" data-panel="competition-season" data-view-mode="table" aria-pressed="true">Table</button>
+                    <button type="button" class="button button--ghost button--small" data-panel="competition-season" data-view-mode="chart" aria-pressed="false">Chart</button>
+                  </div>
+                </div>
+              </div>
+              <div class="panel-view" data-panel-view="competition-season" data-panel-mode="table">
+                <div class="table-wrapper">
+                  <table id="competition-season-table" class="stack-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Season</th>
+                        <th scope="col">Stat</th>
+                        <th id="competition-value-heading" scope="col">Total</th>
+                        <th scope="col">Matches</th>
+                      </tr>
+                    </thead>
+                    <tbody></tbody>
+                  </table>
+                </div>
+              </div>
+              <div class="panel-view panel-view--charts" data-panel-view="competition-season" data-panel-mode="chart" hidden>
+                <article class="chart-card">
+                  <div class="chart-card__header">
+                    <h3 id="competition-season-chart-title" class="chart-card__title">Competition trend by season for Points</h3>
+                  </div>
+                  <div id="competition-season-chart" class="chart-shell"></div>
+                </article>
+              </div>
+            </div>
+          </div>
+        </details>
+
       </section>
+
+      <details id="archive-filter-desk" class="home-secondary home-secondary--panel home-secondary--filter-desk reveal">
+        <summary class="home-secondary__summary">
+          <span>Filter the leaders</span>
+          <small id="active-filter-summary" class="home-secondary__hint">Seasons and stats update when the archive loads.</small>
+        </summary>
+        <div class="home-secondary__body">
+          <section class="panel query-panel query-panel--home archive-control-desk">
+            <form id="filters-form" class="filters filters--dashboard" novalidate>
+              <div class="field field--wide field--season-block field--season-hub">
+                <div class="field__label-row">
+                  <span class="field-label">Seasons</span>
+                  <div class="season-actions" role="group" aria-label="Season quick actions">
+                    <button type="button" class="button button--ghost button--small" data-season-action="latest">Latest</button>
+                    <button type="button" class="button button--ghost button--small" data-season-action="all">All</button>
+                    <button type="button" class="button button--ghost button--small" data-season-action="clear">Clear</button>
+                  </div>
+                </div>
+                <div id="season-choices" class="season-choices" role="group" aria-label="Season choices"></div>
+                <p id="season-scope-note" class="muted season-scope-note" hidden>No seasons checked means the full archive across every season.</p>
+              </div>
+
+              <div class="field field--stat-picker">
+                <label for="team-stat">Team stat</label>
+                <select id="team-stat" name="team-stat"></select>
+              </div>
+              <div class="field field--stat-picker">
+                <label for="player-stat">Player stat</label>
+                <select id="player-stat" name="player-stat"></select>
+              </div>
+
+              <details id="archive-advanced" class="archive-advanced field--wide">
+                <summary class="archive-advanced__summary">
+                  <span>Need a tighter slice?</span>
+                  <small>Add a player, club, round, or change how the leaderboards read.</small>
+                </summary>
+                <div class="archive-advanced__grid">
+                  <div class="field field--secondary field--compact field--toggle">
+                    <span class="field-label">Archive mode</span>
+                    <input id="archive-mode" name="archive-mode" type="hidden" value="aggregate">
+                    <div class="view-toggle" role="group" aria-label="Archive mode">
+                      <button type="button" class="button button--small is-active" data-archive-mode="aggregate" aria-pressed="true">Totals</button>
+                      <button type="button" class="button button--small button--ghost" data-archive-mode="records" aria-pressed="false">Single-game records</button>
+                    </div>
+                    <div class="field-hint-wrap">
+                      <small id="archive-mode-hint" class="field-hint">Switch between totals and one-game peaks.</small>
+                    </div>
+                  </div>
+                  <div class="field field--secondary field--compact">
+                    <label for="stat-mode">Stat mode</label>
+                    <select id="stat-mode" name="stat-mode">
+                      <option value="total" selected>Total</option>
+                      <option value="average">Average per game</option>
+                    </select>
+                  </div>
+                  <div class="field field--wide field--search-bar">
+                    <label for="player-search">Player search</label>
+                    <input id="player-search" name="player-search" type="search" maxlength="80" placeholder="e.g. Fowler, Harten, Koenen">
+                    <div class="field-hint-wrap">
+                      <small class="field-hint">Surname changes still map to the same player.</small>
+                    </div>
+                  </div>
+                  <div class="field field--secondary field--compact">
+                    <label for="team-id">Team</label>
+                    <select id="team-id" name="team-id"></select>
+                  </div>
+                  <div class="field field--secondary field--compact">
+                    <label for="round">Round</label>
+                    <input id="round" name="round" type="number" min="1" max="30" inputmode="numeric" placeholder="Any round">
+                  </div>
+                  <div class="field field--secondary field--compact field--toggle">
+                    <span class="field-label">Leaderboard order</span>
+                    <input id="ranking-mode" name="ranking-mode" type="hidden" value="highest">
+                    <div class="view-toggle" role="group" aria-label="Leaderboard order">
+                      <button type="button" class="button button--small is-active" data-ranking-mode="highest" aria-pressed="true">Highest</button>
+                      <button type="button" class="button button--small button--ghost" data-ranking-mode="lowest" aria-pressed="false">Lowest</button>
+                    </div>
+                    <div class="field-hint-wrap">
+                      <small class="field-hint">Use Lowest for error stats such as general play turnovers.</small>
+                    </div>
+                  </div>
+                </div>
+              </details>
+              <div class="filter-actions filter-actions--primary field--wide">
+                <p class="filter-actions__hint">Leaderboards update as you change filters. <button type="submit" class="button button--link">Apply immediately</button></p>
+                <div class="filter-actions__buttons">
+                  <button type="button" id="reset-filters" class="button button--ghost">Reset</button>
+                </div>
+              </div>
+            </form>
+          </section>
+        </div>
+      </details>
+
+      <details class="home-secondary panel reveal">
+        <summary class="home-secondary__summary">
+          <span>Recent results</span>
+          <small class="home-secondary__hint">Latest scorelines for the selected slice</small>
+        </summary>
+        <div class="home-secondary__body">
+          <div class="table-wrapper table-wrapper--spotlight">
+            <table id="matches-table" class="stack-table">
+              <thead>
+                <tr>
+                  <th scope="col">Season</th>
+                  <th scope="col">Round</th>
+                  <th scope="col">Result</th>
+                  <th scope="col">Venue</th>
+                  <th scope="col">Local start</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </details>
     </main>
   </body>
 </html>

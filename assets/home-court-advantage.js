@@ -1,5 +1,7 @@
 const {
   buildUrl,
+  buildSurfaceCitationText,
+  bindSurfaceCitationCopy,
   clearEmptyTableState = () => {},
   fetchJson,
   getMeta,
@@ -12,7 +14,8 @@ const {
   showElementLoadingStatus = () => {},
   showElementStatus = () => {},
   statPrefersLowerValue = () => false,
-  syncResponsiveTable = () => {}
+  syncResponsiveTable = () => {},
+  updateSurfaceCitation = () => {}
 } = window.NetballStatsUI || {};
 const {
   trackEvent = () => {}
@@ -77,8 +80,34 @@ const elements = {
   statBody: document.getElementById("home-edge-stat-body"),
   oppositionBody: document.getElementById("home-edge-opposition-body"),
   oppositionStatBody: document.getElementById("home-edge-opposition-stat-body"),
-  teamVenueStatBody: document.getElementById("home-edge-team-venue-stat-body")
+  teamVenueStatBody: document.getElementById("home-edge-team-venue-stat-body"),
+  citation: document.getElementById("home-edge-citation"),
+  citationText: document.getElementById("home-edge-citation-text"),
+  citationCopy: document.getElementById("home-edge-citation-copy")
 };
+
+function buildHomeEdgeCitationText() {
+  const seasons = getSelectedSeasons();
+  return buildSurfaceCitationText({
+    scope: "domestic",
+    segments: [
+      "Home-court advantage",
+      seasons.length ? `Seasons ${seasons.join(", ")}` : "All seasons",
+      elements.team?.value ? `Team ${elements.team.value}` : "All teams",
+      state.selectedVenue ? `Venue ${state.selectedVenue}` : "League-wide venues"
+    ]
+  });
+}
+
+function renderHomeEdgeCitation() {
+  const ready = Boolean(state.payload?.venues?.length || state.payload?.teams?.length);
+  updateSurfaceCitation(
+    elements.citation,
+    elements.citationText,
+    ready ? buildHomeEdgeCitationText() : "",
+    { visible: ready }
+  );
+}
 
 function unwrapValue(value) {
   if (Array.isArray(value)) {
@@ -751,6 +780,7 @@ function renderAll() {
   renderVenueTable();
   renderTeamTable();
   renderTeamVenueTable();
+  renderHomeEdgeCitation();
   updateApiLink();
   syncUrlState();
 }
@@ -813,6 +843,14 @@ if (elements.filters) {
 }
 
 async function initialise() {
+  bindSurfaceCitationCopy(
+    elements.citationCopy,
+    () => buildHomeEdgeCitationText(),
+    {
+      onSuccess: () => showStatus("Citation copied.", "success", { autoHideMs: 2000 }),
+      onError: () => showStatus("Couldn't copy citation.", "error", { kicker: "Copy failed" })
+    }
+  );
   try {
     await loadMetadata(1);
   } catch (error) {

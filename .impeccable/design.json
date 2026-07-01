@@ -1,0 +1,81 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-30T00:00:00.000Z",
+  "title": "Design System: Super Netball Stats",
+  "extensions": {
+    "colorMeta": {
+      "keepers-amber": {
+        "role": "primary",
+        "displayName": "Keeper's Amber",
+        "canonical": "#f0c67e",
+        "tonalRamp": ["#20160d", "#5a3a12", "#8f5a18", "#b87020", "#c87830", "#f0c67e", "#ffe0a5", "#fff4dc"]
+      },
+      "recorders-teal": {
+        "role": "secondary",
+        "displayName": "Recorder's Blue-Green",
+        "canonical": "#79d8d0",
+        "tonalRamp": ["#0a2e28", "#0f4a42", "#1a8a7a", "#2aa396", "#79d8d0", "#a8ebe4", "#d0f5f1", "#eefaf8"]
+      },
+      "cream-hover-top": {
+        "role": "neutral",
+        "displayName": "Cream Hover Top",
+        "canonical": "#fff8eb",
+        "tonalRamp": ["#3a2a14", "#6b4f24", "#9a7030", "#c89848", "#fff8eb", "#fffaf2", "#fffcf7", "#fffefb"]
+      },
+      "cream-hover-bottom": {
+        "role": "neutral",
+        "displayName": "Cream Hover Bottom",
+        "canonical": "#fff0d2",
+        "tonalRamp": ["#3a2810", "#6b4818", "#9a6824", "#c89038", "#fff0d2", "#fff5e3", "#fff9ef", "#fffefb"]
+      },
+      "light-warm-border": {
+        "role": "neutral",
+        "displayName": "Warm Border Tint",
+        "canonical": "#825a1e",
+        "tonalRamp": ["#1a1006", "#3a2810", "#5a4018", "#825a1e", "#a07830", "#c09850", "#e0c088", "#f5e8cc"]
+      }
+    },
+    "shadows": [
+      { "name": "panel-dark", "value": "0 30px 60px rgba(0, 0, 0, 0.28)", "purpose": "Raised panels in dark theme." },
+      { "name": "panel-light", "value": "0 4px 24px rgba(0, 0, 0, 0.08)", "purpose": "Raised panels in light theme." }
+    ],
+    "breakpoints": [
+      { "name": "sm", "value": "640px" },
+      { "name": "md", "value": "681px" },
+      { "name": "lg", "value": "1240px" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Main call to action across archive surfaces.",
+      "html": "<button class=\"ds-btn-primary\" type=\"button\">Apply filters</button>",
+      "css": ".ds-btn-primary { appearance: none; border: none; border-radius: 999px; padding: 0.95rem 1.3rem; background: linear-gradient(135deg, var(--accent), var(--accent-strong)); color: var(--text-on-accent); font-family: var(--body-font); font-size: 0.9375rem; font-weight: 600; cursor: pointer; } .ds-btn-primary:hover { filter: brightness(1.03); transform: translateY(-2px); } .ds-btn-primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }"
+    },
+    {
+      "name": "Navigation Link",
+      "kind": "nav",
+      "refersTo": "nav-link",
+      "description": "Pill navigation link in the site header.",
+      "html": "<a class=\"ds-nav-link\" href=\"#\">Compare</a>",
+      "css": ".ds-nav-link { display: inline-flex; align-items: center; min-block-size: 44px; padding: 0.7rem 0.95rem; border-radius: 999px; border: 1px solid var(--nav-pill-border); background: var(--nav-pill-bg); color: var(--nav-pill-color); font-family: var(--body-font); font-size: 0.875rem; font-weight: 600; text-decoration: none; } .ds-nav-link:hover { background: var(--nav-pill-hover-bg); color: var(--nav-pill-hover-color); } .ds-nav-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Data Room After Dark",
+    "overview": "Editorial sports almanac register: ink-navy surfaces, warm amber authority, teal precision, evidence before flourish.",
+    "keyCharacteristics": [
+      "Dark-first tonal panel layering",
+      "Fraunces for words, Teko for large numbers",
+      "Pill interactive elements with quiet resting states"
+    ],
+    "rules": [
+      { "name": "The Restraint Rule", "body": "Accents appear on ≤10% of any screen surface.", "section": "colors" },
+      { "name": "The Fraunces Rule", "body": "Every word in Fraunces; large numbers in Teko only.", "section": "typography" }
+    ],
+    "dos": ["Use design tokens and --light-* overlays in light theme"],
+    "donts": ["No side-stripe borders on cards or callouts"]
+  }
+}

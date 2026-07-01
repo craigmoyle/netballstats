@@ -3,9 +3,19 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="application-name" content="Statsball International">
     <script src="/assets/theme.js"></script>
-    <title>Compare Players | International Netball</title>
-    <meta name="description" content="Compare Australian Diamonds and international netball players side-by-side with career statistics.">
+    <title>Compare · Statsball International</title>
+    <meta name="description" content="Compare international netball players side-by-side with career statistics.">
+    <meta property="og:title" content="Compare · Statsball International">
+    <meta property="og:description" content="Compare international netball players side-by-side with career statistics.">
+    <meta property="og:type" content="website">
+    <meta property="og:image" content="/assets/share-international-compare.png">
+    <meta property="og:image:alt" content="Statsball International — netball archive">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Compare · Statsball International">
+    <meta name="twitter:description" content="Compare international netball players side-by-side with career statistics.">
+    <meta name="twitter:image" content="/assets/share-international-compare.png">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
@@ -17,24 +27,29 @@
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
-        <nav class="page-nav" aria-label="Site navigation">
-          <a class="page-nav__link" href="/">SSN/ANZC</a>
-          <a class="page-nav__link" href="/players/">Players</a>
-          <a class="page-nav__link" href="/query/">Ask the stats</a>
-          <a class="page-nav__link" href="/compare/">Compare</a>
-          <a class="page-nav__link" href="/round/">Round recap</a>
-          <a class="page-nav__link" href="/league-composition/">Composition</a>
-          <a class="page-nav__link" href="/scoreflow/">Scoreflow</a>
-          <a class="page-nav__link" href="/home-court-advantage/">Court advantage</a>
-          <a class="page-nav__link" href="/nwar/">nWAR</a>
+        <nav class="page-nav" aria-label="International netball archive">
+          <div class="page-nav__mode" role="group" aria-label="Switch archive">
+            <a class="page-nav__mode-link" href="/">Super Netball</a>
+            <a class="page-nav__mode-link page-nav__mode-link--active" href="/international/">International</a>
+          </div>
           <span class="page-nav__divider" aria-hidden="true"></span>
-          <a class="page-nav__link" href="/international/">International</a>
+          <a class="page-nav__link" href="/international/">Archive</a>
           <a class="page-nav__link" href="/international/players/">Players</a>
           <a class="page-nav__link" href="/international/query/">Ask the stats</a>
-          <a class="page-nav__link" href="/international/compare/" aria-current="page">Compare</a>
+          <a class="page-nav__link" href="/international/compare/">Compare</a>
+          <a class="page-nav__link" href="/round/">Round recap</a>
+                  <details class="page-nav__more">
+          <summary class="page-nav__more-summary">More tools</summary>
+          <div class="page-nav__more-menu" role="group" aria-label="Super Netball specialist tools">
+            <a class="page-nav__link" href="/league-composition/"><span class="page-nav__link-label">Composition</span><small class="page-nav__link-hint">Youth, age, and import share</small></a>
+            <a class="page-nav__link" href="/scoreflow/"><span class="page-nav__link-label">Scoreflow</span><small class="page-nav__link-hint">Comebacks and score control</small></a>
+            <a class="page-nav__link" href="/home-court-advantage/"><span class="page-nav__link-label">Court advantage</span><small class="page-nav__link-hint">Home win rate and margin swing</small></a>
+            <a class="page-nav__link" href="/nwar/"><span class="page-nav__link-label">nWAR</span><small class="page-nav__link-hint">Wins above replacement by position</small></a>
+          </div>
+        </details>
           <span class="page-nav__divider" aria-hidden="true"></span>
           <a class="page-nav__link" href="/changelog/">Changelog</a>
-          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Switch to light theme">Light</button>
+          <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Current theme dark. Switch to light theme"><span class="theme-toggle__kicker">Reading mode</span><span class="theme-toggle__value">Night desk</span></button>
         </nav>
 
       <section class="hero-panel compare-hero">
