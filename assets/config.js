@@ -908,10 +908,12 @@
 
     if (currentRoute === "/changelog/") {
       activeMode = readStoredSiteMode() || routeMode;
-      setChangelogNavMode(nav, activeMode);
     } else {
       persistSiteMode(routeMode);
     }
+
+    prepareChangelogNav(nav);
+    setChangelogNavMode(nav, activeMode);
 
     document.documentElement.dataset.siteMode = activeMode;
     nav.dataset.siteMode = activeMode;
