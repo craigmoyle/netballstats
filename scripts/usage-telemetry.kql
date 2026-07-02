@@ -139,3 +139,28 @@ UsageEvents
 | extend Outcome = tostring(Properties.outcome), Mode = tostring(Properties.mode), Metric = tostring(Properties.metric), Stat = tostring(Properties.stat), EntityBucket = tostring(Properties.entity_count_bucket)
 | summarize Runs = sum(toint(coalesce(ItemCount, 1))) by Outcome, Mode, Metric, Stat, EntityBucket
 | order by Runs desc
+
+// Query 6: Weekly audience breakdown by timezone and visit hour
+let PageViewEvents = union isfuzzy=true
+(
+  AppPageViews
+  | project TimeGenerated, Properties = todynamic(Properties), SessionId, UserId, ClientCountryOrRegion, ItemCount
+),
+(
+  pageViews
+  | project TimeGenerated = timestamp, Properties = todynamic(customDimensions), SessionId, UserId, ClientCountryOrRegion = "", ItemCount = itemCount
+);
+PageViewEvents
+| where TimeGenerated > ago(7d)
+| extend TrafficClass = tostring(coalesce(Properties.traffic_class, "public"))
+| where TrafficClass != "internal"
+| extend Country = iif(isempty(ClientCountryOrRegion), "Unknown", ClientCountryOrRegion)
+| extend Timezone = tostring(coalesce(Properties.timezone, "Unknown"))
+| extend VisitHour = tostring(coalesce(Properties.visit_hour_local, "unknown"))
+| extend SiteMode = tostring(coalesce(Properties.site_mode, "domestic"))
+| summarize
+    Views = sum(toint(coalesce(ItemCount, 1))),
+    Sessions = dcount(SessionId),
+    Visitors = dcount(UserId)
+  by Country, Timezone, VisitHour, SiteMode
+| order by Visitors desc

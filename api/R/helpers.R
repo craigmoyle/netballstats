@@ -30,6 +30,60 @@ resolve_request_client_key <- function(raw_forwarded, remote_addr) {
   remote_addr
 }
 
+anonymize_client_ip <- function(raw_ip) {
+  ip <- trimws(as.character(raw_ip %||% "")[[1]])
+  if (!nzchar(ip) || identical(ip, "unknown") || identical(ip, "0.0.0.0")) {
+    return("")
+  }
+
+  if (grepl("^\\d+\\.\\d+\\.\\d+\\.\\d+$", ip)) {
+    return(sub("(\\d+\\.\\d+\\.\\d+\\.)\\d+", "\\10", ip))
+  }
+
+  if (grepl(":", ip)) {
+    parts <- strsplit(ip, ":")[[1]]
+    if (length(parts) >= 5) {
+      return(paste0(c(head(parts, max(length(parts) - 5, 3)), rep("0", min(5, length(parts) - 3))), collapse = ":"))
+    }
+  }
+
+  ip
+}
+
+resolve_telemetry_client_ip <- function(req) {
+  if (is.null(req) || !is.list(req)) {
+    return("")
+  }
+
+  header_names <- c(
+    "HTTP_X_AZURE_CLIENTIP",
+    "HTTP_X_MS_CLIENT_IP",
+    "HTTP_X_FORWARDED_FOR",
+    "HTTP_X_REAL_IP",
+    "REMOTE_ADDR"
+  )
+
+  for (header_name in header_names) {
+    raw_value <- req[[header_name]] %||% ""
+    if (!nzchar(trimws(as.character(raw_value)[[1]]))) {
+      next
+    }
+
+    if (identical(header_name, "HTTP_X_FORWARDED_FOR")) {
+      candidate <- resolve_request_client_key(raw_value, "unknown")
+    } else {
+      candidate <- trimws(as.character(raw_value)[[1]])
+    }
+
+    anonymized <- anonymize_client_ip(candidate)
+    if (nzchar(anonymized)) {
+      return(anonymized)
+    }
+  }
+
+  ""
+}
+
 DEFAULT_TEAM_STATS <- c(
   "attempt_from_zone1", "attempt_from_zone2", "attempts1", "attempts2",
   "badHands", "badPasses", "blocked", "blocks", "breaks",
