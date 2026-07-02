@@ -28,4 +28,23 @@ assert.equal(
   `app and charts bundles must share the same build fingerprint (${appBundle} vs ${chartsBundle})`
 );
 
+const configSource = readFileSync(path.join(repoRoot, 'assets', 'config.js'), 'utf8');
+assert.match(
+  configSource,
+  /prepareChangelogNav\(nav\);\s*\n\s*setChangelogNavMode\(nav, activeMode\);/,
+  'Site mode nav must swap domestic and international link sets on every page'
+);
+
+for (const relativePath of [
+  'international/index.html',
+  'international/compare/index.html',
+  'international/query/index.html',
+  'international/players/index.html',
+  'international/player/index.html'
+]) {
+  const html = readFileSync(path.join(repoRoot, relativePath), 'utf8');
+  assert.doesNotMatch(html, /href="\/round\/"/, `${relativePath} must not include Round recap`);
+  assert.doesNotMatch(html, /page-nav__more/, `${relativePath} must not include More tools`);
+}
+
 console.log('Homepage stats smoke checks passed');
