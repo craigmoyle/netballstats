@@ -255,6 +255,24 @@ telemetry_normalise_traffic_class <- function(value) {
   normalised
 }
 
+telemetry_normalise_site_mode <- function(value) {
+  normalised <- tolower(telemetry_trim_string(value %||% "", 20L))
+  if (normalised %in% c("domestic", "international")) {
+    return(normalised)
+  }
+
+  ""
+}
+
+telemetry_normalise_visit_hour_local <- function(value) {
+  normalised <- tolower(telemetry_trim_string(value %||% "", 20L))
+  if (normalised %in% c("morning", "afternoon", "evening", "night", "unknown")) {
+    return(normalised)
+  }
+
+  ""
+}
+
 # Sanitize custom telemetry properties before sending to Application Insights
 # Validates property names (alphanumeric + underscore only), trims values
 # Filters out NULL, NA, empty values to prevent sparse log rows
@@ -316,6 +334,8 @@ telemetry_sanitise_context <- function(context) {
   device_os <- telemetry_trim_string(context$device_os %||% "", 40L)
   device_os_version <- telemetry_trim_string(context$device_os_version %||% "", 80L)
   traffic_class <- telemetry_normalise_traffic_class(context$traffic_class %||% "")
+  site_mode <- telemetry_normalise_site_mode(context$site_mode %||% "")
+  visit_hour_local <- telemetry_normalise_visit_hour_local(context$visit_hour_local %||% "")
 
   if (nzchar(session_id)) {
     output$session_id <- session_id
@@ -349,6 +369,12 @@ telemetry_sanitise_context <- function(context) {
   }
   if (nzchar(traffic_class)) {
     output$traffic_class <- traffic_class
+  }
+  if (nzchar(site_mode)) {
+    output$site_mode <- site_mode
+  }
+  if (nzchar(visit_hour_local)) {
+    output$visit_hour_local <- visit_hour_local
   }
 
   output
@@ -384,31 +410,25 @@ build_telemetry_envelope <- function(kind, payload, req) {
         device_type = telemetry_context$device_type %||% "",
         device_os = telemetry_context$device_os %||% "",
         device_os_version = telemetry_context$device_os_version %||% "",
-        traffic_class = telemetry_context$traffic_class %||% ""
+        traffic_class = telemetry_context$traffic_class %||% "",
+        site_mode = telemetry_context$site_mode %||% "",
+        visit_hour_local = telemetry_context$visit_hour_local %||% ""
       )
     )
   )
   operation_name <- if (nzchar(telemetry_uri)) telemetry_uri else telemetry_name
-  raw_ip  <- req$HTTP_X_FORWARDED_FOR %||% req$REMOTE_ADDR %||% "unknown"
-  # Anonymise before forwarding: zero last octet (IPv4) or last 80 bits (IPv6)
-  client_ip <- if (grepl("^\\d+\\.\\d+\\.\\d+\\.\\d+$", raw_ip)) {
-    sub("(\\d+\\.\\d+\\.\\d+\\.)\\d+", "\\10", raw_ip)
-  } else if (grepl(":", raw_ip)) {
-    parts <- strsplit(raw_ip, ":")[[1]]
-    if (length(parts) >= 5) {
-      paste0(c(head(parts, max(length(parts) - 5, 3)), rep("0", min(5, length(parts) - 3))), collapse = ":")
-    } else raw_ip
-  } else {
-    raw_ip
-  }
+  client_ip <- resolve_telemetry_client_ip(req)
   client_ip <- telemetry_trim_string(client_ip, 80L)
 
   tags <- list(
     "ai.operation.name" = operation_name,
     "ai.cloud.role" = "netballstats-browser",
-    "ai.location.ip" = client_ip,
     "ai.internal.sdkVersion" = "netballstats-browser-proxy:1.0.0"
   )
+
+  if (nzchar(client_ip)) {
+    tags[["ai.location.ip"]] <- client_ip
+  }
 
   if (nzchar(telemetry_context$device_type %||% "")) {
     tags[["ai.device.type"]] <- telemetry_context$device_type

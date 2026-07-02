@@ -1,0 +1,109 @@
+// Statsball weekly usage report (public traffic only).
+// Used by scripts/setup_weekly_usage_report.sh for the Logic App email report.
+let PeriodStart = ago(7d);
+let PublicPageViews = AppPageViews
+| where TimeGenerated > PeriodStart
+| extend PropertiesJson = todynamic(Properties)
+| extend TrafficClass = tostring(PropertiesJson.traffic_class)
+| where TrafficClass != "internal";
+let PublicEvents = AppEvents
+| where TimeGenerated > PeriodStart
+| extend PropertiesJson = todynamic(Properties)
+| extend TrafficClass = tostring(PropertiesJson.traffic_class)
+| where TrafficClass != "internal";
+let PriorVisitors = AppPageViews
+| where TimeGenerated between (ago(14d) .. PeriodStart)
+| extend TrafficClass = tostring(todynamic(Properties).traffic_class)
+| where TrafficClass != "internal"
+| summarize by UserId;
+let ReturningVisitors = toscalar(
+  PublicPageViews
+  | where UserId in (PriorVisitors)
+  | summarize dcount(UserId)
+);
+union
+(
+  PublicPageViews
+  | summarize MetricValue = count()
+  | extend Section = "Overview", Metric = "Total page views", Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | summarize MetricValue = dcount(SessionId)
+  | extend Section = "Overview", Metric = "Unique sessions", Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | summarize MetricValue = dcount(UserId)
+  | extend Section = "Overview", Metric = "Unique visitors", Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  print MetricValue = ReturningVisitors
+  | extend Section = "Overview", Metric = "Returning visitors", Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | extend PageType = tostring(PropertiesJson.page_type)
+  | summarize MetricValue = count() by PageType
+  | top 5 by MetricValue desc
+  | extend Section = "Top pages", Metric = PageType, Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicEvents
+  | summarize MetricValue = count() by Name
+  | top 3 by MetricValue desc
+  | extend Section = "Top events", Metric = Name, Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | extend Country = iif(isempty(ClientCountryOrRegion), "Unknown", ClientCountryOrRegion)
+  | summarize MetricValue = dcount(UserId) by Country
+  | top 5 by MetricValue desc
+  | extend Section = "Top countries", Metric = Country, Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | extend Timezone = iif(isempty(tostring(PropertiesJson.timezone)), "Unknown", tostring(PropertiesJson.timezone))
+  | summarize MetricValue = dcount(UserId) by Timezone
+  | top 5 by MetricValue desc
+  | extend Section = "Top timezones", Metric = Timezone, Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | extend VisitHour = iif(isempty(tostring(PropertiesJson.visit_hour_local)), "unknown", tostring(PropertiesJson.visit_hour_local))
+  | summarize MetricValue = count() by VisitHour
+  | top 4 by MetricValue desc
+  | extend Section = "Visit hour (local)", Metric = VisitHour, Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | extend SiteMode = iif(isempty(tostring(PropertiesJson.site_mode)), "domestic", tostring(PropertiesJson.site_mode))
+  | summarize MetricValue = dcount(UserId) by SiteMode
+  | extend Section = "Archive mode", Metric = SiteMode, Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | extend Referrer = iif(isempty(tostring(PropertiesJson.referrer_host)), "direct", tostring(PropertiesJson.referrer_host))
+  | summarize MetricValue = count() by Referrer
+  | top 5 by MetricValue desc
+  | extend Section = "Top referrers", Metric = Referrer, Value = tostring(MetricValue)
+  | project Section, Metric, Value
+),
+(
+  PublicPageViews
+  | summarize MetricValue = count() by HourUtc = bin(TimeGenerated, 1h)
+  | top 1 by MetricValue desc
+  | extend Section = "Traffic timing", Metric = strcat("Peak hour (UTC): ", tostring(HourUtc)), Value = tostring(MetricValue)
+  | project Section, Metric, Value
+)
+| order by Section asc, Metric asc

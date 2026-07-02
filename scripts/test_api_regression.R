@@ -631,6 +631,45 @@ assert_true(
 )
 check_step('rate limiter tolerates blank forwarded IP tokens')
 
+assert_true(
+  identical(helpers_env$anonymize_client_ip('203.0.113.45'), '203.0.113.0'),
+  'Expected telemetry IP anonymisation to zero the last IPv4 octet.'
+)
+assert_true(
+  identical(helpers_env$anonymize_client_ip('0.0.0.0'), ''),
+  'Expected invalid telemetry IPs to be dropped.'
+)
+assert_true(
+  identical(
+    helpers_env$resolve_telemetry_client_ip(list(
+      HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
+      HTTP_X_FORWARDED_FOR = '198.51.100.10',
+      REMOTE_ADDR = '127.0.0.1'
+    )),
+    '203.0.113.0'
+  ),
+  'Expected Azure client IP header to take precedence for telemetry geo enrichment.'
+)
+assert_true(
+  identical(
+    helpers_env$resolve_telemetry_client_ip(list(
+      HTTP_X_FORWARDED_FOR = '198.51.100.10, 10.0.0.4',
+      REMOTE_ADDR = '127.0.0.1'
+    )),
+    '198.51.100.0'
+  ),
+  'Expected forwarded client IP to be anonymised for telemetry.'
+)
+assert_true(
+  identical(plumber_helpers_env$telemetry_normalise_site_mode('International'), 'international'),
+  'Expected telemetry site mode normalisation to accept domestic/international only.'
+)
+assert_true(
+  identical(plumber_helpers_env$telemetry_normalise_visit_hour_local('Morning'), 'morning'),
+  'Expected telemetry visit hour buckets to normalise to known values.'
+)
+check_step('telemetry client IP and context normalisation helpers')
+
 player_builder_inputs <- list(
   stat = 'goals',
   seasons = c(2022L, 2023L),

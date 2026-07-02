@@ -341,7 +341,9 @@
       device_type: trimString(device.deviceType || "Browser", 20),
       device_os: trimString(device.deviceOs || "", 40),
       device_os_version: trimString(device.deviceOsVersion || "", 80),
-      traffic_class: getTrafficClass()
+      traffic_class: getTrafficClass(),
+      site_mode: siteModeFromPath(),
+      visit_hour_local: visitHourLocalBucket()
     };
   }
 
@@ -377,6 +379,42 @@
     return pathname
       .replace(/\/player\/\d+(?=\/|$)/, "/player/:id")
       .replace(/\/+$/, "") || "/";
+  }
+
+  function siteModeFromPath(pathname = sanitisePathname()) {
+    return pathname === "/international" || pathname.startsWith("/international/") ? "international" : "domestic";
+  }
+
+  function visitHourLocalBucket() {
+    const timezone = typeof Intl !== "undefined"
+      ? Intl.DateTimeFormat().resolvedOptions().timeZone || ""
+      : "";
+    if (!timezone) {
+      return "unknown";
+    }
+
+    try {
+      const hour = Number(new Intl.DateTimeFormat("en-AU", {
+        timeZone: timezone,
+        hour: "numeric",
+        hour12: false
+      }).format(new Date()));
+      if (!Number.isFinite(hour)) {
+        return "unknown";
+      }
+      if (hour >= 5 && hour < 12) {
+        return "morning";
+      }
+      if (hour >= 12 && hour < 17) {
+        return "afternoon";
+      }
+      if (hour >= 17 && hour < 22) {
+        return "evening";
+      }
+      return "night";
+    } catch (error) {
+      return "unknown";
+    }
   }
 
   function pageTypeFromPath(pathname = sanitisePathname()) {
@@ -418,6 +456,8 @@
       context: telemetryContext(),
       properties: sanitiseProperties({
         page_type: pageTypeFromPath(pathname),
+        site_mode: siteModeFromPath(pathname),
+        visit_hour_local: visitHourLocalBucket(),
         ...extraProperties
       })
     };
@@ -577,6 +617,8 @@
       context: telemetryContext(),
       properties: sanitiseProperties({
         page_type: pageTypeFromPath(),
+        site_mode: siteModeFromPath(),
+        visit_hour_local: visitHourLocalBucket(),
         ...properties
       })
     };
@@ -606,6 +648,8 @@
       clearTrafficClassOverride,
       getTrafficClass,
       pageTypeFromPath,
+      siteModeFromPath,
+      visitHourLocalBucket,
       sanitisePathname,
       setTrafficClass,
       trackEvent,
