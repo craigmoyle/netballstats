@@ -1,6 +1,8 @@
 // Statsball weekly usage report (public traffic only).
-// Used by scripts/setup_weekly_usage_report.sh for the Logic App email report.
+// Returns rows: Block, Label, Value, Detail, SortKey
+// Blocks: headline, stat, page, event, audience, referrer, note
 let PeriodStart = ago(7d);
+let PriorStart = ago(14d);
 let PublicPageViews = AppPageViews
 | where TimeGenerated > PeriodStart
 | extend PropertiesJson = todynamic(Properties)
@@ -11,99 +13,148 @@ let PublicEvents = AppEvents
 | extend PropertiesJson = todynamic(Properties)
 | extend TrafficClass = tostring(PropertiesJson.traffic_class)
 | where TrafficClass != "internal";
-let PriorVisitors = AppPageViews
-| where TimeGenerated between (ago(14d) .. PeriodStart)
+let PriorPageViews = AppPageViews
+| where TimeGenerated between (PriorStart .. PeriodStart)
 | extend TrafficClass = tostring(todynamic(Properties).traffic_class)
-| where TrafficClass != "internal"
+| where TrafficClass != "internal";
+let PriorVisitors = PriorPageViews
 | summarize by UserId;
-let ReturningVisitors = toscalar(
-  PublicPageViews
-  | where UserId in (PriorVisitors)
-  | summarize dcount(UserId)
+let TotalViews = toscalar(PublicPageViews | count | project Count);
+let PriorViews = toscalar(PriorPageViews | count | project Count);
+let UniqueSessions = toscalar(PublicPageViews | summarize dcount(SessionId));
+let PriorSessions = toscalar(PriorPageViews | summarize dcount(SessionId));
+let UniqueVisitors = toscalar(PublicPageViews | summarize dcount(UserId));
+let PriorUniqueVisitors = toscalar(PriorPageViews | summarize dcount(UserId));
+let ReturningVisitors = toscalar(PublicPageViews | where UserId in (PriorVisitors | project UserId) | summarize dcount(UserId));
+let DomesticVisitors = toscalar(PublicPageViews | where tostring(PropertiesJson.site_mode) != "international" | summarize dcount(UserId));
+let InternationalVisitors = toscalar(PublicPageViews | where tostring(PropertiesJson.site_mode) == "international" | summarize dcount(UserId));
+let DirectViews = toscalar(PublicPageViews | where isempty(tostring(PropertiesJson.referrer_host)) | count | project Count);
+let InternalViews = toscalar(PublicPageViews | where tostring(PropertiesJson.referrer_host) == "statsball.net" | count | project Count);
+let KnownCountryVisitors = toscalar(PublicPageViews | where isnotempty(ClientCountryOrRegion) | summarize dcount(UserId));
+let ViewsDelta = TotalViews - PriorViews;
+let VisitorsDelta = UniqueVisitors - PriorUniqueVisitors;
+let TrendText = iff(
+  ViewsDelta > 0,
+  strcat("Up ", ViewsDelta, " views on the prior week."),
+  iff(ViewsDelta < 0, strcat("Down ", abs(ViewsDelta), " views on the prior week."), "Level with the prior week.")
 );
+let Headline = strcat(
+  "The public archive drew ",
+  TotalViews,
+  " page views from ",
+  UniqueVisitors,
+  " visitors across ",
+  UniqueSessions,
+  " sessions. ",
+  TrendText
+);
+let PageLabel = (pageType: string) {
+  case(
+    pageType == "archive-home", "Archive home",
+    pageType == "round-recap", "Round recap",
+    pageType == "round-preview", "Round preview",
+    pageType == "ask-stats", "Ask the Stats",
+    pageType == "compare", "Compare",
+    pageType == "player-directory", "Player directory",
+    pageType == "player-profile", "Player dossier",
+    pageType == "international", "International archive",
+    pageType == "international-players", "International players",
+    pageType == "international-query", "International Ask the Stats",
+    pageType == "international-compare", "International compare",
+    pageType == "league-composition", "League composition",
+    pageType == "scoreflow-archive", "Scoreflow",
+    pageType
+  )
+};
+let EventLabel = (eventName: string) {
+  case(
+    eventName == "archive_filters_applied", "Archive filters applied",
+    eventName == "ask_stats_completed", "Ask the Stats completed",
+    eventName == "ask_stats_submitted", "Ask the Stats submitted",
+    eventName == "international_home_viewed", "International home opened",
+    eventName == "player_directory_loaded", "Player directory loaded",
+    eventName == "player_profile_loaded", "Player dossier opened",
+    eventName == "compare_completed", "Comparison completed",
+    eventName
+  )
+};
 union
 (
-  PublicPageViews
-  | summarize MetricValue = count()
-  | extend Section = "Overview", Metric = "Total page views", Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  print Block = "headline", Label = "Weekly read", Value = Headline, Detail = "", SortKey = 1
 ),
 (
-  PublicPageViews
-  | summarize MetricValue = dcount(SessionId)
-  | extend Section = "Overview", Metric = "Unique sessions", Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  print Block = "stat", Label = "Page views", Value = tostring(TotalViews), Detail = TrendText, SortKey = 10
 ),
 (
-  PublicPageViews
-  | summarize MetricValue = dcount(UserId)
-  | extend Section = "Overview", Metric = "Unique visitors", Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  print Block = "stat", Label = "Visitors", Value = tostring(UniqueVisitors), Detail = iff(VisitorsDelta >= 0, strcat("+", VisitorsDelta, " vs prior week"), tostring(VisitorsDelta)), SortKey = 11
 ),
 (
-  print MetricValue = ReturningVisitors
-  | extend Section = "Overview", Metric = "Returning visitors", Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  print Block = "stat", Label = "Sessions", Value = tostring(UniqueSessions), Detail = iff(PriorSessions > 0, strcat(PriorSessions, " prior week"), ""), SortKey = 12
+),
+(
+  print Block = "stat", Label = "Returning", Value = tostring(ReturningVisitors), Detail = "Seen in the prior week", SortKey = 13
 ),
 (
   PublicPageViews
   | extend PageType = tostring(PropertiesJson.page_type)
   | summarize MetricValue = count() by PageType
   | top 5 by MetricValue desc
-  | extend Section = "Top pages", Metric = PageType, Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  | extend Block = "page", Label = PageLabel(PageType), Value = tostring(MetricValue), Detail = strcat(tostring(round(100.0 * MetricValue / TotalViews, 1)), "% of views"), SortKey = 100 + row_number()
+  | project Block, Label, Value, Detail, SortKey
 ),
 (
   PublicEvents
   | summarize MetricValue = count() by Name
-  | top 3 by MetricValue desc
-  | extend Section = "Top events", Metric = Name, Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  | top 4 by MetricValue desc
+  | extend Block = "event", Label = EventLabel(Name), Value = tostring(MetricValue), Detail = "interactions", SortKey = 200 + row_number()
+  | project Block, Label, Value, Detail, SortKey
 ),
 (
   PublicPageViews
   | extend Country = iif(isempty(ClientCountryOrRegion), "Unknown", ClientCountryOrRegion)
+  | where Country != "Unknown"
   | summarize MetricValue = dcount(UserId) by Country
-  | top 5 by MetricValue desc
-  | extend Section = "Top countries", Metric = Country, Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  | top 3 by MetricValue desc
+  | extend Block = "audience", Label = Country, Value = tostring(MetricValue), Detail = "visitors", SortKey = 300 + row_number()
+  | project Block, Label, Value, Detail, SortKey
 ),
 (
   PublicPageViews
-  | extend Timezone = iif(isempty(tostring(PropertiesJson.timezone)), "Unknown", tostring(PropertiesJson.timezone))
+  | extend Timezone = iif(isempty(tostring(PropertiesJson.timezone)) or tostring(PropertiesJson.timezone) in ("UTC", "Etc/Unknown"), "", tostring(PropertiesJson.timezone))
+  | where isnotempty(Timezone)
   | summarize MetricValue = dcount(UserId) by Timezone
-  | top 5 by MetricValue desc
-  | extend Section = "Top timezones", Metric = Timezone, Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  | top 3 by MetricValue desc
+  | extend Block = "audience", Label = Timezone, Value = tostring(MetricValue), Detail = "visitors by timezone", SortKey = 320 + row_number()
+  | project Block, Label, Value, Detail, SortKey
+),
+(
+  print Block = "audience", Label = "Archive mode", Value = strcat("Super Netball ", DomesticVisitors, " · International ", InternationalVisitors), Detail = "unique visitors", SortKey = 340
 ),
 (
   PublicPageViews
-  | extend VisitHour = iif(isempty(tostring(PropertiesJson.visit_hour_local)), "unknown", tostring(PropertiesJson.visit_hour_local))
-  | summarize MetricValue = count() by VisitHour
-  | top 4 by MetricValue desc
-  | extend Section = "Visit hour (local)", Metric = VisitHour, Value = tostring(MetricValue)
-  | project Section, Metric, Value
-),
-(
-  PublicPageViews
-  | extend SiteMode = iif(isempty(tostring(PropertiesJson.site_mode)), "domestic", tostring(PropertiesJson.site_mode))
-  | summarize MetricValue = dcount(UserId) by SiteMode
-  | extend Section = "Archive mode", Metric = SiteMode, Value = tostring(MetricValue)
-  | project Section, Metric, Value
-),
-(
-  PublicPageViews
-  | extend Referrer = iif(isempty(tostring(PropertiesJson.referrer_host)), "direct", tostring(PropertiesJson.referrer_host))
+  | extend ReferrerHost = tostring(PropertiesJson.referrer_host)
+  | extend Referrer = iff(
+      isempty(ReferrerHost),
+      "Direct / bookmark",
+      iff(
+        ReferrerHost == "statsball.net",
+        "In-site navigation",
+        iff(ReferrerHost startswith "www.", substring(ReferrerHost, 4), ReferrerHost)
+      )
+    )
   | summarize MetricValue = count() by Referrer
-  | top 5 by MetricValue desc
-  | extend Section = "Top referrers", Metric = Referrer, Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  | top 4 by MetricValue desc
+  | extend Block = "referrer", Label = Referrer, Value = tostring(MetricValue), Detail = strcat(tostring(round(100.0 * MetricValue / TotalViews, 1)), "% of views"), SortKey = 400 + row_number()
+  | project Block, Label, Value, Detail, SortKey
 ),
 (
   PublicPageViews
   | summarize MetricValue = count() by HourUtc = bin(TimeGenerated, 1h)
   | top 1 by MetricValue desc
-  | extend Section = "Traffic timing", Metric = strcat("Peak hour (UTC): ", tostring(HourUtc)), Value = tostring(MetricValue)
-  | project Section, Metric, Value
+  | extend Block = "note", Label = "Busiest hour (UTC)", Value = format_datetime(HourUtc, 'yyyy-MM-dd HH:mm'), Detail = strcat(MetricValue, " views"), SortKey = 500
+  | project Block, Label, Value, Detail, SortKey
+),
+(
+  print Block = "note", Label = "Geo coverage", Value = strcat(KnownCountryVisitors, " of ", UniqueVisitors, " visitors geolocated"), Detail = iff(KnownCountryVisitors < UniqueVisitors, "Country fills in as new visits arrive with client IP forwarding.", "Geo enrichment is healthy."), SortKey = 510
 )
-| order by Section asc, Metric asc
+| order by SortKey asc

@@ -143,14 +143,377 @@
               },
               "runAfter": {}
             },
-            "Format_report_table": {
-              "type": "Table",
-              "inputs": {
-                "from": "@body('Run_weekly_usage_query')?['value']",
-                "format": "HTML"
-              },
+            "Compose_report_rows": {
+              "type": "Compose",
+              "inputs": "@body('Run_weekly_usage_query')?['value']",
               "runAfter": {
                 "Run_weekly_usage_query": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Query_headline_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'headline')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Query_stat_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'stat')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Query_page_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'page')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Query_event_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'event')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Query_audience_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'audience')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Query_referrer_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'referrer')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Query_note_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'note')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Initialize_html_variables": {
+              "type": "InitializeVariable",
+              "inputs": {
+                "variables": [
+                  {
+                    "name": "StatsHtml",
+                    "type": "string",
+                    "value": ""
+                  },
+                  {
+                    "name": "PagesHtml",
+                    "type": "string",
+                    "value": ""
+                  },
+                  {
+                    "name": "EventsHtml",
+                    "type": "string",
+                    "value": ""
+                  },
+                  {
+                    "name": "AudienceHtml",
+                    "type": "string",
+                    "value": ""
+                  },
+                  {
+                    "name": "ReferrersHtml",
+                    "type": "string",
+                    "value": ""
+                  },
+                  {
+                    "name": "NotesHtml",
+                    "type": "string",
+                    "value": ""
+                  }
+                ]
+              },
+              "runAfter": {
+                "Query_stat_rows": [
+                  "Succeeded"
+                ],
+                "Query_page_rows": [
+                  "Succeeded"
+                ],
+                "Query_event_rows": [
+                  "Succeeded"
+                ],
+                "Query_audience_rows": [
+                  "Succeeded"
+                ],
+                "Query_referrer_rows": [
+                  "Succeeded"
+                ],
+                "Query_note_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Foreach_stat_rows": {
+              "type": "Foreach",
+              "foreach": "@sort(body('Query_stat_rows'), 'SortKey')",
+              "actions": {
+                "Append_stat_card": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "StatsHtml",
+                    "value": "@concat('<td style=\"background:#fff;border:1px solid #e8dcc8;border-radius:8px;padding:14px 16px;vertical-align:top;width:25%;\"><p style=\"font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;margin:0;\">', items('Foreach_stat_rows')?['Label'], '</p><p style=\"font:700 24px/1.1 ui-sans-serif,system-ui,sans-serif;color:#0d7377;margin:6px 0 4px;\">', items('Foreach_stat_rows')?['Value'], '</p>', if(empty(items('Foreach_stat_rows')?['Detail']), '', concat('<p style=\"font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;margin:0;\">', items('Foreach_stat_rows')?['Detail'], '</p>')), '</td>')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_html_variables": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Foreach_page_rows": {
+              "type": "Foreach",
+              "foreach": "@body('Query_page_rows')",
+              "actions": {
+                "Append_page_row": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "PagesHtml",
+                    "value": "@concat('<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-bottom:1px solid #eadfce;\"><tr><td style=\"padding:10px 0;font:16px/1.4 Georgia,''Times New Roman'',serif;color:#1f2933;\">', items('Foreach_page_rows')?['Label'], '</td><td style=\"padding:10px 8px;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;color:#0d7377;text-align:right;white-space:nowrap;\">', items('Foreach_page_rows')?['Value'], ' views</td><td style=\"padding:10px 0;font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;text-align:right;white-space:nowrap;\">', coalesce(items('Foreach_page_rows')?['Detail'], ''), '</td></tr></table>')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_html_variables": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Foreach_event_rows": {
+              "type": "Foreach",
+              "foreach": "@body('Query_event_rows')",
+              "actions": {
+                "Append_event_row": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "EventsHtml",
+                    "value": "@concat('<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-bottom:1px solid #eadfce;\"><tr><td style=\"padding:10px 0;font:16px/1.4 Georgia,''Times New Roman'',serif;color:#1f2933;\">', items('Foreach_event_rows')?['Label'], '</td><td style=\"padding:10px 8px;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;color:#0d7377;text-align:right;white-space:nowrap;\">', items('Foreach_event_rows')?['Value'], '</td><td style=\"padding:10px 0;font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;text-align:right;white-space:nowrap;\">', coalesce(items('Foreach_event_rows')?['Detail'], ''), '</td></tr></table>')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_html_variables": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Foreach_audience_rows": {
+              "type": "Foreach",
+              "foreach": "@body('Query_audience_rows')",
+              "actions": {
+                "Append_audience_row": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "AudienceHtml",
+                    "value": "@concat('<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-bottom:1px solid #eadfce;\"><tr><td style=\"padding:10px 0;font:16px/1.4 Georgia,''Times New Roman'',serif;color:#1f2933;\">', items('Foreach_audience_rows')?['Label'], '</td><td style=\"padding:10px 8px;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;color:#0d7377;text-align:right;white-space:nowrap;\">', items('Foreach_audience_rows')?['Value'], '</td><td style=\"padding:10px 0;font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;text-align:right;white-space:nowrap;\">', coalesce(items('Foreach_audience_rows')?['Detail'], ''), '</td></tr></table>')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_html_variables": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Foreach_referrer_rows": {
+              "type": "Foreach",
+              "foreach": "@body('Query_referrer_rows')",
+              "actions": {
+                "Append_referrer_row": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "ReferrersHtml",
+                    "value": "@concat('<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-bottom:1px solid #eadfce;\"><tr><td style=\"padding:10px 0;font:16px/1.4 Georgia,''Times New Roman'',serif;color:#1f2933;\">', items('Foreach_referrer_rows')?['Label'], '</td><td style=\"padding:10px 8px;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;color:#0d7377;text-align:right;white-space:nowrap;\">', items('Foreach_referrer_rows')?['Value'], ' views</td><td style=\"padding:10px 0;font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;text-align:right;white-space:nowrap;\">', coalesce(items('Foreach_referrer_rows')?['Detail'], ''), '</td></tr></table>')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_html_variables": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Foreach_note_rows": {
+              "type": "Foreach",
+              "foreach": "@body('Query_note_rows')",
+              "actions": {
+                "Append_note_row": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "NotesHtml",
+                    "value": "@concat('<table role=\"presentation\" width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" style=\"border-bottom:1px solid #eadfce;\"><tr><td style=\"padding:10px 0;font:16px/1.4 Georgia,''Times New Roman'',serif;color:#1f2933;\">', items('Foreach_note_rows')?['Label'], '</td><td style=\"padding:10px 8px;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;color:#0d7377;text-align:right;white-space:nowrap;\">', items('Foreach_note_rows')?['Value'], '</td><td style=\"padding:10px 0;font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;text-align:right;white-space:nowrap;\">', coalesce(items('Foreach_note_rows')?['Detail'], ''), '</td></tr></table>')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_html_variables": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_email_shell_start": {
+              "type": "Compose",
+              "inputs": "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Statsball weekly read</title></head><body style=\"margin:0;padding:0;background:#f6f1e8;color:#1f2933;font-family:Georgia,'Times New Roman',serif;\"><div style=\"max-width:620px;margin:0 auto;padding:32px 24px;\"><p style=\"margin:0 0 8px;font:600 12px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.08em;text-transform:uppercase;color:#0d7377;\">Statsball · weekly read</p><h1 style=\"margin:0 0 12px;font:700 30px/1.15 Georgia,'Times New Roman',serif;color:#1f2933;\">The archive this week</h1><p style=\"margin:0 0 8px;font:14px/1.5 ui-sans-serif,system-ui,sans-serif;color:#6b7280;\">Last 7 days · public traffic only</p><p style=\"margin:0 0 28px;font:18px/1.55 Georgia,'Times New Roman',serif;color:#1f2933;\">",
+              "runAfter": {
+                "Query_headline_rows": [
+                  "Succeeded"
+                ],
+                "Foreach_stat_rows": [
+                  "Succeeded"
+                ],
+                "Foreach_page_rows": [
+                  "Succeeded"
+                ],
+                "Foreach_event_rows": [
+                  "Succeeded"
+                ],
+                "Foreach_audience_rows": [
+                  "Succeeded"
+                ],
+                "Foreach_referrer_rows": [
+                  "Succeeded"
+                ],
+                "Foreach_note_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_headline_text": {
+              "type": "Compose",
+              "inputs": "@coalesce(first(body('Query_headline_rows'))?['Value'], 'The archive had a quiet week.')",
+              "runAfter": {
+                "Compose_email_shell_start": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_stats_section": {
+              "type": "Compose",
+              "inputs": "@concat('</p><table role=\"presentation\" cellpadding=\"0\" cellspacing=\"0\" style=\"width:100%;border-collapse:separate;border-spacing:12px 12px;margin:0 0 8px;\"><tr>', variables('StatsHtml'), '</tr></table>')",
+              "runAfter": {
+                "Compose_headline_text": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_pages_section": {
+              "type": "Compose",
+              "inputs": "@concat('<div style=\"margin-top:28px;padding-top:8px;border-top:1px solid #dccfb8;\"><h2 style=\"margin:0 0 12px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;\">What they opened</h2>', if(empty(variables('PagesHtml')), '<p style=\"margin:0;padding:10px 0;color:#6b7280;font-style:italic;\">Nothing notable this week.</p>', variables('PagesHtml')), '</div>')",
+              "runAfter": {
+                "Compose_stats_section": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_events_section": {
+              "type": "Compose",
+              "inputs": "@concat('<div style=\"margin-top:28px;padding-top:8px;border-top:1px solid #dccfb8;\"><h2 style=\"margin:0 0 12px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;\">What they did</h2>', if(empty(variables('EventsHtml')), '<p style=\"margin:0;padding:10px 0;color:#6b7280;font-style:italic;\">Nothing notable this week.</p>', variables('EventsHtml')), '</div>')",
+              "runAfter": {
+                "Compose_pages_section": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_audience_section": {
+              "type": "Compose",
+              "inputs": "@concat('<div style=\"margin-top:28px;padding-top:8px;border-top:1px solid #dccfb8;\"><h2 style=\"margin:0 0 12px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;\">Who came</h2>', if(empty(variables('AudienceHtml')), '<p style=\"margin:0;padding:10px 0;color:#6b7280;font-style:italic;\">Nothing notable this week.</p>', variables('AudienceHtml')), '</div>')",
+              "runAfter": {
+                "Compose_events_section": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_referrers_section": {
+              "type": "Compose",
+              "inputs": "@concat('<div style=\"margin-top:28px;padding-top:8px;border-top:1px solid #dccfb8;\"><h2 style=\"margin:0 0 12px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;\">How they arrived</h2>', if(empty(variables('ReferrersHtml')), '<p style=\"margin:0;padding:10px 0;color:#6b7280;font-style:italic;\">Nothing notable this week.</p>', variables('ReferrersHtml')), '</div>')",
+              "runAfter": {
+                "Compose_audience_section": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_notes_section": {
+              "type": "Compose",
+              "inputs": "@concat('<div style=\"margin-top:28px;padding:18px 20px;background:#fff;border:1px solid #e8dcc8;border-radius:8px;\"><h2 style=\"margin:0 0 10px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;\">Notes</h2>', if(empty(variables('NotesHtml')), '<p style=\"margin:0;padding:10px 0;color:#6b7280;font-style:italic;\">Nothing notable this week.</p>', variables('NotesHtml')), '</div>')",
+              "runAfter": {
+                "Compose_referrers_section": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_email_shell_end": {
+              "type": "Compose",
+              "inputs": "<p style=\"margin:28px 0 0;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;color:#6b7280;\">Generated from Statsball browser telemetry. Internal and testing traffic excluded.</p></div></body></html>",
+              "runAfter": {
+                "Compose_notes_section": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_email_html": {
+              "type": "Compose",
+              "inputs": "@concat(outputs('Compose_email_shell_start'), outputs('Compose_headline_text'), outputs('Compose_stats_section'), outputs('Compose_pages_section'), outputs('Compose_events_section'), outputs('Compose_audience_section'), outputs('Compose_referrers_section'), outputs('Compose_notes_section'), outputs('Compose_email_shell_end'))",
+              "runAfter": {
+                "Compose_email_shell_end": [
+                  "Succeeded"
+                ]
+              }
+            },
+            "Compose_email_subject": {
+              "type": "Compose",
+              "inputs": "@concat('Statsball weekly read · ', coalesce(first(sort(body('Query_stat_rows'), 'SortKey'))?['Value'], '0'), ' views · ', coalesce(first(skip(sort(body('Query_stat_rows'), 'SortKey'), 1))?['Value'], '0'), ' visitors')",
+              "runAfter": {
+                "Compose_email_html": [
                   "Succeeded"
                 ]
               }
@@ -167,13 +530,13 @@
                 "path": "/v2/Mail",
                 "body": {
                   "To": "[parameters('reportEmail')]",
-                  "Subject": "Statsball weekly usage report",
-                  "Body": "<p>Public traffic summary for the last 7 days from Statsball browser telemetry.</p>@{body('Format_report_table')}",
+                  "Subject": "@{outputs('Compose_email_subject')}",
+                  "Body": "@{outputs('Compose_email_html')}",
                   "Importance": "Normal"
                 }
               },
               "runAfter": {
-                "Format_report_table": [
+                "Compose_email_subject": [
                   "Succeeded"
                 ]
               }
