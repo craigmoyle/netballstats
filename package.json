@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "build": "node scripts/build_static.mjs",
-    "verify": "node scripts/verify_home_edge_breakdown.mjs && node scripts/verify_league_composition_ui.mjs && node scripts/verify_homepage_stats.mjs",
+    "verify": "node scripts/verify_home_edge_breakdown.mjs && node scripts/verify_league_composition_ui.mjs && node scripts/verify_homepage_stats.mjs && node scripts/verify_weekly_report_email.mjs",
     "build:verify": "npm run build && npm run verify"
   },
   "devDependencies": {
