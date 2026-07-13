@@ -110,6 +110,49 @@ request_limiter <- local({
   }
 })
 
+# Stricter per-IP limiter for public feedback submissions.
+enforce_feedback_rate_limit <- local({
+  entries <- new.env(parent = emptyenv())
+  window_seconds <- 3600L
+  max_requests <- 3L
+  prune_interval <- 600L
+  last_prune <- as.numeric(Sys.time())
+
+  function(req, res) {
+    client_key <- resolve_request_client_key(req$HTTP_X_FORWARDED_FOR, req$REMOTE_ADDR)
+    now <- as.numeric(Sys.time())
+
+    current <- if (exists(client_key, envir = entries, inherits = FALSE)) {
+      get(client_key, envir = entries, inherits = FALSE)
+    } else {
+      list(start = now, count = 0L)
+    }
+
+    if ((now - current$start) > window_seconds) {
+      current <- list(start = now, count = 0L)
+    }
+
+    current$count <- current$count + 1L
+    assign(client_key, current, envir = entries)
+
+    if ((now - last_prune) > prune_interval) {
+      stale <- Filter(
+        function(k) (now - get(k, envir = entries)$start) > window_seconds,
+        ls(envir = entries)
+      )
+      if (length(stale)) rm(list = stale, envir = entries)
+      last_prune <<- now
+    }
+
+    if (current$count > max_requests) {
+      res$status <- 429
+      return(FALSE)
+    }
+
+    TRUE
+  }
+})
+
 request_telemetry_enabled <- function() {
   identical(tolower(Sys.getenv("NETBALL_STATS_REQUEST_TELEMETRY", "true")), "true")
 }
@@ -158,7 +201,8 @@ allowed_browser_page_types <- c(
   "international-query",
   "international-compare",
   "international-players",
-  "international-player-:id"
+  "international-player-:id",
+  "ideas"
 )
 
 allowed_browser_event_names <- c(
@@ -184,7 +228,8 @@ allowed_browser_event_names <- c(
   "international_query_submitted",
   "international_query_error",
   "international_query_viewed",
-  "international_home_viewed"
+  "international_home_viewed",
+  "feedback_submitted"
 )
 
 allowed_browser_traffic_classes <- c("public", "internal", "testing")
@@ -501,6 +546,47 @@ forward_browser_telemetry <- function(kind, payload, req) {
   status <- httr::status_code(response)
   if (status < 200L || status >= 300L) {
     stop(sprintf("Telemetry ingestion failed with status %s.", status), call. = FALSE)
+  }
+
+  invisible(TRUE)
+}
+
+forward_feedback_submission <- function(category, message, req) {
+  if (!browser_telemetry_enabled()) {
+    stop("Feedback forwarding is unavailable.", call. = FALSE)
+  }
+
+  trimmed_message <- feedback_normalise_message(message)
+  payload <- list(
+    name = "feedback_submitted",
+    uri = "/ideas/",
+    properties = list(
+      category = feedback_category_label(category),
+      message = trimmed_message,
+      message_length = as.character(nchar(trimmed_message))
+    ),
+    context = list()
+  )
+
+  envelope <- build_telemetry_envelope("event", payload, req)
+  envelope$data$baseData$properties$message <- trimmed_message
+
+  ingestion_url <- browser_telemetry_ingestion_url()
+  response <- httr::POST(
+    url = ingestion_url,
+    body = jsonlite::toJSON(list(envelope), auto_unbox = TRUE, null = "null"),
+    encode = "raw",
+    httr::add_headers(.headers = c(
+      "Content-Type" = "application/json",
+      "User-Agent" = telemetry_trim_string(req$HTTP_USER_AGENT %||% "netballstats-feedback/1.0", 240L),
+      "Accept-Language" = telemetry_trim_string(req$HTTP_ACCEPT_LANGUAGE %||% "", 120L)
+    )),
+    httr::timeout(5)
+  )
+
+  status <- httr::status_code(response)
+  if (status < 200L || status >= 300L) {
+    stop(sprintf("Feedback forwarding failed with status %s.", status), call. = FALSE)
   }
 
   invisible(TRUE)
@@ -1157,6 +1243,78 @@ function(req, res) {
       error_message = substr(msg, 1L, 200L)
     )
     json_error(res, 400, if (is_validation_error) msg else "Telemetry request could not be processed.")
+  })
+
+  result
+}
+
+#* Receive user feedback and forward to Application Insights
+#* Returns 202 Accepted on success; silently accepts suspected spam with 202
+#* Returns 400 Bad Request when validation fails
+#* Returns 429 Too Many Requests when the feedback rate limit is exceeded
+#* @post /feedback
+#* @post /api/feedback
+function(req, res) {
+  if (!enforce_feedback_rate_limit(req, res)) {
+    return(list(error = "Feedback rate limit exceeded. Try again later."))
+  }
+
+  result <- tryCatch({
+    parsed <- parse_feedback_request_body(req$postBody %||% "")
+    validated <- validate_feedback_submission(parsed)
+
+    if (isTRUE(validated$spam)) {
+      api_log("INFO", "feedback_spam_rejected")
+      res$status <- 202
+      return(list(ok = jsonlite::unbox(TRUE)))
+    }
+
+    forwarded <- FALSE
+    if (browser_telemetry_enabled()) {
+      forwarded <- tryCatch({
+        forward_feedback_submission(validated$category, validated$message, req)
+        TRUE
+      }, error = function(error) {
+        api_log(
+          "WARN",
+          "feedback_forward_failed",
+          error_class = class(error)[[1]] %||% "unknown",
+          error_message = substr(conditionMessage(error), 1L, 200L),
+          category = validated$category,
+          message_length = nchar(validated$message)
+        )
+        FALSE
+      })
+    }
+
+    if (!forwarded) {
+      api_log(
+        "INFO",
+        "feedback_received",
+        category = validated$category,
+        message_length = nchar(validated$message),
+        message_preview = substr(validated$message, 1L, 200L)
+      )
+    } else {
+      api_log(
+        "INFO",
+        "feedback_forwarded",
+        category = validated$category,
+        message_length = nchar(validated$message)
+      )
+    }
+
+    res$status <- 202
+    list(ok = jsonlite::unbox(TRUE))
+  }, error = function(error) {
+    msg <- conditionMessage(error)
+    api_log(
+      "WARN",
+      "feedback_rejected",
+      error_class = class(error)[[1]] %||% "unknown",
+      error_message = substr(msg, 1L, 200L)
+    )
+    json_error(res, 400, msg)
   })
 
   result

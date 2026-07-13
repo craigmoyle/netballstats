@@ -445,6 +445,9 @@
     if (pathname === "/league-composition") {
       return "league-composition";
     }
+    if (pathname === "/ideas") {
+      return "ideas";
+    }
     return trimString(pathname.replace(/\//g, "-").replace(/^-+|-+$/g, ""), 60) || "unknown-page";
   }
 

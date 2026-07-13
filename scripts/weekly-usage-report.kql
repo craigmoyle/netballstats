@@ -1,6 +1,6 @@
 // Statsball weekly usage report (public traffic only).
 // Returns rows: Block, Label, Value, Detail, SortKey
-// Blocks: headline, stat, page, event, audience, referrer, note
+// Blocks: headline, stat, page, event, audience, referrer, idea, note
 let PeriodStart = ago(7d);
 let PriorStart = ago(14d);
 let PublicPageViews = AppPageViews
@@ -63,6 +63,7 @@ let PageLabel = (pageType: string) {
     pageType == "international-compare", "International compare",
     pageType == "league-composition", "League composition",
     pageType == "scoreflow-archive", "Scoreflow",
+    pageType == "ideas", "Ideas",
     pageType
   )
 };
@@ -71,12 +72,27 @@ let EventLabel = (eventName: string) {
     eventName == "archive_filters_applied", "Archive filters applied",
     eventName == "ask_stats_completed", "Ask the Stats completed",
     eventName == "ask_stats_submitted", "Ask the Stats submitted",
+    eventName == "feedback_submitted", "Ideas submitted",
     eventName == "international_home_viewed", "International home opened",
     eventName == "player_directory_loaded", "Player directory loaded",
     eventName == "player_profile_loaded", "Player dossier opened",
     eventName == "compare_completed", "Comparison completed",
     eventName
   )
+};
+let FeedbackEvents = union isfuzzy=true
+(
+  AppEvents
+  | where Name == "feedback_submitted"
+  | project TimeGenerated, Properties = todynamic(Properties)
+),
+(
+  customEvents
+  | where name == "feedback_submitted"
+  | project TimeGenerated = timestamp, Properties = todynamic(customDimensions)
+);
+let EscapeHtml = (value: string) {
+  replace(@'"', "&quot;", replace(">", "&gt;", replace("<", "&lt;", replace("&", "&amp;", value))))
 };
 union
 (
@@ -145,6 +161,21 @@ union
   | summarize MetricValue = count() by Referrer
   | top 4 by MetricValue desc
   | extend Block = "referrer", Label = Referrer, Value = tostring(MetricValue), Detail = strcat(tostring(round(100.0 * MetricValue / TotalViews, 1)), "% of views"), SortKey = 400 + row_number()
+  | project Block, Label, Value, Detail, SortKey
+),
+(
+  FeedbackEvents
+  | where TimeGenerated > PeriodStart
+  | extend Category = coalesce(tostring(Properties.category), "Idea")
+  | extend Message = coalesce(tostring(Properties.message), "")
+  | where isnotempty(Message)
+  | order by TimeGenerated desc
+  | extend MessagePreview = iff(strlen(Message) > 280, strcat(substring(Message, 0, 277), "..."), Message)
+  | extend Block = "idea"
+  | extend Label = EscapeHtml(Category)
+  | extend Value = EscapeHtml(MessagePreview)
+  | extend Detail = strcat(format_datetime(TimeGenerated, "ddd dd MMM"), " · ", format_datetime(TimeGenerated, "HH:mm"), " UTC")
+  | extend SortKey = 600 + row_number()
   | project Block, Label, Value, Detail, SortKey
 ),
 (

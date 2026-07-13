@@ -386,7 +386,9 @@ code {
 .nwar-page .hero-copy .eyebrow,
 .nwar-page .hero-copy .intro-copy,
 .home-edge-page .hero-copy .eyebrow,
-.home-edge-page .hero-copy .intro-copy {
+.home-edge-page .hero-copy .intro-copy,
+.ideas-page .hero-copy .eyebrow,
+.ideas-page .hero-copy .intro-copy {
   display: block;
 }
 
@@ -896,6 +898,56 @@ code {
 .changelog-link:hover,
 .changelog-link:focus-visible {
   color: var(--text);
+}
+
+.ideas-page .hero-panel {
+  align-items: flex-start;
+  padding: 1.25rem 1.35rem;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, transparent), transparent 50%),
+    var(--bg-mid);
+  border: 1px solid color-mix(in srgb, var(--accent) 16%, var(--border));
+  box-shadow: var(--shadow);
+  border-radius: var(--radius-card);
+}
+
+.ideas-panel {
+  display: grid;
+  gap: 1.25rem;
+}
+
+.ideas-panel__header {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.ideas-form {
+  display: grid;
+  gap: 1rem;
+  max-width: 42rem;
+}
+
+.ideas-field textarea,
+.ideas-field select {
+  width: 100%;
+}
+
+.ideas-field textarea {
+  min-height: 10rem;
+  resize: vertical;
+}
+
+.ideas-form__actions {
+  display: flex;
+  justify-content: flex-start;
+}
+
+.ideas-honeypot {
+  position: absolute;
+  left: -10000px;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
 }
 
 .query-panel {
