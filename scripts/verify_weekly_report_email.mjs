@@ -89,4 +89,8 @@ if (!html.includes("round-by-round momentum chart")) {
   throw new Error("Weekly report HTML missing idea message content.");
 }
 
+if (!html.includes("usage telemetry and Ideas inbox")) {
+  throw new Error("Weekly report HTML missing Ideas inbox footer attribution.");
+}
+
 console.log(`Weekly report preview written to ${outputPath}`);

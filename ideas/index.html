@@ -85,13 +85,13 @@
 
           <div class="field ideas-field">
             <label for="ideas-message">Message</label>
-            <textarea id="ideas-message" name="message" rows="7" maxlength="1000" required placeholder="Describe the idea, what you expected, or the stat you cannot find."></textarea>
+            <textarea id="ideas-message" name="message" rows="7" maxlength="1000" required placeholder="Describe the idea, what you expected, or the stat you cannot find." aria-describedby="ideas-message-hint"></textarea>
             <p class="field-hint" id="ideas-message-hint">At least 10 characters. 1000 max.</p>
           </div>
 
           <div class="ideas-honeypot" aria-hidden="true">
-            <label for="ideas-company">Company</label>
-            <input id="ideas-company" name="company" type="text" tabindex="-1" autocomplete="off">
+            <label for="ideas-website-url">Website URL</label>
+            <input id="ideas-website-url" name="website_url" type="text" tabindex="-1" autocomplete="off">
           </div>
 
           <div class="ideas-form__actions">

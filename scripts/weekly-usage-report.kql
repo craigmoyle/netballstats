@@ -82,13 +82,15 @@ let EventLabel = (eventName: string) {
 };
 let FeedbackEvents = union isfuzzy=true
 (
+  // Server-only inbox events from POST /api/feedback. Browser telemetry must not
+  // be able to mint these (feedback_inbox_item is not an allowed browser event).
   AppEvents
-  | where Name == "feedback_submitted"
+  | where Name == "feedback_inbox_item"
   | project TimeGenerated, Properties = todynamic(Properties)
 ),
 (
   customEvents
-  | where name == "feedback_submitted"
+  | where name == "feedback_inbox_item"
   | project TimeGenerated = timestamp, Properties = todynamic(customDimensions)
 );
 let EscapeHtml = (value: string) {
@@ -170,8 +172,10 @@ union
   | extend Message = coalesce(tostring(Properties.message), "")
   | where isnotempty(Message)
   | order by TimeGenerated desc
+  | take 25
   | extend MessagePreview = iff(strlen(Message) > 280, strcat(substring(Message, 0, 277), "..."), Message)
   | extend Block = "idea"
+  // Escape for Logic App HTML composition. weekly_report_email.js escapes again for local preview only.
   | extend Label = EscapeHtml(Category)
   | extend Value = EscapeHtml(MessagePreview)
   | extend Detail = strcat(format_datetime(TimeGenerated, "ddd dd MMM"), " · ", format_datetime(TimeGenerated, "HH:mm"), " UTC")
