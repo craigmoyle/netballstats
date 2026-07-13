@@ -9,7 +9,7 @@
     const { buildUrl, showStatusBanner } = getUi();
     const category = form.category.value;
     const message = form.message.value.trim();
-    const company = form.company.value;
+    const websiteUrl = form.website_url.value;
 
     if (message.length < 10) {
       showStatusBanner(statusElement, "Add at least 10 characters so the note has enough context.", "error");
@@ -29,7 +29,8 @@
         body: JSON.stringify({
           category,
           message,
-          company,
+          website_url: websiteUrl,
+          // Soft bot signal only — server may soft-reject if submitted too quickly.
           rendered_at: renderedAt
         })
       });

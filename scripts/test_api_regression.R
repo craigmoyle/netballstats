@@ -670,6 +670,84 @@ assert_true(
 )
 check_step('telemetry client IP and context normalisation helpers')
 
+assert_true(
+  identical(
+    helpers_env$resolve_rate_limit_client_key(list(
+      HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
+      HTTP_X_FORWARDED_FOR = '198.51.100.10',
+      REMOTE_ADDR = '127.0.0.1'
+    )),
+    '203.0.113.45'
+  ),
+  'Expected rate-limit client key to prefer Azure client IP over X-Forwarded-For.'
+)
+assert_true(
+  identical(
+    helpers_env$resolve_rate_limit_client_key(list(
+      HTTP_X_FORWARDED_FOR = '198.51.100.10, 10.0.0.4',
+      REMOTE_ADDR = '127.0.0.1'
+    )),
+    '198.51.100.10'
+  ),
+  'Expected rate-limit client key to fall back to leftmost X-Forwarded-For.'
+)
+check_step('rate-limit client key prefers platform-asserted IPs')
+
+assert_true(identical(helpers_env$FEEDBACK_INBOX_EVENT_NAME, 'feedback_inbox_item'), 'Expected server-only inbox event name.')
+assert_true(!('feedback_inbox_item' %in% plumber_helpers_env$allowed_browser_event_names), 'Expected feedback_inbox_item to be blocked from browser telemetry.')
+assert_true('feedback_submitted' %in% plumber_helpers_env$allowed_browser_event_names, 'Expected feedback_submitted to remain allowed for analytics buckets.')
+assert_true(
+  identical(
+    plumber_helpers_env$telemetry_sanitise_properties(list(
+      category = 'Idea',
+      message = 'Should not pass through browser telemetry',
+      message_length_bucket = 'short'
+    )),
+    list(category = 'Idea', message_length_bucket = 'short')
+  ),
+  'Expected browser telemetry sanitiser to strip free-text message properties.'
+)
+
+valid_feedback <- helpers_env$validate_feedback_submission(list(
+  category = 'idea',
+  message = 'A useful archive idea about round trends.',
+  website_url = '',
+  rendered_at = as.numeric(Sys.time()) * 1000 - 5000
+))
+assert_true(isTRUE(valid_feedback$ok) && !isTRUE(valid_feedback$spam), 'Expected a valid feedback note to pass validation.')
+
+honeypot_feedback <- helpers_env$validate_feedback_submission(list(
+  category = 'idea',
+  message = 'A useful archive idea about round trends.',
+  website_url = 'https://spam.example',
+  rendered_at = as.numeric(Sys.time()) * 1000 - 5000
+))
+assert_true(isTRUE(honeypot_feedback$spam), 'Expected honeypot fill to mark submission as silent spam.')
+
+too_fast_error <- tryCatch({
+  helpers_env$validate_feedback_submission(list(
+    category = 'idea',
+    message = 'A useful archive idea about round trends.',
+    website_url = '',
+    rendered_at = as.numeric(Sys.time()) * 1000
+  ))
+  NULL
+}, error = function(error) conditionMessage(error))
+assert_true(
+  identical(too_fast_error, 'Please wait a few seconds and send again.'),
+  'Expected too-fast submissions to soft-reject with a user-visible message.'
+)
+
+invalid_message_type <- tryCatch({
+  helpers_env$parse_feedback_request_body('{"category":"idea","message":["a","b"],"website_url":"","rendered_at":1}')
+  NULL
+}, error = function(error) conditionMessage(error))
+assert_true(
+  grepl('message must be a single string', invalid_message_type, fixed = TRUE),
+  'Expected non-scalar message JSON to be rejected.'
+)
+check_step('feedback validation, spam signals, and telemetry free-text blocking')
+
 player_builder_inputs <- list(
   stat = 'goals',
   seasons = c(2022L, 2023L),

@@ -67,9 +67,7 @@ request_limiter <- local({
   last_prune     <- as.numeric(Sys.time())
 
   function(req, res) {
-    # Use only the leftmost (originating-client) IP from X-Forwarded-For to
-    # prevent spoofing via attacker-appended values.
-    client_key <- resolve_request_client_key(req$HTTP_X_FORWARDED_FOR, req$REMOTE_ADDR)
+    client_key <- resolve_rate_limit_client_key(req)
     now <- as.numeric(Sys.time())
 
     current <- if (exists(client_key, envir = entries, inherits = FALSE)) {
@@ -119,7 +117,7 @@ enforce_feedback_rate_limit <- local({
   last_prune <- as.numeric(Sys.time())
 
   function(req, res) {
-    client_key <- resolve_request_client_key(req$HTTP_X_FORWARDED_FOR, req$REMOTE_ADDR)
+    client_key <- resolve_rate_limit_client_key(req)
     now <- as.numeric(Sys.time())
 
     current <- if (exists(client_key, envir = entries, inherits = FALSE)) {
@@ -336,6 +334,10 @@ telemetry_sanitise_properties <- function(properties) {
 
   for (property_name in property_names) {
     if (!grepl("^[a-z0-9_]+$", property_name)) {
+      next
+    }
+
+    if (property_name %in% TELEMETRY_BLOCKED_PROPERTY_NAMES) {
       next
     }
 
@@ -557,8 +559,9 @@ forward_feedback_submission <- function(category, message, req) {
   }
 
   trimmed_message <- feedback_normalise_message(message)
+  # Server-only inbox event — must NOT be in allowed_browser_event_names.
   payload <- list(
-    name = "feedback_submitted",
+    name = FEEDBACK_INBOX_EVENT_NAME,
     uri = "/ideas/",
     properties = list(
       category = feedback_category_label(category),
@@ -569,6 +572,8 @@ forward_feedback_submission <- function(category, message, req) {
   )
 
   envelope <- build_telemetry_envelope("event", payload, req)
+  envelope$tags[["ai.internal.sdkVersion"]] <- "netballstats-feedback:1.0.0"
+  envelope$tags[["ai.cloud.role"]] <- "netballstats-feedback"
   envelope$data$baseData$properties$message <- trimmed_message
 
   ingestion_url <- browser_telemetry_ingestion_url()
@@ -581,7 +586,7 @@ forward_feedback_submission <- function(category, message, req) {
       "User-Agent" = telemetry_trim_string(req$HTTP_USER_AGENT %||% "netballstats-feedback/1.0", 240L),
       "Accept-Language" = telemetry_trim_string(req$HTTP_ACCEPT_LANGUAGE %||% "", 120L)
     )),
-    httr::timeout(5)
+    httr::timeout(2)
   )
 
   status <- httr::status_code(response)
@@ -1292,8 +1297,7 @@ function(req, res) {
         "INFO",
         "feedback_received",
         category = validated$category,
-        message_length = nchar(validated$message),
-        message_preview = substr(validated$message, 1L, 200L)
+        message_length = nchar(validated$message)
       )
     } else {
       api_log(

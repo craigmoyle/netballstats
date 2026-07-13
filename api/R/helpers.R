@@ -7872,9 +7872,60 @@ FEEDBACK_CATEGORIES <- c("idea", "bug", "data_question")
 FEEDBACK_MESSAGE_MIN_LENGTH <- 10L
 FEEDBACK_MESSAGE_MAX_LENGTH <- 1000L
 FEEDBACK_MIN_SUBMIT_DELAY_MS <- 3000L
+FEEDBACK_MAX_CLOCK_SKEW_MS <- 300000L
+FEEDBACK_INBOX_EVENT_NAME <- "feedback_inbox_item"
+TELEMETRY_BLOCKED_PROPERTY_NAMES <- c(
+  "message",
+  "question",
+  "prompt",
+  "body",
+  "text",
+  "content",
+  "note",
+  "comment"
+)
+
+# Prefer platform-asserted client IPs over client-spoofable X-Forwarded-For.
+resolve_rate_limit_client_key <- function(req) {
+  if (is.null(req) || !is.list(req)) {
+    return("unknown")
+  }
+
+  for (header_name in c("HTTP_X_AZURE_CLIENTIP", "HTTP_X_MS_CLIENT_IP")) {
+    raw_value <- trimws(as.character(req[[header_name]] %||% "")[[1]])
+    if (nzchar(raw_value)) {
+      return(raw_value)
+    }
+  }
+
+  resolve_request_client_key(req$HTTP_X_FORWARDED_FOR, req$REMOTE_ADDR)
+}
+
+feedback_scalar_string <- function(value, field_name) {
+  if (is.null(value)) {
+    return("")
+  }
+
+  if (is.list(value)) {
+    if (length(value) != 1L) {
+      stop(sprintf("%s must be a single string.", field_name), call. = FALSE)
+    }
+    value <- value[[1]]
+  }
+
+  if (!(is.character(value) || is.numeric(value) || is.logical(value))) {
+    stop(sprintf("%s must be a string.", field_name), call. = FALSE)
+  }
+
+  if (length(value) != 1L) {
+    stop(sprintf("%s must be a single string.", field_name), call. = FALSE)
+  }
+
+  as.character(value)
+}
 
 feedback_normalise_message <- function(value) {
-  trimmed <- gsub("\\s+", " ", trimws(as.character(value %||% "")))
+  trimmed <- gsub("\\s+", " ", trimws(as.character(value %||% "")[[1]]))
   substr(trimmed, 1L, FEEDBACK_MESSAGE_MAX_LENGTH)
 }
 
@@ -7893,10 +7944,15 @@ parse_feedback_request_body <- function(raw_body) {
     stop("Request body must be valid JSON.", call. = FALSE)
   }
 
+  honeypot <- feedback_scalar_string(
+    body_data$website_url %||% body_data$company %||% "",
+    "website_url"
+  )
+
   list(
-    category = as.character(body_data$category %||% ""),
-    message = as.character(body_data$message %||% ""),
-    company = as.character(body_data$company %||% ""),
+    category = feedback_scalar_string(body_data$category %||% "", "category"),
+    message = feedback_scalar_string(body_data$message %||% "", "message"),
+    website_url = honeypot,
     rendered_at = body_data$rendered_at %||% NULL
   )
 }
@@ -7911,24 +7967,35 @@ feedback_category_label <- function(category) {
   )
 }
 
-feedback_looks_like_spam <- function(parsed) {
-  if (nzchar(trimws(parsed$company %||% ""))) {
-    return(TRUE)
+# Soft client-side timing signal only — never treat rendered_at as authoritative.
+# Returns: NULL (ok), "too_fast" (user-visible soft reject), or "spam" (silent 202).
+feedback_spam_verdict <- function(parsed) {
+  if (nzchar(trimws(parsed$website_url %||% ""))) {
+    return("spam")
   }
 
   rendered_at <- suppressWarnings(as.numeric(parsed$rendered_at %||% NA))
   if (is.na(rendered_at)) {
-    return(TRUE)
+    return("spam")
   }
 
   elapsed_ms <- as.numeric(Sys.time()) * 1000 - rendered_at
-  if (is.na(elapsed_ms) || elapsed_ms < FEEDBACK_MIN_SUBMIT_DELAY_MS) {
-    return(TRUE)
+  if (is.na(elapsed_ms)) {
+    return("spam")
+  }
+
+  # Client clock ahead of server within skew window: allow through.
+  if (elapsed_ms < 0) {
+    if (elapsed_ms < -FEEDBACK_MAX_CLOCK_SKEW_MS) {
+      return("spam")
+    }
+  } else if (elapsed_ms < FEEDBACK_MIN_SUBMIT_DELAY_MS) {
+    return("too_fast")
   }
 
   message <- feedback_normalise_message(parsed$message)
   if (grepl("(.)\\1{29,}", message)) {
-    return(TRUE)
+    return("spam")
   }
 
   link_matches <- gregexpr("https?://", message, ignore.case = TRUE)[[1]]
@@ -7938,10 +8005,10 @@ feedback_looks_like_spam <- function(parsed) {
     length(link_matches)
   }
   if (link_count > 5L) {
-    return(TRUE)
+    return("spam")
   }
 
-  FALSE
+  NULL
 }
 
 validate_feedback_submission <- function(parsed) {
@@ -7967,7 +8034,12 @@ validate_feedback_submission <- function(parsed) {
     )
   }
 
-  if (feedback_looks_like_spam(parsed)) {
+  verdict <- feedback_spam_verdict(parsed)
+  if (identical(verdict, "too_fast")) {
+    stop("Please wait a few seconds and send again.", call. = FALSE)
+  }
+
+  if (identical(verdict, "spam")) {
     return(list(
       ok = TRUE,
       spam = TRUE,

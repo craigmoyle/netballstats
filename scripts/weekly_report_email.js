@@ -132,7 +132,7 @@ function buildWeeklyReportEmailHtml(rows, options = {}) {
         <h2 style="margin:0 0 10px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;">Notes</h2>
         ${renderListItems(notes)}
       </div>
-      <p style="margin:28px 0 0;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;color:#6b7280;">Generated from Statsball browser telemetry. Internal and testing traffic excluded.</p>
+      <p style="margin:28px 0 0;font:13px/1.5 ui-sans-serif,system-ui,sans-serif;color:#6b7280;">Generated from Statsball usage telemetry and Ideas inbox. Internal and testing traffic excluded.</p>
     </div>
   </body>
 </html>`;
