@@ -236,6 +236,18 @@
                 ]
               }
             },
+            "Query_idea_rows": {
+              "type": "Query",
+              "inputs": {
+                "from": "@outputs('Compose_report_rows')",
+                "where": "@equals(item()?['Block'], 'idea')"
+              },
+              "runAfter": {
+                "Compose_report_rows": [
+                  "Succeeded"
+                ]
+              }
+            },
             "Initialize_html_variables": {
               "type": "InitializeVariable",
               "inputs": {
@@ -266,6 +278,11 @@
                     "value": ""
                   },
                   {
+                    "name": "IdeasHtml",
+                    "type": "string",
+                    "value": ""
+                  },
+                  {
                     "name": "NotesHtml",
                     "type": "string",
                     "value": ""
@@ -289,6 +306,9 @@
                   "Succeeded"
                 ],
                 "Query_note_rows": [
+                  "Succeeded"
+                ],
+                "Query_idea_rows": [
                   "Succeeded"
                 ]
               }
@@ -401,6 +421,24 @@
                 ]
               }
             },
+            "Foreach_idea_rows": {
+              "type": "Foreach",
+              "foreach": "@body('Query_idea_rows')",
+              "actions": {
+                "Append_idea_row": {
+                  "type": "AppendToStringVariable",
+                  "inputs": {
+                    "name": "IdeasHtml",
+                    "value": "@concat('<div style=\"margin:0 0 14px;padding:0 0 14px;border-bottom:1px solid #eadfce;\"><p style=\"margin:0 0 6px;font:600 12px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.04em;text-transform:uppercase;color:#92400e;\">', items('Foreach_idea_rows')?['Label'], ' · ', coalesce(items('Foreach_idea_rows')?['Detail'], ''), '</p><p style=\"margin:0;font:15px/1.55 Georgia,''Times New Roman'',serif;color:#1f2933;\">', items('Foreach_idea_rows')?['Value'], '</p></div>')"
+                  }
+                }
+              },
+              "runAfter": {
+                "Initialize_html_variables": [
+                  "Succeeded"
+                ]
+              }
+            },
             "Compose_email_shell_start": {
               "type": "Compose",
               "inputs": "<!DOCTYPE html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><title>Statsball weekly read</title></head><body style=\"margin:0;padding:0;background:#f6f1e8;color:#1f2933;font-family:Georgia,'Times New Roman',serif;\"><div style=\"max-width:620px;margin:0 auto;padding:32px 24px;\"><p style=\"margin:0 0 8px;font:600 12px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.08em;text-transform:uppercase;color:#0d7377;\">Statsball · weekly read</p><h1 style=\"margin:0 0 12px;font:700 30px/1.15 Georgia,'Times New Roman',serif;color:#1f2933;\">The archive this week</h1><p style=\"margin:0 0 8px;font:14px/1.5 ui-sans-serif,system-ui,sans-serif;color:#6b7280;\">Last 7 days · public traffic only</p><p style=\"margin:0 0 28px;font:18px/1.55 Georgia,'Times New Roman',serif;color:#1f2933;\">",
@@ -424,6 +462,9 @@
                   "Succeeded"
                 ],
                 "Foreach_note_rows": [
+                  "Succeeded"
+                ],
+                "Foreach_idea_rows": [
                   "Succeeded"
                 ]
               }
@@ -482,11 +523,20 @@
                 ]
               }
             },
+            "Compose_ideas_section": {
+              "type": "Compose",
+              "inputs": "@concat('<div style=\"margin-top:28px;padding:18px 20px;background:#fff;border:1px solid #e8dcc8;border-radius:8px;\"><h2 style=\"margin:0 0 10px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;\">Ideas inbox</h2>', if(empty(variables('IdeasHtml')), '<p style=\"margin:0;padding:10px 0;color:#6b7280;font-style:italic;\">No ideas submitted this week.</p>', variables('IdeasHtml')), '</div>')",
+              "runAfter": {
+                "Compose_referrers_section": [
+                  "Succeeded"
+                ]
+              }
+            },
             "Compose_notes_section": {
               "type": "Compose",
               "inputs": "@concat('<div style=\"margin-top:28px;padding:18px 20px;background:#fff;border:1px solid #e8dcc8;border-radius:8px;\"><h2 style=\"margin:0 0 10px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;\">Notes</h2>', if(empty(variables('NotesHtml')), '<p style=\"margin:0;padding:10px 0;color:#6b7280;font-style:italic;\">Nothing notable this week.</p>', variables('NotesHtml')), '</div>')",
               "runAfter": {
-                "Compose_referrers_section": [
+                "Compose_ideas_section": [
                   "Succeeded"
                 ]
               }
@@ -502,7 +552,7 @@
             },
             "Compose_email_html": {
               "type": "Compose",
-              "inputs": "@concat(outputs('Compose_email_shell_start'), outputs('Compose_headline_text'), outputs('Compose_stats_section'), outputs('Compose_pages_section'), outputs('Compose_events_section'), outputs('Compose_audience_section'), outputs('Compose_referrers_section'), outputs('Compose_notes_section'), outputs('Compose_email_shell_end'))",
+              "inputs": "@concat(outputs('Compose_email_shell_start'), outputs('Compose_headline_text'), outputs('Compose_stats_section'), outputs('Compose_pages_section'), outputs('Compose_events_section'), outputs('Compose_audience_section'), outputs('Compose_referrers_section'), outputs('Compose_ideas_section'), outputs('Compose_notes_section'), outputs('Compose_email_shell_end'))",
               "runAfter": {
                 "Compose_email_shell_end": [
                   "Succeeded"

@@ -40,6 +40,20 @@ const sampleRows = [
   { Block: "referrer", Label: "bing.com", Value: "5", Detail: "4.0% of views", SortKey: 403 },
   { Block: "referrer", Label: "facebook.com", Value: "3", Detail: "2.4% of views", SortKey: 404 },
   {
+    Block: "idea",
+    Label: "Idea",
+    Value: "A round-by-round momentum chart for each team would help compare comebacks across seasons.",
+    Detail: "Sat 12 Jul · 09:14 UTC",
+    SortKey: 601,
+  },
+  {
+    Block: "idea",
+    Label: "Data question",
+    Value: "Does the archive include ANZ Championship centre-pass stats before 2010?",
+    Detail: "Sun 13 Jul · 11:02 UTC",
+    SortKey: 602,
+  },
+  {
     Block: "note",
     Label: "Busiest hour (UTC)",
     Value: "Tue 01 Jul · 08:00",
@@ -65,6 +79,14 @@ if (!html.includes("The archive this week")) {
 
 if (!html.includes("Archive home")) {
   throw new Error("Weekly report HTML missing page list items.");
+}
+
+if (!html.includes("Ideas inbox")) {
+  throw new Error("Weekly report HTML missing ideas inbox section.");
+}
+
+if (!html.includes("round-by-round momentum chart")) {
+  throw new Error("Weekly report HTML missing idea message content.");
 }
 
 console.log(`Weekly report preview written to ${outputPath}`);

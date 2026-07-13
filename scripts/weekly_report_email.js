@@ -18,6 +18,12 @@ const ROW_VALUE_STYLE =
   "padding:10px 8px;font:600 15px/1.4 ui-sans-serif,system-ui,sans-serif;color:#0d7377;text-align:right;white-space:nowrap;";
 const ROW_DETAIL_STYLE =
   "padding:10px 0;font:12px/1.4 ui-sans-serif,system-ui,sans-serif;color:#6b7280;text-align:right;white-space:nowrap;";
+const IDEA_HEADER_STYLE =
+  "margin:0 0 6px;font:600 12px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.04em;text-transform:uppercase;color:#92400e;";
+const IDEA_MESSAGE_STYLE =
+  "margin:0;font:15px/1.55 Georgia,'Times New Roman',serif;color:#1f2933;";
+const IDEA_ITEM_STYLE =
+  "margin:0 0 14px;padding:0 0 14px;border-bottom:1px solid #eadfce;";
 
 function escapeHtml(value) {
   return `${value ?? ""}`
@@ -54,6 +60,18 @@ function renderListItems(rows, valueSuffix = "") {
   }).join("");
 }
 
+function renderIdeaItems(rows) {
+  if (!rows.length) {
+    return `<p style="margin:0;padding:10px 0;color:#6b7280;font-style:italic;">No ideas submitted this week.</p>`;
+  }
+
+  return rows.map((row) => `
+    <div style="${IDEA_ITEM_STYLE}">
+      <p style="${IDEA_HEADER_STYLE}">${escapeHtml(row.Label)} · ${escapeHtml(row.Detail)}</p>
+      <p style="${IDEA_MESSAGE_STYLE}">${escapeHtml(row.Value)}</p>
+    </div>`).join("");
+}
+
 function renderStatCards(rows) {
   return rows.map((row) => `
     <td style="${STAT_CELL_STYLE}">
@@ -71,6 +89,7 @@ function buildWeeklyReportEmailHtml(rows, options = {}) {
   const events = rowsByBlock(rows, "event");
   const audience = rowsByBlock(rows, "audience");
   const referrers = rowsByBlock(rows, "referrer");
+  const ideas = rowsByBlock(rows, "idea");
   const notes = rowsByBlock(rows, "note");
 
   return `<!DOCTYPE html>
@@ -106,6 +125,10 @@ function buildWeeklyReportEmailHtml(rows, options = {}) {
         ${renderListItems(referrers, " views")}
       </div>
       <div style="margin-top:28px;padding:18px 20px;background:#fff;border:1px solid #e8dcc8;border-radius:8px;">
+        <h2 style="margin:0 0 10px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;">Ideas inbox</h2>
+        ${renderIdeaItems(ideas)}
+      </div>
+      <div style="margin-top:28px;padding:18px 20px;background:#fff;border:1px solid #e8dcc8;border-radius:8px;">
         <h2 style="margin:0 0 10px;font:600 13px/1.4 ui-sans-serif,system-ui,sans-serif;letter-spacing:0.06em;text-transform:uppercase;color:#92400e;">Notes</h2>
         ${renderListItems(notes)}
       </div>
@@ -118,5 +141,6 @@ function buildWeeklyReportEmailHtml(rows, options = {}) {
 module.exports = {
   buildWeeklyReportEmailHtml,
   escapeHtml,
-  rowsByBlock
+  rowsByBlock,
+  renderIdeaItems
 };

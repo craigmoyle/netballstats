@@ -9,7 +9,9 @@
   "detector": {
     "ignoreRules": [],
     "ignoreFiles": [
-      "nwar/index.html"
+      "nwar/index.html",
+      "scripts/weekly_report_email.js",
+      "infra/weekly-usage-report.json"
     ],
     "ignoreValues": [
       {

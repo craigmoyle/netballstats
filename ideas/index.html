@@ -5,25 +5,25 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="application-name" content="Statsball">
     <script src="/assets/theme.js"></script>
-    <title>Players · Statsball</title>
-    <meta name="description" content="Browse player profiles with career totals and season stats across the Super Netball and ANZ Championship archive.">
-    <meta property="og:title" content="Players · Statsball">
-    <meta property="og:description" content="Browse player profiles with career totals and season stats across the Super Netball and ANZ Championship archive.">
+    <title>Ideas · Statsball</title>
+    <meta name="description" content="Suggest new archive features, report issues, or ask about the data behind Statsball.">
+    <meta property="og:title" content="Ideas · Statsball">
+    <meta property="og:description" content="Suggest new archive features, report issues, or ask about the data behind Statsball.">
     <meta property="og:type" content="website">
     <meta property="og:image" content="/assets/share-domestic.png">
     <meta property="og:image:alt" content="Statsball — Super Netball and ANZ Championship archive">
     <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="Players · Statsball">
-    <meta name="twitter:description" content="Browse player profiles with career totals and season stats across the Super Netball and ANZ Championship archive.">
+    <meta name="twitter:title" content="Ideas · Statsball">
+    <meta name="twitter:description" content="Suggest new archive features, report issues, or ask about the data behind Statsball.">
     <meta name="twitter:image" content="/assets/share-domestic.png">
     <link rel="preload" href="/assets/fonts/fraunces-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="preload" href="/assets/fonts/teko-600-latin.woff2" as="font" type="font/woff2" crossorigin>
     <link rel="stylesheet" href="/assets/styles.css">
     <script defer src="/assets/config.js"></script>
     <script defer src="/assets/telemetry.js"></script>
-    <script defer src="/assets/players.js"></script>
+    <script defer src="/assets/ideas.js"></script>
   </head>
-  <body class="players-page">
+  <body class="ideas-page">
     <a href="#main-content" class="skip-link">Skip to content</a>
 
     <header class="page-shell hero-shell reveal">
@@ -34,7 +34,7 @@
           </div>
           <span class="page-nav__divider" aria-hidden="true"></span>
           <a class="page-nav__link" href="/">Archive</a>
-          <a class="page-nav__link" href="/players/" aria-current="page">Players</a>
+          <a class="page-nav__link" href="/players/">Players</a>
           <a class="page-nav__link" href="/query/">Ask the stats</a>
           <a class="page-nav__link" href="/compare/">Compare</a>
           <a class="page-nav__link" href="/round/">Round recap</a>
@@ -49,46 +49,55 @@
           </div>
         </details>
           <span class="page-nav__divider" aria-hidden="true"></span>
-          <a class="page-nav__link" href="/ideas/">Ideas</a>
+          <a class="page-nav__link" href="/ideas/" aria-current="page">Ideas</a>
           <a class="page-nav__link" href="/changelog/">Changelog</a>
           <button type="button" class="theme-toggle" id="theme-toggle" aria-label="Current theme dark. Switch to light theme"><span class="theme-toggle__kicker">Reading mode</span><span class="theme-toggle__value">Night desk</span></button>
         </nav>
 
-      <section class="hero-panel">
+      <section class="hero-panel ideas-hero">
         <div class="hero-copy">
-          <p class="eyebrow">Player profiles</p>
-          <h1>Player directory</h1>
+          <p class="eyebrow">Shape the archive</p>
+          <h1>Ideas</h1>
+          <p class="intro-copy">Suggest a new view, flag a bug, or ask about the data. Short notes are fine — context beats polish.</p>
         </div>
-
-        <aside class="hero-aside" aria-label="Player directory status">
-          <div class="hero-aside__card">
-            <span class="hero-aside__label">Directory size</span>
-            <strong id="directory-total">Loading</strong>
-            <p id="directory-summary">Loading player records.</p>
-          </div>
-        </aside>
       </section>
     </header>
 
     <main id="main-content" class="page-shell page-main">
-      <section class="panel reveal">
-        <div id="directory-status" class="status-banner" role="status" aria-live="polite" hidden></div>
-        <div class="panel__heading panel__heading--split">
-          <div>
-            <p class="panel__eyebrow">Directory</p>
-            <h2>All players</h2>
+      <section class="panel ideas-panel reveal" aria-labelledby="ideas-form-heading">
+        <div id="ideas-status" class="status-banner" role="status" aria-live="polite" hidden></div>
+
+        <div class="ideas-panel__header">
+          <p class="results-panel__eyebrow">Feedback desk</p>
+          <h2 id="ideas-form-heading">Send a note</h2>
+          <p class="panel__lead">Pick a category, describe what you want, and send it through. There is no account or email field — just the message.</p>
+        </div>
+
+        <form id="ideas-form" class="ideas-form" novalidate>
+          <div class="field ideas-field">
+            <label for="ideas-category">Category</label>
+            <select id="ideas-category" name="category" required>
+              <option value="idea" selected>New idea</option>
+              <option value="bug">Bug or broken view</option>
+              <option value="data_question">Data question</option>
+            </select>
           </div>
-          <p id="directory-results-meta" class="directory-results-meta" aria-live="polite" aria-atomic="true">Loading players…</p>
-        </div>
 
-        <div class="field directory-search">
-          <label for="directory-search-input">Find a player</label>
-          <input id="directory-search-input" type="search" placeholder="Search by player name">
-        </div>
-      </section>
+          <div class="field ideas-field">
+            <label for="ideas-message">Message</label>
+            <textarea id="ideas-message" name="message" rows="7" maxlength="1000" required placeholder="Describe the idea, what you expected, or the stat you cannot find."></textarea>
+            <p class="field-hint" id="ideas-message-hint">At least 10 characters. 1000 max.</p>
+          </div>
 
-      <section class="panel reveal">
-        <div id="directory-grid" class="directory-grid"></div>
+          <div class="ideas-honeypot" aria-hidden="true">
+            <label for="ideas-company">Company</label>
+            <input id="ideas-company" name="company" type="text" tabindex="-1" autocomplete="off">
+          </div>
+
+          <div class="ideas-form__actions">
+            <button type="submit" class="button button--primary" id="ideas-submit">Send note</button>
+          </div>
+        </form>
       </section>
     </main>
   </body>

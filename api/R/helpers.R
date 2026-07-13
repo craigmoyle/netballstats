@@ -7867,3 +7867,119 @@ preview_ask_the_stats_parse <- function(question_text) {
     parsed = simple_result$parsed %||% list()
   )
 }
+
+FEEDBACK_CATEGORIES <- c("idea", "bug", "data_question")
+FEEDBACK_MESSAGE_MIN_LENGTH <- 10L
+FEEDBACK_MESSAGE_MAX_LENGTH <- 1000L
+FEEDBACK_MIN_SUBMIT_DELAY_MS <- 3000L
+
+feedback_normalise_message <- function(value) {
+  trimmed <- gsub("\\s+", " ", trimws(as.character(value %||% "")))
+  substr(trimmed, 1L, FEEDBACK_MESSAGE_MAX_LENGTH)
+}
+
+parse_feedback_request_body <- function(raw_body) {
+  if (!nzchar(raw_body %||% "")) {
+    stop("Request body is required.", call. = FALSE)
+  }
+
+  body_data <- tryCatch({
+    jsonlite::fromJSON(raw_body, simplifyVector = FALSE)
+  }, error = function(error) {
+    NULL
+  })
+
+  if (is.null(body_data) || !is.list(body_data)) {
+    stop("Request body must be valid JSON.", call. = FALSE)
+  }
+
+  list(
+    category = as.character(body_data$category %||% ""),
+    message = as.character(body_data$message %||% ""),
+    company = as.character(body_data$company %||% ""),
+    rendered_at = body_data$rendered_at %||% NULL
+  )
+}
+
+feedback_category_label <- function(category) {
+  switch(
+    category,
+    idea = "Idea",
+    bug = "Bug",
+    data_question = "Data question",
+    "Other"
+  )
+}
+
+feedback_looks_like_spam <- function(parsed) {
+  if (nzchar(trimws(parsed$company %||% ""))) {
+    return(TRUE)
+  }
+
+  rendered_at <- suppressWarnings(as.numeric(parsed$rendered_at %||% NA))
+  if (is.na(rendered_at)) {
+    return(TRUE)
+  }
+
+  elapsed_ms <- as.numeric(Sys.time()) * 1000 - rendered_at
+  if (is.na(elapsed_ms) || elapsed_ms < FEEDBACK_MIN_SUBMIT_DELAY_MS) {
+    return(TRUE)
+  }
+
+  message <- feedback_normalise_message(parsed$message)
+  if (grepl("(.)\\1{29,}", message)) {
+    return(TRUE)
+  }
+
+  link_matches <- gregexpr("https?://", message, ignore.case = TRUE)[[1]]
+  link_count <- if (length(link_matches) == 1L && link_matches[[1]] == -1L) {
+    0L
+  } else {
+    length(link_matches)
+  }
+  if (link_count > 5L) {
+    return(TRUE)
+  }
+
+  FALSE
+}
+
+validate_feedback_submission <- function(parsed) {
+  category <- tolower(trimws(parsed$category %||% ""))
+  if (!nzchar(category) || !(category %in% FEEDBACK_CATEGORIES)) {
+    stop(
+      sprintf(
+        "category must be one of: %s.",
+        paste(FEEDBACK_CATEGORIES, collapse = ", ")
+      ),
+      call. = FALSE
+    )
+  }
+
+  message <- feedback_normalise_message(parsed$message)
+  if (nchar(message) < FEEDBACK_MESSAGE_MIN_LENGTH) {
+    stop(
+      sprintf(
+        "message must be at least %s characters.",
+        FEEDBACK_MESSAGE_MIN_LENGTH
+      ),
+      call. = FALSE
+    )
+  }
+
+  if (feedback_looks_like_spam(parsed)) {
+    return(list(
+      ok = TRUE,
+      spam = TRUE,
+      category = category,
+      message = message
+    ))
+  }
+
+  list(
+    ok = TRUE,
+    spam = FALSE,
+    category = category,
+    message = message
+  )
+}
