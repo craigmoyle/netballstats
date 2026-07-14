@@ -30,6 +30,15 @@ if (!/display\s*:\s*grid/i.test(openDialogBlock[1])) {
   throw new Error("Expected #query-builder-modal[open] to handle the modal display:grid layout.");
 }
 
+// Shared .builder-step { display:grid } must not defeat the wizard's hidden attribute.
+if (!/\.builder-step\[hidden\]\s*\{[^}]*display\s*:\s*none\s*!important/i.test(css)) {
+  throw new Error("Expected .builder-step[hidden] { display: none !important } so wizard steps can hide.");
+}
+
+if (!/#query-builder-modal\s+\.builder-step\s*\{/.test(css)) {
+  throw new Error("Expected modal builder-step overrides to be scoped under #query-builder-modal.");
+}
+
 // ── Distilled query UI checks ────────────────────────────────────────────────
 
 // 1. Single collapsed support surface containing both templates and examples
