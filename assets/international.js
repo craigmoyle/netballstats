@@ -63,8 +63,16 @@ function clearChart(container, message) {
   setChartPlaceholder(container, message);
 }
 
-function runWithCharts(run) {
-  return loadChartsModule().then(run).catch(() => {});
+const CHARTS_LOAD_ERROR_MESSAGE = "Charts couldn't load. Refresh the page and try again.";
+
+function runWithCharts(run, errorContainers = []) {
+  return loadChartsModule().then(run).catch((error) => {
+    const targets = (Array.isArray(errorContainers) ? errorContainers : [errorContainers]).filter(Boolean);
+    targets.forEach((container) => clearChart(container, CHARTS_LOAD_ERROR_MESSAGE));
+    if (typeof console !== "undefined" && typeof console.error === "function") {
+      console.error(error);
+    }
+  });
 }
 
 function fallbackColour(index) {
@@ -481,7 +489,7 @@ function renderCompetitionSeasonChart(rows, errorMessage = "") {
       valueAccessor: (row) => intStatValue(row),
       colourAccessor: (_row, index) => fallbackColour(index)
     });
-  });
+  }, elements.competitionSeasonChart);
 }
 
 function renderTeamTrendChart(trendRows, errorMessage = "") {
@@ -500,7 +508,7 @@ function renderTeamTrendChart(trendRows, errorMessage = "") {
       valueAccessor: (row) => intStatValue(row),
       colourAccessor: (row, index) => resolveInternationalColour(row.squad_name, index)
     });
-  });
+  }, elements.teamTrendChart);
 }
 
 function renderPlayerTrendChart(trendRows, errorMessage = "") {
@@ -519,7 +527,7 @@ function renderPlayerTrendChart(trendRows, errorMessage = "") {
       valueAccessor: (row) => intStatValue(row),
       colourAccessor: (row, index) => resolveInternationalColour(row.squad_name, index)
     });
-  });
+  }, elements.playerTrendChart);
 }
 
 function renderCompetitionLoadingState() {
@@ -662,7 +670,7 @@ function renderPlayerLeaderChart(rows = state.results.playerLeaderRows) {
       valueAccessor: (row) => intStatValue(row),
       colourAccessor: (row, index) => resolveInternationalColour(row.squad_name, index)
     });
-  });
+  }, elements.playerLeadersChart);
 }
 
 function renderTeamLeaderChart(rows = state.results.teamLeaderRows) {
@@ -681,7 +689,7 @@ function renderTeamLeaderChart(rows = state.results.teamLeaderRows) {
       valueAccessor: (row) => intStatValue(row),
       colourAccessor: (row, index) => resolveInternationalColour(row.squad_name, index)
     });
-  });
+  }, elements.teamLeadersChart);
 }
 
 function showEl(el) { if (el) el.hidden = false; }

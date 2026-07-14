@@ -83,8 +83,16 @@ function clearChart(container, message) {
   setChartPlaceholder(container, message);
 }
 
-function runWithCharts(run) {
-  return loadChartsModule().then(run).catch(() => {});
+const CHARTS_LOAD_ERROR_MESSAGE = "Charts couldn't load. Refresh the page and try again.";
+
+function runWithCharts(run, errorContainers = []) {
+  return loadChartsModule().then(run).catch((error) => {
+    const targets = (Array.isArray(errorContainers) ? errorContainers : [errorContainers]).filter(Boolean);
+    targets.forEach((container) => clearChart(container, CHARTS_LOAD_ERROR_MESSAGE));
+    if (typeof console !== "undefined" && typeof console.error === "function") {
+      console.error(error);
+    }
+  });
 }
 
 const COMPARE_LOADING_MESSAGES = [
@@ -1048,7 +1056,7 @@ function renderComparisonChart(rows, entities) {
         return entity?.colour || row.colour || fallbackColour(index);
       }
     });
-  });
+  }, elements.compareChart);
 }
 
 function createEntityHeaderContent(entity) {

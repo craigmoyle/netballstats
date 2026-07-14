@@ -1113,12 +1113,31 @@
     syncResponsiveTable(table || tableBody.closest("table"));
   }
 
-  function resolveChartsScriptUrl() {
-    const appScript = document.querySelector('script[src*="app.js"]');
-    if (appScript?.src) {
-      return appScript.src.replace(/app(\.[a-f0-9]{10})?\.js(\?.*)?$/, 'charts$1.js$2');
+  // Derive the charts bundle from any fingerprinted page entry (app/compare/…)
+  // or from another /assets/ fingerprint. Absolute fallback for local unhashed builds.
+  // Optional scriptSources array supports verification without a DOM.
+  function resolveChartsScriptUrl(scriptSources) {
+    const sources = Array.isArray(scriptSources)
+      ? scriptSources
+      : Array.from(document.querySelectorAll("script[src]")).map((script) => script.src || "");
+
+    for (const src of sources) {
+      const pageMatch = src.match(
+        /^(.*\/)(?:app|compare|international|home-court-advantage)(\.[a-f0-9]{10})?\.js(\?.*)?$/
+      );
+      if (pageMatch) {
+        return `${pageMatch[1]}charts${pageMatch[2] || ""}.js${pageMatch[3] || ""}`;
+      }
     }
-    return 'assets/charts.js';
+
+    for (const src of sources) {
+      const assetMatch = src.match(/^(.*\/assets\/).+(\.[a-f0-9]{10})\.(?:js|css)(\?.*)?$/);
+      if (assetMatch) {
+        return `${assetMatch[1]}charts${assetMatch[2]}.js${assetMatch[3] || ""}`;
+      }
+    }
+
+    return "/assets/charts.js";
   }
 
   let chartsModulePromise = null;
@@ -1129,7 +1148,7 @@
     }
     if (!chartsModulePromise) {
       chartsModulePromise = new Promise((resolve, reject) => {
-        const script = document.createElement('script');
+        const script = document.createElement("script");
         script.src = resolveChartsScriptUrl();
         script.async = true;
         script.onload = () => {
@@ -1137,10 +1156,13 @@
             resolve(window.NetballCharts);
             return;
           }
-          reject(new Error('NetballCharts unavailable'));
+          reject(new Error("NetballCharts unavailable"));
         };
-        script.onerror = () => reject(new Error('Failed to load charts'));
+        script.onerror = () => reject(new Error("Failed to load charts"));
         document.head.appendChild(script);
+      }).catch((error) => {
+        chartsModulePromise = null;
+        throw error;
       });
     }
     return chartsModulePromise;
@@ -1212,6 +1234,7 @@
       formatStatLabel,
       STAT_LABEL_OVERRIDES,
       MATCH_DERIVED_TEAM_STATS,
+      resolveChartsScriptUrl,
       getSiteMode,
       initSiteModeNav,
       unwrapValue,

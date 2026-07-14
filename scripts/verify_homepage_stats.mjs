@@ -35,6 +35,63 @@ assert.match(
   'Site mode nav must swap domestic and international link sets on every page'
 );
 
+// Fingerprint-aware charts URL: page scripts like app.<hash>.js must resolve to charts.<hash>.js.
+assert.match(
+  configSource,
+  /\(\?:app\|compare\|international\|home-court-advantage\)\(\\\.\[a-f0-9\]\{10\}\)\?\\\.js/,
+  'resolveChartsScriptUrl must match fingerprinted page scripts'
+);
+assert.match(
+  configSource,
+  /return "\/assets\/charts\.js"/,
+  'resolveChartsScriptUrl must fall back to absolute /assets/charts.js'
+);
+
+function resolveChartsScriptUrlFromSources(scriptSources) {
+  const sources = Array.isArray(scriptSources) ? scriptSources : [];
+  for (const src of sources) {
+    const pageMatch = src.match(
+      /^(.*\/)(?:app|compare|international|home-court-advantage)(\.[a-f0-9]{10})?\.js(\?.*)?$/
+    );
+    if (pageMatch) {
+      return `${pageMatch[1]}charts${pageMatch[2] || ''}.js${pageMatch[3] || ''}`;
+    }
+  }
+  for (const src of sources) {
+    const assetMatch = src.match(/^(.*\/assets\/).+(\.[a-f0-9]{10})\.(?:js|css)(\?.*)?$/);
+    if (assetMatch) {
+      return `${assetMatch[1]}charts${assetMatch[2]}.js${assetMatch[3] || ''}`;
+    }
+  }
+  return '/assets/charts.js';
+}
+
+assert.equal(
+  resolveChartsScriptUrlFromSources([`https://statsball.net/assets/${appBundle}`]),
+  `https://statsball.net/assets/${chartsBundle}`,
+  'Fingerprinted app.js must resolve to matching charts.js'
+);
+assert.equal(
+  resolveChartsScriptUrlFromSources([`/assets/compare.${appHash}.js`]),
+  `/assets/charts.${appHash}.js`,
+  'Fingerprinted compare.js must resolve to matching charts.js'
+);
+assert.equal(
+  resolveChartsScriptUrlFromSources(['/assets/styles.css', `/assets/config.${appHash}.js`]),
+  `/assets/charts.${appHash}.js`,
+  'Any fingerprinted /assets/ script must yield charts with the same hash'
+);
+assert.equal(
+  resolveChartsScriptUrlFromSources([]),
+  '/assets/charts.js',
+  'Empty script list must fall back to absolute /assets/charts.js'
+);
+
+assert.ok(
+  readdirSync(distAssetsDir).includes(chartsBundle),
+  `Resolved charts bundle ${chartsBundle} must exist in dist/assets`
+);
+
 for (const relativePath of [
   'international/index.html',
   'international/compare/index.html',
