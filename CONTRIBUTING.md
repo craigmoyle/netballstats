@@ -40,7 +40,9 @@ netballstats/
 ├── infra/                      # Azure infrastructure (Bicep)
 ├── azure.yaml                  # Azure deployment configuration
 ├── package.json                # Frontend dependencies
-├── AGENTS.md                   # Repository context and decisions
+├── AGENTS.md                   # Canonical agent operating guidance (harness-neutral)
+├── CLAUDE.md                   # Product design context for UI/copy work
+├── DESIGN.md                   # Design tokens and system spec
 ├── CONTRIBUTING.md             # This file
 └── .github/
     ├── BRANCH_PROTECTION.md    # Branch protection policy

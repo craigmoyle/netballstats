@@ -1,5 +1,18 @@
 # AGENTS.md
 
+Canonical operating guidance for any coding agent working in this repository (Cursor, Claude Code, Codex, Copilot, and similar tools). Read this file first; use the companion docs below when the task needs design detail.
+
+## Documentation map
+
+| File | Use when |
+|------|----------|
+| **AGENTS.md** (this file) | Architecture, validation, deployment, API/frontend conventions, known pitfalls |
+| **[CLAUDE.md](./CLAUDE.md)** | Product voice, UX principles, stat/copy conventions for UI work |
+| **[DESIGN.md](./DESIGN.md)** | Design tokens, typography, colour system, component rules |
+| **[CONTRIBUTING.md](./CONTRIBUTING.md)** | Human contributor workflow, PR process, local setup |
+
+Do not add harness-specific instruction files (for example `.github/copilot-instructions.md`). Keep agent guidance here so it stays tool-neutral and single-sourced.
+
 This file captures the repo-specific context, decisions, and operating guidance that future agents should keep in mind when working in `netballstats`.
 
 ## Product and UX intent

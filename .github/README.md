@@ -45,6 +45,9 @@ See: **[CODEOWNERS](./CODEOWNERS)**
 | File | Purpose | Audience |
 |------|---------|----------|
 | **[CONTRIBUTING.md](../CONTRIBUTING.md)** | Development workflow and contribution guide | Everyone |
+| **[AGENTS.md](../AGENTS.md)** | Canonical agent operating guidance | Agents, maintainers |
+| **[CLAUDE.md](../CLAUDE.md)** | Product design context | Agents, designers |
+| **[DESIGN.md](../DESIGN.md)** | Design tokens and system spec | Agents, designers |
 | **[BRANCH_PROTECTION.md](./BRANCH_PROTECTION.md)** | Branch protection policy and rules | Everyone |
 | **[TROUBLESHOOTING.md](./TROUBLESHOOTING.md)** | Solutions for common issues | Developers |
 | **[CODEOWNERS](./CODEOWNERS)** | Code ownership definitions | Developers, Maintainers |

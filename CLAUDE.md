@@ -1,3 +1,5 @@
+For repo architecture, validation, deployment, and coding conventions, read [AGENTS.md](./AGENTS.md). This file covers product design context only.
+
 ## Design Context
 
 ### Users

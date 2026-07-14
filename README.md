@@ -54,6 +54,14 @@ International data is refreshed using the `scripts/build_international_database.
 - `azure.yaml` + `infra/`: Azure Developer CLI and Bicep deployment files
 - `renv.lock` + `renv/`: reproducible R dependency management
 
+## Agent guidance
+
+Operating guidance for coding agents lives in standard repo-root files rather than harness-specific config:
+
+- **[AGENTS.md](./AGENTS.md)** — architecture, validation, deployment, API/frontend conventions
+- **[CLAUDE.md](./CLAUDE.md)** — product voice and UX principles
+- **[DESIGN.md](./DESIGN.md)** — design tokens and component rules
+
 ## Local development
 
 ### Restore R dependencies
