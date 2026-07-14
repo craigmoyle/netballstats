@@ -66,8 +66,21 @@
     timeInPossession: "Time in Possession",
     tossUpWin: "Toss Up Wins",
     turnoverHeld: "Turnovers Held",
-    unforcedTurnovers: "Unforced Turnovers"
+    unforcedTurnovers: "Unforced Turnovers",
+    wins: "Wins",
+    losses: "Losses",
+    draws: "Draws",
+    pointsAgainst: "Points Against",
+    ladderPosition: "Ladder Position"
   });
+
+  const MATCH_DERIVED_TEAM_STATS = Object.freeze([
+    "wins",
+    "losses",
+    "draws",
+    "pointsAgainst",
+    "ladderPosition"
+  ]);
 
   const STAT_ABBREV_OVERRIDES = Object.freeze({
     attempt_from_zone1: "Z1 Att",
@@ -125,7 +138,10 @@
     "generalPlayTurnovers",
     "interceptPassThrown",
     "obstructionPenalties",
-    "unforcedTurnovers"
+    "unforcedTurnovers",
+    "ladderPosition",
+    "pointsAgainst",
+    "losses"
   ]);
 
   function formatStatLabel(stat) {
@@ -1194,6 +1210,8 @@
       formatNumber,
       formatStatAbbrev,
       formatStatLabel,
+      STAT_LABEL_OVERRIDES,
+      MATCH_DERIVED_TEAM_STATS,
       getSiteMode,
       initSiteModeNav,
       unwrapValue,

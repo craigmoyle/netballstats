@@ -212,7 +212,8 @@ let builderState = {
   seasonSingle: null,
   seasonRange: null,
   availableSeasons: [],
-  availableSubjects: []
+  availableSubjects: [],
+  availableTeams: []
 };
 
 if (elements.apiBase) {
@@ -1257,6 +1258,7 @@ async function runQuestion(question, source = "manual") {
 function resetBuilderState() {
   const existingSeasons = Array.isArray(builderState.availableSeasons) ? [...builderState.availableSeasons] : [];
   const existingSubjects = Array.isArray(builderState.availableSubjects) ? [...builderState.availableSubjects] : [];
+  const existingTeams = Array.isArray(builderState.availableTeams) ? [...builderState.availableTeams] : [];
   builderState = {
     currentStep: 1,
     shape: null,
@@ -1268,7 +1270,8 @@ function resetBuilderState() {
     seasonSingle: null,
     seasonRange: null,
     availableSeasons: existingSeasons,
-    availableSubjects: existingSubjects
+    availableSubjects: existingSubjects,
+    availableTeams: existingTeams
   };
 }
 
@@ -1288,6 +1291,9 @@ function showBuilderStep(stepNum) {
   });
 
   builderState.currentStep = stepNum;
+  if (stepNum === 3) {
+    renderBuilderStatOptions();
+  }
   updateBuilderFooter();
 }
 
@@ -1386,9 +1392,54 @@ function prevBuilderStep() {
   }
 }
 
+function getMatchDerivedTeamStats() {
+  return window.NetballStatsUI?.MATCH_DERIVED_TEAM_STATS || [
+    "wins",
+    "losses",
+    "draws",
+    "pointsAgainst",
+    "ladderPosition"
+  ];
+}
+
+function builderSubjectsAreTeams() {
+  const subjects = (builderState.subjects || []).map((s) => String(s || "").trim().toLowerCase()).filter(Boolean);
+  if (!subjects.length) {
+    return false;
+  }
+  const teamNames = new Set(
+    (builderState.availableTeams || [])
+      .map((team) => String(team?.squad_name || team || "").trim().toLowerCase())
+      .filter(Boolean)
+  );
+  if (!teamNames.size) {
+    return false;
+  }
+  return subjects.every((subject) => {
+    if (teamNames.has(subject)) {
+      return true;
+    }
+    for (const teamName of teamNames) {
+      if (teamName.includes(subject) || subject.includes(teamName.replace(/^.*\b/, ""))) {
+        // Allow short nicknames like "Vixens" against "Melbourne Vixens"
+        const tokens = teamName.split(/\s+/);
+        if (tokens.some((token) => token === subject)) {
+          return true;
+        }
+      }
+    }
+    return false;
+  });
+}
+
 function getStatsList() {
   const stats = window.NetballStatsUI?.STAT_LABEL_OVERRIDES || {};
-  return Object.keys(stats);
+  const keys = Object.keys(stats);
+  const matchDerived = new Set(getMatchDerivedTeamStats());
+  if (builderSubjectsAreTeams()) {
+    return keys;
+  }
+  return keys.filter((key) => !matchDerived.has(key));
 }
 
 function renderBuilderShapeOptions() {
@@ -1823,10 +1874,16 @@ async function loadBuilderMetadata(meta) {
     builderState.availableSeasons = meta.seasons;
     populateBuilderSeasonSelects();
   }
+  if (Array.isArray(meta.teams)) {
+    builderState.availableTeams = meta.teams;
+  }
+  const teamNames = (meta.teams || []).map((team) => team.squad_name).filter(Boolean);
   if (meta.players && Array.isArray(meta.players)) {
-    builderState.availableSubjects = meta.players;
+    builderState.availableSubjects = [...new Set([...teamNames, ...meta.players])];
   } else if (meta.subjects && Array.isArray(meta.subjects)) {
-    builderState.availableSubjects = meta.subjects;
+    builderState.availableSubjects = [...new Set([...teamNames, ...meta.subjects])];
+  } else if (teamNames.length) {
+    builderState.availableSubjects = teamNames;
   }
 }
 
