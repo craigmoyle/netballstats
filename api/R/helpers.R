@@ -213,8 +213,54 @@ QUERY_STAT_DEFINITIONS <- list(
   attempts2 = list(
     label = "2 Point Goal Attempts",
     aliases = c("2 point goal attempts", "two point goal attempts")
+  ),
+  wins = list(
+    label = "Wins",
+    aliases = c("wins", "win", "victories", "victory"),
+    team_only = TRUE
+  ),
+  losses = list(
+    label = "Losses",
+    aliases = c("losses", "loss", "defeats", "defeat"),
+    team_only = TRUE
+  ),
+  draws = list(
+    label = "Draws",
+    aliases = c("draws", "draw", "ties", "tie"),
+    team_only = TRUE
+  ),
+  pointsAgainst = list(
+    label = "Points Against",
+    aliases = c(
+      "points against", "points conceded", "conceded", "concede", "points allowed"
+    ),
+    team_only = TRUE
+  ),
+  ladderPosition = list(
+    label = "Ladder Position",
+    aliases = c(
+      "ladder position", "ladder", "finish", "finished", "finishing position",
+      "standing", "standings", "table position", "ladder finish"
+    ),
+    team_only = TRUE
   )
 )
+
+# Match-derived team stats from scores (not Champion Data period stats).
+MATCH_DERIVED_TEAM_STATS <- c("wins", "losses", "draws", "pointsAgainst", "ladderPosition")
+TEAM_OUTCOME_STATS <- c("wins", "losses", "draws")
+
+is_match_derived_team_stat <- function(stat) {
+  !is.null(stat) && length(stat) && as.character(stat)[[1]] %in% MATCH_DERIVED_TEAM_STATS
+}
+
+is_team_outcome_stat <- function(stat) {
+  !is.null(stat) && length(stat) && as.character(stat)[[1]] %in% TEAM_OUTCOME_STATS
+}
+
+is_ladder_position_stat <- function(stat) {
+  identical(as.character(stat %||% "")[[1]], "ladderPosition")
+}
 
 QUERY_COMPARISON_DEFINITIONS <- list(
   gte = list(label = "at least", sql = ">="),
@@ -891,13 +937,28 @@ detect_query_intent_type <- function(text) {
   if (grepl("^(how many times|how many matches)\\b", text)) {
     return("count")
   }
+  if (
+    grepl("^how many\\b", text) &&
+    grepl("\\b(wins?|losses|draws?|victories|defeats)\\b", text)
+  ) {
+    return("count")
+  }
+  if (grepl("\\b(top of the ladder|finished first|finished top|premiers?)\\b", text)) {
+    return("lowest")
+  }
+  if (grepl("\\b(bottom of the ladder|finished last)\\b", text)) {
+    return("highest")
+  }
+  if (grepl("\\b(where did|ladder position)\\b", text)) {
+    return("highest")
+  }
   if (grepl("\\bhighest\\b", text)) {
     return("highest")
   }
   if (grepl("\\blowest\\b", text)) {
     return("lowest")
   }
-  if (grepl("^(which players|which teams|list players|list teams|show players|show teams|who)\\b", text)) {
+  if (grepl("^(which players|which teams?|list players|list teams|show players|show teams|who)\\b", text)) {
     return("list")
   }
   if (grepl("^(show|list)\\b", text)) {
@@ -1181,13 +1242,18 @@ extract_query_player_phrase <- function(question, intent_type) {
     intent_type,
     count = c(
       "(?i)^how many (?:times|matches) (?:has|have)\\s+(.+?)\\s+(?:scored|recorded|made|had|posted|notched|registered)\\b",
-      "(?i)^how many (?:times|matches) did\\s+(.+?)\\s+(?:score|record|make|have|post|notch|register)\\b"
+      "(?i)^how many (?:times|matches) did\\s+(.+?)\\s+(?:score|record|make|have|post|notch|register)\\b",
+      "(?i)^how many (?:wins|losses|draws|victories|defeats) did\\s+(.+?)\\s+have\\b",
+      "(?i)^how many (?:wins|losses|draws|victories|defeats) (?:have|has)\\s+(.+?)\\s+had\\b"
     ),
     highest = c(
-      "(?i)^what is\\s+(.+?)\\s+highest\\b"
+      "(?i)^what is\\s+(.+?)\\s+highest\\b",
+      "(?i)^where did\\s+(.+?)\\s+finish\\b",
+      "(?i)^what (?:was|is)\\s+(.+?)(?:'s|’s)?\\s+(?:ladder position|finish|finishing position|standing)\\b"
     ),
     lowest = c(
-      "(?i)^what is\\s+(.+?)\\s+lowest\\b"
+      "(?i)^what is\\s+(.+?)\\s+lowest\\b",
+      "(?i)^where did\\s+(.+?)\\s+finish\\b"
     ),
     character()
   )
@@ -1212,18 +1278,48 @@ extract_query_subject_phrase <- function(question, intent_type) {
 }
 
 detect_query_list_subject_type <- function(text) {
-  if (grepl("^(which players|list players|show players|who)\\b", text)) {
+  if (grepl("^(which players|list players|show players)\\b", text)) {
     return("players")
   }
-  if (grepl("^(which teams|list teams|show teams)\\b", text)) {
+  if (grepl("^(which teams?|list teams|show teams)\\b", text)) {
     return("teams")
+  }
+  if (grepl("^who\\b", text)) {
+    return("players")
   }
 
   NULL
 }
 
-default_query_plural_subject_type <- function(intent_type, normalized_text, subject_search_phrase = NULL, parsed_subject = NULL) {
+default_query_plural_subject_type <- function(
+  intent_type,
+  normalized_text,
+  subject_search_phrase = NULL,
+  parsed_subject = NULL,
+  stat = NULL
+) {
   explicit_subject_type <- detect_query_list_subject_type(normalized_text)
+  has_subject_phrase <- !is.null(subject_search_phrase) &&
+    nzchar(trimws(as.character(subject_search_phrase)))
+
+  # Match-derived outcome/ladder stats are team-only. Treat bare "who …"
+  # (normally players) as teams for these stats.
+  if (!is.null(stat) && is_match_derived_team_stat(stat)) {
+    if (identical(explicit_subject_type, "players") && grepl("^who\\b", normalized_text)) {
+      return("teams")
+    }
+    if (!is.null(explicit_subject_type)) {
+      return(explicit_subject_type)
+    }
+    if (identical(parsed_subject, "players") || identical(parsed_subject, "teams")) {
+      return(parsed_subject)
+    }
+    if (!has_subject_phrase) {
+      return("teams")
+    }
+    return(NULL)
+  }
+
   if (!is.null(explicit_subject_type)) {
     return(explicit_subject_type)
   }
@@ -1232,8 +1328,6 @@ default_query_plural_subject_type <- function(intent_type, normalized_text, subj
     return(parsed_subject)
   }
 
-  has_subject_phrase <- !is.null(subject_search_phrase) &&
-    nzchar(trimws(as.character(subject_search_phrase)))
   if (!has_subject_phrase && (identical(intent_type, "highest") || identical(intent_type, "lowest"))) {
     return("players")
   }
@@ -1329,10 +1423,23 @@ package_query_intent <- function(
     ))
   }
   if (identical(intent_type, "count") && is.null(threshold)) {
+    if (!is_team_outcome_stat(stat) && !is_ladder_position_stat(stat)) {
+      return(query_error_payload(
+        "unsupported",
+        parsed_question,
+        "Count questions need a threshold such as 50+, at least 40, or exactly 20."
+      ))
+    }
+  }
+  if (
+    !is.null(stat) &&
+    is_match_derived_team_stat(stat) &&
+    !subject_type %in% c("team", "teams")
+  ) {
     return(query_error_payload(
       "unsupported",
       parsed_question,
-      "Count questions need a threshold such as 50+, at least 40, or exactly 20."
+      paste0(query_stat_label(stat), " questions are team-only.")
     ))
   }
   if (identical(intent_type, "list") &&
@@ -1419,7 +1526,8 @@ parse_query_intent <- function(conn, question, limit = 12L) {
   plural_subject_type <- default_query_plural_subject_type(
     intent_type,
     normalized_text,
-    subject_search_phrase = extracted_subject_phrase
+    subject_search_phrase = extracted_subject_phrase,
+    stat = stat
   )
 
   subject_search_phrase <- if (!is.null(plural_subject_type)) {
@@ -1503,7 +1611,8 @@ build_simple_query_intent_from_preview <- function(conn, question, parsed, limit
     intent_type,
     normalized_text,
     subject_search_phrase = extracted_subject_phrase,
-    parsed_subject = subject_value
+    parsed_subject = subject_value,
+    stat = stat
   )
 
   subject_search_phrase <- if (!is.null(plural_subject_type)) {
@@ -2233,6 +2342,52 @@ build_query_answer <- function(intent, rows, total_matches) {
     stat_label
   }
 
+  # Outcome totals: "Vixens recorded 12 wins in 2024."
+  if (
+    identical(intent$intent_type, "count") &&
+    is_team_outcome_stat(intent$stat) &&
+    is.null(intent$threshold)
+  ) {
+    count_label <- if (identical(as.integer(total_matches), 1L)) {
+      paste(format_query_number(total_matches), sub("s$", "", stat_label))
+    } else {
+      paste(format_query_number(total_matches), stat_label)
+    }
+    return(sprintf("%s recorded %s%s.", subject, count_label, filter_suffix))
+  }
+
+  # Ladder position answers use ordinals ("finished 3rd").
+  if (is_ladder_position_stat(intent$stat)) {
+    if (identical(intent$intent_type, "count") && !is.null(intent$team_id)) {
+      return(sprintf(
+        "%s finished %s%s.",
+        subject,
+        format_ordinal_number(total_matches),
+        filter_suffix
+      ))
+    }
+    if (!nrow(rows)) {
+      return(sprintf("No ladder position was found%s.", filter_suffix))
+    }
+    first_row <- rows[1, , drop = FALSE]
+    position_label <- format_ordinal_number(first_row$total_value[[1]])
+    season_label <- first_row$season[[1]]
+    if (identical(intent$subject_type, "teams") || is.null(intent$team_id)) {
+      return(sprintf(
+        "%s finished %s in %s.",
+        first_row$squad_name[[1]],
+        position_label,
+        season_label
+      ))
+    }
+    return(sprintf(
+      "%s finished %s%s.",
+      subject,
+      position_label,
+      if (!is.null(season_label) && !is.na(season_label)) paste0(" in ", season_label) else filter_suffix
+    ))
+  }
+
   if (identical(intent$intent_type, "count")) {
     times_label <- if (identical(total_matches, 1L)) "time" else "times"
     return(sprintf(
@@ -2249,11 +2404,18 @@ build_query_answer <- function(intent, rows, total_matches) {
   }
 
   first_row <- rows[1, , drop = FALSE]
-  performance_suffix <- sprintf(
-    " in %s Round %s.",
-    first_row$season[[1]],
-    first_row$round_number[[1]]
-  )
+  has_round <- !is.null(first_row$round_number[[1]]) && !is.na(first_row$round_number[[1]])
+  performance_suffix <- if (has_round) {
+    sprintf(
+      " in %s Round %s.",
+      first_row$season[[1]],
+      first_row$round_number[[1]]
+    )
+  } else if (!is.null(first_row$season[[1]]) && !is.na(first_row$season[[1]])) {
+    sprintf(" in %s.", first_row$season[[1]])
+  } else {
+    "."
+  }
 
   if (identical(intent$intent_type, "highest")) {
     return(sprintf(
@@ -2301,6 +2463,27 @@ build_query_answer <- function(intent, rows, total_matches) {
     subject,
     filter_suffix
   )
+}
+
+format_ordinal_number <- function(n) {
+  value <- suppressWarnings(as.integer(n))
+  if (is.na(value)) {
+    return(as.character(n))
+  }
+  mod100 <- abs(value) %% 100L
+  mod10 <- abs(value) %% 10L
+  suffix <- if (mod100 >= 11L && mod100 <= 13L) {
+    "th"
+  } else if (identical(mod10, 1L)) {
+    "st"
+  } else if (identical(mod10, 2L)) {
+    "nd"
+  } else if (identical(mod10, 3L)) {
+    "rd"
+  } else {
+    "th"
+  }
+  paste0(value, suffix)
 }
 
 available_match_seasons <- function(conn) {
@@ -4559,6 +4742,159 @@ fetch_query_result_rows <- function(conn, intent) {
   }
 
   team_query <- identical(intent$subject_type, "team") || identical(intent$subject_type, "teams")
+
+  # Ladder position is season-ranked, not per-match.
+  if (team_query && is_ladder_position_stat(intent$stat)) {
+    order <- if (identical(intent$intent_type, "highest")) "desc" else "asc"
+    list_limit <- if (identical(intent$intent_type, "list")) {
+      min(intent$limit %||% 25L, 25L)
+    } else if (identical(intent$intent_type, "highest") || identical(intent$intent_type, "lowest")) {
+      1L
+    } else if (identical(intent$intent_type, "count")) {
+      NULL
+    } else {
+      intent$limit %||% 25L
+    }
+
+    rows <- fetch_ladder_position_result_rows(
+      conn,
+      seasons = seasons_filter,
+      team_id = intent$team_id,
+      limit = list_limit,
+      order = order
+    )
+
+    if (identical(intent$intent_type, "count")) {
+      total <- if (!is.null(intent$team_id) && nrow(rows)) {
+        as.integer(rows$total_value[[1]])
+      } else {
+        nrow(rows)
+      }
+      sample_rows <- if (nrow(rows)) {
+        utils::head(rows, min(intent$limit %||% 12L, 12L))
+      } else {
+        rows
+      }
+      attr(sample_rows, "total_matches") <- total
+      return(sample_rows)
+    }
+
+    return(rows)
+  }
+
+  # Match-derived wins/losses/draws/pointsAgainst.
+  if (team_query && is_match_derived_team_stat(intent$stat)) {
+    source <- if (has_home_venue_impact_rows(conn)) "hvir" else "matches"
+    base_query <- build_match_result_team_query(
+      stat = intent$stat,
+      seasons = seasons_filter,
+      team_id = intent$team_id,
+      opponent_id = intent$opponent_id,
+      comparison = intent$comparison,
+      threshold = intent$threshold,
+      source = source
+    )
+    order_name_expr <- "squad_name"
+
+    # Season leaderboard for plural teams + outcome/pointsAgainst without per-match threshold.
+    if (
+      identical(intent$intent_type, "list") &&
+      identical(intent$subject_type, "teams") &&
+      is.null(intent$threshold)
+    ) {
+      list_limit <- min(intent$limit %||% 25L, 25L)
+      aggregate_query <- paste0(
+        "SELECT team_id, MAX(squad_name) AS squad_name, NULL AS opponent,",
+        " MAX(season) AS season, NULL AS round_number, NULL AS match_id,",
+        " NULL AS local_start_time, MAX(stat) AS stat,",
+        " SUM(total_value) AS total_value",
+        " FROM (", base_query$query, ") match_rows",
+        " GROUP BY team_id",
+        " ORDER BY total_value DESC, squad_name ASC",
+        " LIMIT ", list_limit
+      )
+      return(sort_query_result_rows(
+        query_rows(conn, aggregate_query, base_query$params),
+        "list"
+      ))
+    }
+
+    if (identical(intent$intent_type, "highest") || identical(intent$intent_type, "lowest")) {
+      order_dir <- if (identical(intent$intent_type, "lowest")) "ASC" else "DESC"
+      limited_query <- paste0(
+        base_query$query,
+        " ORDER BY total_value ", order_dir,
+        ", season DESC, round_number DESC, ", order_name_expr, " ASC",
+        " LIMIT 1"
+      )
+      return(query_rows(conn, limited_query, base_query$params))
+    }
+
+    if (identical(intent$intent_type, "list")) {
+      list_limit <- min(intent$limit %||% 25L, 25L)
+      limited_query <- paste0(
+        base_query$query,
+        " ORDER BY total_value DESC",
+        ", season DESC, round_number DESC, ", order_name_expr, " ASC",
+        " LIMIT ", list_limit
+      )
+      return(sort_query_result_rows(
+        query_rows(conn, limited_query, base_query$params),
+        "list"
+      ))
+    }
+
+    if (identical(intent$intent_type, "count")) {
+      # Outcome totals without threshold: SUM wins/losses/draws, not COUNT of matches.
+      if (is_team_outcome_stat(intent$stat) && is.null(intent$threshold)) {
+        sum_row <- query_rows(
+          conn,
+          paste0(
+            "SELECT COALESCE(SUM(total_value), 0) AS total_matches FROM (",
+            base_query$query,
+            ") sub"
+          ),
+          base_query$params
+        )
+        sample_limit <- min(intent$limit %||% 12L, 12L)
+        sample_base <- build_match_result_team_query(
+          stat = intent$stat,
+          seasons = seasons_filter,
+          team_id = intent$team_id,
+          opponent_id = intent$opponent_id,
+          comparison = "eq",
+          threshold = 1,
+          source = source
+        )
+        sample_query <- paste0(
+          sample_base$query,
+          " ORDER BY season DESC, round_number DESC, squad_name ASC",
+          " LIMIT ", sample_limit
+        )
+        sample_rows <- query_rows(conn, sample_query, sample_base$params)
+        attr(sample_rows, "total_matches") <- as.integer(sum_row$total_matches[[1]] %||% 0L)
+        return(sample_rows)
+      }
+
+      count_row <- query_rows(
+        conn,
+        paste0("SELECT COUNT(*) AS total_matches FROM (", base_query$query, ") sub"),
+        base_query$params
+      )
+      sample_limit <- min(intent$limit %||% 12L, 12L)
+      sample_query <- paste0(
+        base_query$query,
+        " ORDER BY season DESC, round_number DESC, squad_name ASC",
+        " LIMIT ", sample_limit
+      )
+      sample_rows <- query_rows(conn, sample_query, base_query$params)
+      attr(sample_rows, "total_matches") <- as.integer(count_row$total_matches[[1]] %||% 0L)
+      return(sample_rows)
+    }
+
+    return(query_rows(conn, base_query$query, base_query$params))
+  }
+
   if (team_query) {
     # Use the pre-aggregated table when available; fall back to period-level aggregation.
     builder <- if (has_team_match_stats(conn)) build_fast_team_match_query else build_team_match_query
@@ -4761,6 +5097,278 @@ build_home_venue_impact_rows_query <- function(seasons = NULL, team_id = NULL, v
   }
 
   list(query = query, params = params)
+}
+
+# Per-match value expression for match-derived team stats.
+match_result_value_sql <- function(stat, table_alias = "hvir") {
+  col <- function(name) paste0(table_alias, ".", name)
+  switch(
+    as.character(stat)[[1]],
+    wins = col("won"),
+    losses = paste0(
+      "CASE WHEN ", col("won"), " = 0 AND ", col("draw"),
+      " = 0 THEN 1 ELSE 0 END"
+    ),
+    draws = col("draw"),
+    pointsAgainst = col("opponent_score"),
+    stop(sprintf("Unsupported match-derived stat: %s", stat), call. = FALSE)
+  )
+}
+
+# Build per-match team rows for wins/losses/draws/pointsAgainst.
+# source = "hvir" uses home_venue_impact_rows; "matches" uses inline matches UNION.
+build_match_result_team_query <- function(
+  stat,
+  seasons = NULL,
+  team_id = NULL,
+  opponent_id = NULL,
+  comparison = NULL,
+  threshold = NULL,
+  source = c("hvir", "matches"),
+  regular_season_only = FALSE
+) {
+  source <- match.arg(source)
+  if (is_ladder_position_stat(stat)) {
+    stop("ladderPosition requires build_season_ladder_query().", call. = FALSE)
+  }
+
+  value_sql <- match_result_value_sql(stat, "hvir")
+  params <- list(display_stat = as.character(stat)[[1]])
+
+  if (identical(source, "hvir")) {
+    query <- paste(
+      "SELECT hvir.team_id AS team_id, hvir.team_name AS squad_name,",
+      "hvir.opponent_name AS opponent,",
+      "hvir.season AS season, hvir.round_number AS round_number, hvir.match_id AS match_id,",
+      "NULL AS local_start_time,",
+      "?display_stat AS stat,",
+      value_sql, "AS total_value",
+      "FROM home_venue_impact_rows AS hvir",
+      "WHERE 1 = 1"
+    )
+  } else {
+    base <- build_home_venue_impact_base_query(
+      seasons = seasons,
+      team_id = NULL,
+      include_penalties = FALSE
+    )
+    query <- paste(
+      "SELECT hvir.team_id AS team_id, hvir.team_name AS squad_name,",
+      "hvir.opponent_name AS opponent,",
+      "hvir.season AS season, hvir.round_number AS round_number, hvir.match_id AS match_id,",
+      "NULL AS local_start_time,",
+      "?display_stat AS stat,",
+      value_sql, "AS total_value",
+      "FROM (", base$query, ") AS hvir",
+      "WHERE 1 = 1"
+    )
+    params <- c(params, base$params)
+  }
+
+  if (identical(source, "hvir")) {
+    season_filter <- append_integer_in_filter(query, params, "hvir.season", seasons, "season")
+    query <- season_filter$query
+    params <- season_filter$params
+  }
+
+  if (isTRUE(regular_season_only)) {
+    query <- paste0(query, " AND hvir.competition_phase = 'regular'")
+  }
+
+  if (!is.null(team_id)) {
+    query <- paste0(query, " AND hvir.team_id = ?team_id")
+    params$team_id <- as.integer(team_id)
+  }
+
+  if (!is.null(opponent_id)) {
+    query <- paste0(query, " AND hvir.opponent_id = ?opponent_id")
+    params$opponent_id <- as.integer(opponent_id)
+  }
+
+  if (!is.null(comparison) && !is.null(threshold)) {
+    query <- paste0(
+      query,
+      " AND (", value_sql, ") ", query_comparison_sql(comparison), " ?threshold"
+    )
+    params$threshold <- threshold
+  }
+
+  list(query = query, params = params)
+}
+
+# Season ladder aggregates from regular-season match results.
+# Ladder rules: 2 pts win, 1 pt draw; tiebreak percentage then points for.
+build_season_ladder_aggregate_query <- function(
+  seasons = NULL,
+  source = c("hvir", "matches")
+) {
+  source <- match.arg(source)
+  params <- list()
+
+  if (identical(source, "hvir")) {
+    base_query <- paste(
+      "SELECT team_id, team_name, season, match_id, team_score, opponent_score, won, draw",
+      "FROM home_venue_impact_rows",
+      "WHERE competition_phase = 'regular'"
+    )
+    season_filter <- append_integer_in_filter(base_query, params, "season", seasons, "season")
+    base_query <- season_filter$query
+    params <- season_filter$params
+  } else {
+    base <- build_home_venue_impact_base_query(
+      seasons = seasons,
+      include_penalties = FALSE
+    )
+    base_query <- paste(
+      "SELECT team_id, team_name, season, match_id, team_score, opponent_score, won, draw",
+      "FROM (", base$query, ") AS impact_rows",
+      "WHERE competition_phase = 'regular'"
+    )
+    params <- base$params
+  }
+
+  query <- paste(
+    "SELECT",
+    "  team_id,",
+    "  MAX(team_name) AS squad_name,",
+    "  season,",
+    "  COUNT(DISTINCT match_id) AS games,",
+    "  SUM(won) AS wins,",
+    "  SUM(draw) AS draws,",
+    "  SUM(CASE WHEN won = 0 AND draw = 0 THEN 1 ELSE 0 END) AS losses,",
+    "  SUM(team_score) AS points_for,",
+    "  SUM(opponent_score) AS points_against,",
+    "  (2 * SUM(won) + SUM(draw)) AS competition_points,",
+    "  CASE",
+    "    WHEN SUM(opponent_score) > 0 THEN 100.0 * SUM(team_score) / SUM(opponent_score)",
+    "    ELSE 0",
+    "  END AS percentage",
+    "FROM (", base_query, ") AS ladder_matches",
+    "GROUP BY team_id, season"
+  )
+
+  list(query = query, params = params)
+}
+
+# Rank ladder rows in R (competition ranking: same points/pct/for → same position).
+rank_season_ladder_rows <- function(rows) {
+  if (!nrow(rows)) {
+    return(rows)
+  }
+
+  rows <- rows[order(
+    rows$season,
+    -as.numeric(rows$competition_points),
+    -as.numeric(rows$percentage),
+    -as.numeric(rows$points_for),
+    as.character(rows$squad_name)
+  ), , drop = FALSE]
+
+  rows$ladder_position <- NA_integer_
+  for (season_value in unique(rows$season)) {
+    idx <- which(rows$season == season_value)
+    season_rows <- rows[idx, , drop = FALSE]
+    positions <- integer(nrow(season_rows))
+    for (i in seq_len(nrow(season_rows))) {
+      if (
+        i > 1L &&
+        identical(
+          as.numeric(season_rows$competition_points[[i]]),
+          as.numeric(season_rows$competition_points[[i - 1L]])
+        ) &&
+        identical(
+          as.numeric(season_rows$percentage[[i]]),
+          as.numeric(season_rows$percentage[[i - 1L]])
+        ) &&
+        identical(
+          as.numeric(season_rows$points_for[[i]]),
+          as.numeric(season_rows$points_for[[i - 1L]])
+        )
+      ) {
+        positions[[i]] <- positions[[i - 1L]]
+      } else {
+        positions[[i]] <- i
+      }
+    }
+    rows$ladder_position[idx] <- positions
+  }
+
+  rows
+}
+
+fetch_season_ladder_rows <- function(conn, seasons = NULL) {
+  source <- if (has_home_venue_impact_rows(conn)) "hvir" else "matches"
+  built <- build_season_ladder_aggregate_query(seasons = seasons, source = source)
+  rows <- query_rows(conn, built$query, built$params)
+  rank_season_ladder_rows(rows)
+}
+
+# Ladder position rows shaped like match-query results for Ask the Stats.
+fetch_ladder_position_result_rows <- function(
+  conn,
+  seasons = NULL,
+  team_id = NULL,
+  limit = NULL,
+  order = c("asc", "desc")
+) {
+  order <- match.arg(order)
+  rows <- fetch_season_ladder_rows(conn, seasons = seasons)
+  if (!nrow(rows)) {
+    return(rows)
+  }
+
+  if (!is.null(team_id)) {
+    rows <- rows[as.integer(rows$team_id) == as.integer(team_id), , drop = FALSE]
+  }
+
+  if (!nrow(rows)) {
+    return(rows)
+  }
+
+  result <- data.frame(
+    team_id = as.integer(rows$team_id),
+    squad_name = as.character(rows$squad_name),
+    opponent = NA_character_,
+    season = as.integer(rows$season),
+    round_number = NA_integer_,
+    match_id = NA_integer_,
+    local_start_time = NA_character_,
+    stat = "ladderPosition",
+    total_value = as.integer(rows$ladder_position),
+    competition_points = as.numeric(rows$competition_points),
+    percentage = as.numeric(rows$percentage),
+    points_for = as.numeric(rows$points_for),
+    points_against = as.numeric(rows$points_against),
+    wins = as.integer(rows$wins),
+    draws = as.integer(rows$draws),
+    losses = as.integer(rows$losses),
+    stringsAsFactors = FALSE
+  )
+
+  if (identical(order, "asc")) {
+    result <- result[order(result$season, result$total_value, result$squad_name), , drop = FALSE]
+  } else {
+    result <- result[order(result$season, -result$total_value, result$squad_name), , drop = FALSE]
+  }
+
+  if (!is.null(limit) && nrow(result) > as.integer(limit)) {
+    result <- result[seq_len(as.integer(limit)), , drop = FALSE]
+  }
+
+  result
+}
+
+fetch_team_ladder_position <- function(conn, team_id, season) {
+  rows <- fetch_ladder_position_result_rows(
+    conn,
+    seasons = as.integer(season),
+    team_id = as.integer(team_id),
+    limit = 1L
+  )
+  if (!nrow(rows)) {
+    return(NULL)
+  }
+  as.integer(rows$total_value[[1]])
 }
 
 build_home_venue_breakdown_rows_query <- function(seasons = NULL, team_id = NULL, venue_name = NULL) {
@@ -6448,7 +7056,18 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
     ))
   }
 
-  if (!stat %in% c(DEFAULT_PLAYER_STATS, DEFAULT_TEAM_STATS)) {
+  if (identical(subject_type, "player") && is_match_derived_team_stat(stat)) {
+    return(query_error_payload(
+      "unsupported",
+      subject,
+      paste0(query_stat_label(stat), " questions are team-only.")
+    ))
+  }
+
+  if (
+    !stat %in% c(DEFAULT_PLAYER_STATS, DEFAULT_TEAM_STATS) &&
+    !(identical(subject_type, "team") && is_match_derived_team_stat(stat))
+  ) {
     return(query_error_payload(
       "unsupported",
       stat,
@@ -6483,6 +7102,12 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
         ),
         list(player_id = subject_id, stat = stat, season = season)
       )
+      total <- if (nrow(season_data)) as.numeric(season_data$total[[1]]) %||% 0 else 0
+      games <- if (nrow(season_data)) as.numeric(season_data$games[[1]]) %||% 0 else 0
+    } else if (is_match_derived_team_stat(stat)) {
+      agg <- fetch_team_season_aggregate(conn, subject_id, stat, season)
+      total <- if (is.null(agg)) 0 else agg$total
+      games <- if (is.null(agg)) 0 else agg$games %||% 0
     } else {
       source_stat <- canonical_team_query_stat(stat)
       if (has_team_match_stats(conn)) {
@@ -6510,10 +7135,10 @@ build_trend_query <- function(subject, stat, seasons = NULL, conn) {
           list(team_id = subject_id, source_stat = source_stat, season = season)
         )
       }
+      total <- if (nrow(season_data)) as.numeric(season_data$total[[1]]) %||% 0 else 0
+      games <- if (nrow(season_data)) as.numeric(season_data$games[[1]]) %||% 0 else 0
     }
 
-    total <- if (nrow(season_data)) as.numeric(season_data$total[[1]]) %||% 0 else 0
-    games <- if (nrow(season_data)) as.numeric(season_data$games[[1]]) %||% 0 else 0
     average <- if (games > 0) round(total / games, 2) else 0
 
     result <- list(
@@ -6869,6 +7494,14 @@ build_comparison_query <- function(subjects, stat, season, conn) {
           # Try to resolve as player
           player_result <- resolve_query_player(conn, subject_name)
           if (!is.null(player_result) && player_result$status == "supported") {
+            if (is_match_derived_team_stat(stat_key)) {
+              return(list(
+                status = jsonlite::unbox("error"),
+                intent_type = jsonlite::unbox("comparison"),
+                error = jsonlite::unbox(paste0(stat_label, " questions are team-only.")),
+                code = jsonlite::unbox("VALIDATION_ERROR")
+              ))
+            }
             # Subject is a player
             player_id <- player_result$player_id
             player_name <- player_result$player_name
@@ -6911,9 +7544,16 @@ build_comparison_query <- function(subjects, stat, season, conn) {
       # 5. Calculate comparison metrics
       total1 <- total_by_subject[[1]]
       total2 <- total_by_subject[[2]]
-      leader_idx <- if (total1 >= total2) 1L else 2L
+      low_is_better <- is_ladder_position_stat(stat_key) ||
+        identical(stat_key, "losses") ||
+        identical(stat_key, "pointsAgainst")
+      leader_idx <- if (isTRUE(low_is_better)) {
+        if (total1 <= total2) 1L else 2L
+      } else {
+        if (total1 >= total2) 1L else 2L
+      }
       leader_name <- results[[leader_idx]]$subject
-      loser_total <- if (total1 >= total2) total2 else total1
+      loser_total <- if (leader_idx == 1L) total2 else total1
       difference <- abs(total1 - total2)
       percentage_ahead <- if (loser_total > 0) round((difference / loser_total) * 100, 1) else 0
 
@@ -7580,6 +8220,48 @@ resolve_stat_key <- function(stat_input) {
 
 # Fetches team aggregates for a season and stat
 fetch_team_season_aggregate <- function(conn, team_id, stat_key, season) {
+  if (is_ladder_position_stat(stat_key)) {
+    rows <- fetch_ladder_position_result_rows(
+      conn,
+      seasons = as.integer(season),
+      team_id = as.integer(team_id),
+      limit = 1L
+    )
+    if (!nrow(rows)) {
+      return(NULL)
+    }
+    return(list(
+      total = as.numeric(rows$total_value[[1]]),
+      games = as.integer(rows$wins[[1]] + rows$draws[[1]] + rows$losses[[1]])
+    ))
+  }
+
+  if (is_match_derived_team_stat(stat_key)) {
+    source <- if (has_home_venue_impact_rows(conn)) "hvir" else "matches"
+    base_query <- build_match_result_team_query(
+      stat = stat_key,
+      seasons = as.integer(season),
+      team_id = as.integer(team_id),
+      source = source
+    )
+    result <- query_rows(
+      conn,
+      paste0(
+        "SELECT COALESCE(SUM(total_value), 0) AS total,",
+        " COUNT(*) AS games",
+        " FROM (", base_query$query, ") match_rows"
+      ),
+      base_query$params
+    )
+    if (!nrow(result)) {
+      return(NULL)
+    }
+    return(list(
+      total = as.numeric(result$total[[1]]),
+      games = as.integer(result$games[[1]])
+    ))
+  }
+
   source_stat <- canonical_team_query_stat(stat_key)
   query <- paste(
     "SELECT",
@@ -7647,6 +8329,39 @@ fetch_player_season_aggregate <- function(conn, player_id, stat_key, season) {
 
 # Fetches round-by-round breakdown for a team
 fetch_team_round_breakdown <- function(conn, team_id, stat_key, season) {
+  if (is_ladder_position_stat(stat_key)) {
+    return(list())
+  }
+
+  if (is_match_derived_team_stat(stat_key)) {
+    source <- if (has_home_venue_impact_rows(conn)) "hvir" else "matches"
+    base_query <- build_match_result_team_query(
+      stat = stat_key,
+      seasons = as.integer(season),
+      team_id = as.integer(team_id),
+      source = source
+    )
+    rows <- query_rows(
+      conn,
+      paste0(
+        "SELECT round_number, opponent, total_value AS value",
+        " FROM (", base_query$query, ") match_rows",
+        " ORDER BY round_number ASC"
+      ),
+      base_query$params
+    )
+    if (!nrow(rows)) {
+      return(list())
+    }
+    return(lapply(seq_len(nrow(rows)), function(i) {
+      list(
+        round = as.integer(rows$round_number[[i]]),
+        opponent = rows$opponent[[i]],
+        value = as.numeric(rows$value[[i]])
+      )
+    }))
+  }
+
   source_stat <- canonical_team_query_stat(stat_key)
   query <- paste(
     "SELECT",

@@ -82,6 +82,8 @@
 
 # Critical repository files
 /AGENTS.md                                      @craigmoyle
+/CLAUDE.md                                      @craigmoyle
+/DESIGN.md                                      @craigmoyle
 /README.md                                      @craigmoyle
 /.github/BRANCH_PROTECTION.md                  @craigmoyle
 /.github/CODEOWNERS                            @craigmoyle

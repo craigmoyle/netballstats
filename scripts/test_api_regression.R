@@ -485,6 +485,59 @@ assert_true(identical(as.character(scalar_value(team_query_payload$status)), 'su
 assert_true(identical(as.character(scalar_value(team_query_payload$parsed$subject_type %||% '')), 'teams'), 'Expected team query parsing to report teams subject_type.')
 check_step('natural-language query endpoint supports representative team queries')
 
+wins_query_payload <- request_json(
+  base_url,
+  '/query',
+  query = list(question = sprintf('How many wins did Vixens have in %s?', default_season), limit = 5)
+)
+assert_true(
+  identical(as.character(scalar_value(wins_query_payload$status)), 'supported'),
+  'Expected /query to support team wins questions.'
+)
+assert_true(
+  identical(as.character(scalar_value(wins_query_payload$parsed$stat %||% '')), 'wins'),
+  'Expected wins questions to parse stat=wins.'
+)
+assert_true(
+  grepl('win', as.character(scalar_value(wins_query_payload$answer %||% '')), ignore.case = TRUE),
+  'Expected wins answers to mention wins.'
+)
+check_step('natural-language query endpoint supports team wins totals')
+
+ladder_query_payload <- request_json(
+  base_url,
+  '/query',
+  query = list(question = sprintf('Where did Vixens finish in %s?', default_season), limit = 5)
+)
+assert_true(
+  identical(as.character(scalar_value(ladder_query_payload$status)), 'supported'),
+  'Expected /query to support ladder position questions.'
+)
+assert_true(
+  identical(as.character(scalar_value(ladder_query_payload$parsed$stat %||% '')), 'ladderPosition'),
+  'Expected ladder questions to parse stat=ladderPosition.'
+)
+assert_true(
+  grepl('finished', as.character(scalar_value(ladder_query_payload$answer %||% '')), ignore.case = TRUE),
+  'Expected ladder answers to use finished phrasing.'
+)
+check_step('natural-language query endpoint supports ladder position lookups')
+
+points_against_query_payload <- request_json(
+  base_url,
+  '/query',
+  query = list(question = sprintf('How many times did Firebirds concede 65+ in %s?', default_season), limit = 5)
+)
+assert_true(
+  identical(as.character(scalar_value(points_against_query_payload$status)), 'supported'),
+  'Expected /query to support points-against threshold counts.'
+)
+assert_true(
+  identical(as.character(scalar_value(points_against_query_payload$parsed$stat %||% '')), 'pointsAgainst'),
+  'Expected concede questions to parse as pointsAgainst.'
+)
+check_step('natural-language query endpoint supports points-against threshold counts')
+
 helpers_env <- new.env(parent = globalenv())
 sys.source('api/R/helpers.R', envir = helpers_env)
 assert_true(
@@ -608,6 +661,216 @@ possessive_subject <- helpers_env$extract_query_subject_phrase(
 )
 assert_true(identical(possessive_subject, 'the Swifts'), 'Expected possessive team phrasing to normalize to the team subject.')
 check_step('parser normalizes possessive team phrasing')
+
+# ---------------------------------------------------------------------------
+# Match-derived team stats: wins / pointsAgainst / ladderPosition
+# ---------------------------------------------------------------------------
+assert_true(
+  identical(
+    helpers_env$resolve_query_stat(
+      helpers_env$normalize_query_phrase('How many wins did Vixens have in 2024?')
+    ),
+    'wins'
+  ),
+  'Expected resolve_query_stat to map wins phrasing.'
+)
+assert_true(
+  identical(
+    helpers_env$resolve_query_stat(
+      helpers_env$normalize_query_phrase('How many times did Firebirds concede 65+?')
+    ),
+    'pointsAgainst'
+  ),
+  'Expected resolve_query_stat to map points conceded phrasing.'
+)
+assert_true(
+  identical(
+    helpers_env$resolve_query_stat(
+      helpers_env$normalize_query_phrase('Where did Vixens finish in 2024?')
+    ),
+    'ladderPosition'
+  ),
+  'Expected resolve_query_stat to map ladder finish phrasing.'
+)
+assert_true(
+  identical(
+    helpers_env$detect_query_intent_type(
+      helpers_env$normalize_query_phrase('How many wins did Vixens have in 2024?')
+    ),
+    'count'
+  ),
+  'Expected how-many-wins questions to parse as count without a threshold.'
+)
+assert_true(
+  identical(
+    helpers_env$detect_query_intent_type(
+      helpers_env$normalize_query_phrase('Who finished top of the ladder in 2025?')
+    ),
+    'lowest'
+  ),
+  'Expected finished-top ladder questions to prefer lowest (best) position.'
+)
+assert_true(
+  identical(helpers_env$format_ordinal_number(1L), '1st'),
+  'Expected format_ordinal_number(1) to be 1st.'
+)
+assert_true(
+  identical(helpers_env$format_ordinal_number(2L), '2nd'),
+  'Expected format_ordinal_number(2) to be 2nd.'
+)
+assert_true(
+  identical(helpers_env$format_ordinal_number(3L), '3rd'),
+  'Expected format_ordinal_number(3) to be 3rd.'
+)
+assert_true(
+  identical(helpers_env$format_ordinal_number(11L), '11th'),
+  'Expected format_ordinal_number(11) to be 11th.'
+)
+assert_true(
+  identical(helpers_env$format_ordinal_number(22L), '22nd'),
+  'Expected format_ordinal_number(22) to be 22nd.'
+)
+
+wins_count_intent <- helpers_env$package_query_intent(
+  'How many wins did Vixens have in 2024?',
+  'count',
+  list(status = 'supported', subject_type = 'team', team_id = 804L, team_name = 'Melbourne Vixens'),
+  'wins',
+  NULL,
+  NULL,
+  2024L,
+  2024L,
+  12L
+)
+assert_true(
+  identical(as.character(wins_count_intent$status), 'supported'),
+  'Expected wins count without threshold to be supported for teams.'
+)
+player_wins_intent <- helpers_env$package_query_intent(
+  'How many wins did Fowler have in 2024?',
+  'count',
+  list(status = 'supported', subject_type = 'player', player_id = 1L, player_name = 'Jhaniele Fowler-Reid'),
+  'wins',
+  NULL,
+  NULL,
+  2024L,
+  2024L,
+  12L
+)
+assert_true(
+  identical(as.character(player_wins_intent$status), 'unsupported'),
+  'Expected wins questions to remain unsupported for players.'
+)
+
+match_result_query <- helpers_env$build_match_result_team_query(
+  stat = 'wins',
+  seasons = 2024L,
+  team_id = 804L,
+  source = 'hvir'
+)
+assert_true(
+  grepl('home_venue_impact_rows', match_result_query$query, fixed = TRUE),
+  'Expected build_match_result_team_query to query home_venue_impact_rows.'
+)
+assert_true(
+  grepl('\\bhvir\\.won\\b', match_result_query$query),
+  'Expected wins to use the won column from home_venue_impact_rows.'
+)
+points_against_query <- helpers_env$build_match_result_team_query(
+  stat = 'pointsAgainst',
+  seasons = 2024L,
+  team_id = 804L,
+  comparison = 'gte',
+  threshold = 65,
+  source = 'hvir'
+)
+assert_true(
+  grepl('opponent_score', points_against_query$query, fixed = TRUE),
+  'Expected pointsAgainst to use opponent_score.'
+)
+assert_true(
+  grepl('>=', points_against_query$query, fixed = TRUE),
+  'Expected pointsAgainst threshold comparison to be applied in SQL.'
+)
+
+ladder_agg <- helpers_env$build_season_ladder_aggregate_query(seasons = 2024L, source = 'hvir')
+assert_true(
+  grepl("competition_phase = 'regular'", ladder_agg$query, fixed = TRUE),
+  'Expected season ladder aggregates to use regular-season matches only.'
+)
+ladder_ranked <- helpers_env$rank_season_ladder_rows(data.frame(
+  team_id = c(1L, 2L, 3L, 4L),
+  squad_name = c('A', 'B', 'C', 'D'),
+  season = c(2024L, 2024L, 2024L, 2024L),
+  games = c(14L, 14L, 14L, 14L),
+  wins = c(10L, 10L, 8L, 8L),
+  draws = c(0L, 0L, 0L, 0L),
+  losses = c(4L, 4L, 6L, 6L),
+  points_for = c(800, 790, 750, 760),
+  points_against = c(700, 700, 720, 700),
+  competition_points = c(20, 20, 16, 16),
+  percentage = c(114.2857, 112.8571, 104.1667, 108.5714),
+  stringsAsFactors = FALSE
+))
+assert_true(
+  identical(as.character(ladder_ranked$squad_name), c('A', 'B', 'D', 'C')),
+  'Expected ladder ranking to order by competition points then percentage then points for.'
+)
+assert_true(
+  identical(as.integer(ladder_ranked$ladder_position), c(1L, 2L, 3L, 4L)),
+  'Expected competition ranking positions 1-4 after ladder sort.'
+)
+assert_true(
+  identical(helpers_env$format_ordinal_number(ladder_ranked$ladder_position[[1]]), '1st'),
+  'Expected top ladder position to format as 1st.'
+)
+check_step('match-derived team stats: aliases, intent rules, query builders, and ladder ranking')
+
+wins_answer <- helpers_env$build_query_answer(
+  list(
+    intent_type = 'count',
+    subject_type = 'team',
+    team_name = 'Melbourne Vixens',
+    team_id = 804L,
+    stat = 'wins',
+    seasons = 2024L,
+    season = 2024L,
+    comparison = NULL,
+    threshold = NULL
+  ),
+  data.frame(),
+  12L
+)
+assert_true(
+  grepl('12 wins', wins_answer, fixed = TRUE),
+  'Expected wins count answers to use total wins phrasing.'
+)
+ladder_answer <- helpers_env$build_query_answer(
+  list(
+    intent_type = 'highest',
+    subject_type = 'team',
+    team_name = 'Melbourne Vixens',
+    team_id = 804L,
+    stat = 'ladderPosition',
+    seasons = 2024L,
+    season = 2024L,
+    comparison = NULL,
+    threshold = NULL
+  ),
+  data.frame(
+    squad_name = 'Melbourne Vixens',
+    season = 2024L,
+    total_value = 3L,
+    stringsAsFactors = FALSE
+  ),
+  3L
+)
+assert_true(
+  grepl('finished 3rd', ladder_answer, fixed = TRUE),
+  'Expected ladder answers to use ordinal finish phrasing.'
+)
+check_step('match-derived team stats: answer copy for wins totals and ladder ordinals')
+
 
 assert_true(
   identical(helpers_env$resolve_request_client_key(' , 198.51.100.10', '127.0.0.1'), '127.0.0.1'),

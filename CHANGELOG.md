@@ -117,8 +117,8 @@ All notable changes to netballstats are documented in this file.
 ## Documentation
 
 - `AGENTS.md` — Operating guidelines for future development
-- `DESIGN.md` — Product intent and design principles
-- `CLAUDE.md` — Implementation conventions and patterns
+- `DESIGN.md` — Design tokens and system spec
+- `CLAUDE.md` — Product design context for UI and copy
 - `README.md` — Installation, deployment, and development guide
 - `api/R/helpers.R` — Inline documentation for all query builders and helpers
 - `api/plumber.R` — Inline documentation for API endpoints

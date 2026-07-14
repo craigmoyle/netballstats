@@ -248,7 +248,17 @@ extract_threshold <- function(text) {
     disposals            = c("disposals", "disposal"),
     penalties            = c("penalties", "penalty", "pen"),
     possessions          = c("possessions", "possession"),
-    points               = c("points", "pts")
+    points               = c("points", "pts"),
+    wins                 = c("wins", "win", "victories", "victory"),
+    losses               = c("losses", "loss", "defeats", "defeat"),
+    draws                = c("draws", "draw", "ties", "tie"),
+    pointsAgainst        = c(
+      "points against", "points conceded", "conceded", "concede", "points allowed"
+    ),
+    ladderPosition       = c(
+      "ladder position", "ladder", "finish", "finished", "finishing position",
+      "standing", "standings", "table position", "ladder finish"
+    )
   )
   rows <- lapply(names(stat_mappings), function(stat_key) {
     aliases <- stat_mappings[[stat_key]]
