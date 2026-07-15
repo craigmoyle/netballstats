@@ -66,6 +66,41 @@
       <section class="changelog-stack" aria-label="Recent updates">
         <article class="panel changelog-entry reveal">
           <div class="changelog-entry__header">
+            <p class="results-panel__eyebrow">15 Jul 2026</p>
+            <h2>Ask the Stats: team result queries and a cleaner builder.</h2>
+            <p class="panel__lead">You can now ask about wins, points against, and ladder position in Ask the Stats, and the guided builder has been simplified into four plain-language steps with a live question preview.</p>
+          </div>
+          <ul class="changelog-list">
+            <li>Team queries now cover wins, losses, draws, points against, and regular-season ladder position, alongside existing player and team stat questions.</li>
+            <li>The query builder is now four steps: question shape, subject, stat, then timeframe. Optional filters sit in a disclosure on the last step.</li>
+            <li>Shape choices use plain phrasing ("How many times…", "Compare…", "Trend over seasons…") instead of internal intent labels.</li>
+            <li>Subject and stat pickers are search-first, with short suggested lists when the search box is empty.</li>
+            <li>A preview line at the top of the builder assembles the natural-language question as you pick.</li>
+            <li>Fixed a layout bug where every builder step stayed visible at once, which made Next appear to do nothing.</li>
+          </ul>
+          <div class="changelog-link-list">
+            <a class="changelog-link" href="/query/">Try Ask the Stats</a>
+          </div>
+        </article>
+
+        <article class="panel changelog-entry reveal">
+          <div class="changelog-entry__header">
+            <p class="results-panel__eyebrow">14 Jul 2026</p>
+            <h2>Archive chart panels render again after deploy.</h2>
+            <p class="panel__lead">Switching a leaderboard or trend panel to Chart view on the archive homepage, Compare, and International archive now loads the chart bundle correctly on fingerprinted production builds.</p>
+          </div>
+          <ul class="changelog-list">
+            <li>Chart.js lazy-load now resolves from fingerprinted page scripts (<code>app.&lt;hash&gt;.js</code> → <code>charts.&lt;hash&gt;.js</code>) instead of a broken relative path.</li>
+            <li>Failed chart loads show a visible error in the panel instead of leaving an empty shell.</li>
+          </ul>
+          <div class="changelog-link-list">
+            <a class="changelog-link" href="/">Open the archive</a>
+            <a class="changelog-link" href="/compare/">Open Compare</a>
+          </div>
+        </article>
+
+        <article class="panel changelog-entry reveal">
+          <div class="changelog-entry__header">
             <p class="results-panel__eyebrow">13 Jul 2026</p>
             <h2>Ideas desk for feature suggestions and data questions.</h2>
             <p class="panel__lead">A simple feedback form for suggesting new archive views, flagging broken pages, or asking about the data. Find it via the Ideas link in site navigation, beside Changelog.</p>
