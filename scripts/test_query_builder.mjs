@@ -74,9 +74,10 @@ const ids = [
   "query-help-summary", "query-state", "table-meta", "query-table", "query-table-caption",
   "query-table-head", "query-rows-body", "error-banner", "error-banner-message",
   "error-banner-actions", "query-builder-modal", "builder-form", "builder-next", "builder-prev",
-  "builder-submit", "builder-add-subject", "builder-step-shape", "builder-step-subjects",
-  "builder-step-stat", "builder-step-filters", "builder-step-timeframe", "builder-subject-search",
-  "builder-subject-list", "builder-stat-search", "builder-stat-list", "builder-filter-opponent",
+  "builder-submit", "builder-step-shape", "builder-step-subjects",
+  "builder-step-stat", "builder-step-timeframe", "builder-subject-search",
+  "builder-subject-list", "builder-subject-chips", "builder-stat-search", "builder-stat-list",
+  "builder-question-preview", "builder-step-progress", "builder-filter-opponent",
   "builder-filter-location", "builder-filter-games", "builder-timeframe-single",
   "builder-timeframe-range", "builder-season-single", "builder-season-from", "builder-season-to",
   "builder-validation-errors"

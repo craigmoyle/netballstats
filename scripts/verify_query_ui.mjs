@@ -101,4 +101,41 @@ if (!css.includes(".query-builder-trigger {")) {
   throw new Error("Expected styles.css to define .query-builder-trigger styles.");
 }
 
+// Four-step builder with live preview
+if (!/id="builder-question-preview"/.test(html)) {
+  throw new Error("Expected #builder-question-preview in the query builder modal.");
+}
+
+if (!/id="builder-step-progress"/.test(html)) {
+  throw new Error("Expected #builder-step-progress in the query builder modal.");
+}
+
+const builderStepIds = [
+  "builder-step-shape",
+  "builder-step-subjects",
+  "builder-step-stat",
+  "builder-step-timeframe"
+];
+for (const stepId of builderStepIds) {
+  if (!html.includes(`id="${stepId}"`)) {
+    throw new Error(`Expected builder wizard step #${stepId}.`);
+  }
+}
+
+if (/id="builder-step-filters"/.test(html)) {
+  throw new Error("Expected filters to be folded into the timeframe step, not a separate wizard step.");
+}
+
+if (!html.includes('id="builder-filters-disclosure"')) {
+  throw new Error("Expected optional filters inside a disclosure on the timeframe step.");
+}
+
+if (!css.includes(".builder-question-preview {")) {
+  throw new Error("Expected styles.css to define .builder-question-preview styles.");
+}
+
+if (!css.includes(".builder-picker-list {")) {
+  throw new Error("Expected styles.css to define search-first .builder-picker-list styles.");
+}
+
 console.log("Query UI verification passed.");

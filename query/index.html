@@ -241,148 +241,119 @@
     <dialog id="query-builder-modal" class="query-builder-modal" aria-labelledby="builder-modal-title">
       <div class="builder-modal__container">
         <div class="builder-modal__header">
-          <h2 id="builder-modal-title">Build your query</h2>
+          <div class="builder-modal__title-group">
+            <h2 id="builder-modal-title">Build your query</h2>
+            <p id="builder-step-progress" class="builder-step-progress" aria-live="polite">Step 1 of 4</p>
+          </div>
           <button type="button" class="builder-modal__close" aria-label="Close builder modal">
             <span aria-hidden="true">×</span>
           </button>
         </div>
 
-        <div id="builder-validation-errors" 
-             role="status" 
-             aria-live="polite" 
-             aria-atomic="true" 
-             style="display: none;">
+        <p id="builder-question-preview" class="builder-question-preview" aria-live="polite">
+          Your question will appear here as you build it.
+        </p>
+
+        <div id="builder-validation-errors"
+             role="status"
+             aria-live="polite"
+             aria-atomic="true"
+             hidden>
         </div>
 
         <form id="builder-form" class="builder-form" novalidate>
-          
-          <!-- Step 1: Shape Selection -->
+
+          <!-- Step 1: Question shape -->
           <fieldset id="builder-step-shape" class="builder-step" data-step="1" aria-labelledby="builder-step-shape-legend">
             <legend id="builder-step-shape-legend">
               <span class="builder-step__number">1</span>
-              <span class="builder-step__title">Pick a query shape</span>
+              <span class="builder-step__title">What kind of answer do you want?</span>
             </legend>
             <div class="builder-step__content">
               <div class="builder-shape-grid">
                 <label class="builder-shape-option">
-                  <input type="radio" name="shape" value="comparison" required>
-                  <span class="builder-shape-option__label">Comparison</span>
-                  <span class="builder-shape-option__desc">Compare stats across subjects</span>
-                </label>
-                <label class="builder-shape-option">
-                  <input type="radio" name="shape" value="combination" required>
-                  <span class="builder-shape-option__label">Combination</span>
-                  <span class="builder-shape-option__desc">AND/OR multiple conditions</span>
-                </label>
-                <label class="builder-shape-option">
-                  <input type="radio" name="shape" value="trend" required>
-                  <span class="builder-shape-option__label">Trend</span>
-                  <span class="builder-shape-option__desc">Track performance over time</span>
-                </label>
-                <label class="builder-shape-option">
-                  <input type="radio" name="shape" value="record" required>
-                  <span class="builder-shape-option__label">Record</span>
-                  <span class="builder-shape-option__desc">All-time highest/lowest</span>
-                </label>
-                <label class="builder-shape-option">
                   <input type="radio" name="shape" value="count" required>
-                  <span class="builder-shape-option__label">Count</span>
-                  <span class="builder-shape-option__desc">How many times occurred</span>
+                  <span class="builder-shape-option__label">How many times…</span>
+                  <span class="builder-shape-option__desc">Count matches against a threshold or condition</span>
                 </label>
                 <label class="builder-shape-option">
                   <input type="radio" name="shape" value="highest" required>
-                  <span class="builder-shape-option__label">Highest</span>
-                  <span class="builder-shape-option__desc">Peak performance</span>
+                  <span class="builder-shape-option__label">Highest…</span>
+                  <span class="builder-shape-option__desc">Peak performance for a subject or the field</span>
                 </label>
                 <label class="builder-shape-option">
                   <input type="radio" name="shape" value="lowest" required>
-                  <span class="builder-shape-option__label">Lowest</span>
-                  <span class="builder-shape-option__desc">Minimum performance</span>
+                  <span class="builder-shape-option__label">Lowest…</span>
+                  <span class="builder-shape-option__desc">Minimum performance for a subject or the field</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="comparison" required>
+                  <span class="builder-shape-option__label">Compare…</span>
+                  <span class="builder-shape-option__desc">Side-by-side stats for two subjects</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="trend" required>
+                  <span class="builder-shape-option__label">Trend over seasons…</span>
+                  <span class="builder-shape-option__desc">Track a stat season by season</span>
                 </label>
                 <label class="builder-shape-option">
                   <input type="radio" name="shape" value="list" required>
-                  <span class="builder-shape-option__label">List</span>
-                  <span class="builder-shape-option__desc">Get matching items</span>
+                  <span class="builder-shape-option__label">List who…</span>
+                  <span class="builder-shape-option__desc">Matching players or teams</span>
+                </label>
+                <label class="builder-shape-option">
+                  <input type="radio" name="shape" value="record" required>
+                  <span class="builder-shape-option__label">Record / all-time…</span>
+                  <span class="builder-shape-option__desc">Archive high or low water mark</span>
+                </label>
+              </div>
+              <div class="builder-shape-advanced">
+                <p class="builder-shape-advanced__label">Advanced</p>
+                <label class="builder-shape-option builder-shape-option--advanced">
+                  <input type="radio" name="shape" value="combination" required>
+                  <span class="builder-shape-option__label">Combine conditions…</span>
+                  <span class="builder-shape-option__desc">AND/OR multiple filters</span>
                 </label>
               </div>
             </div>
           </fieldset>
 
-          <!-- Step 2: Subject Selection -->
+          <!-- Step 2: Subject -->
           <fieldset id="builder-step-subjects" class="builder-step" data-step="2" aria-labelledby="builder-step-subjects-legend" hidden>
             <legend id="builder-step-subjects-legend">
               <span class="builder-step__number">2</span>
-              <span class="builder-step__title">Pick subject(s)</span>
+              <span class="builder-step__title">Who or what?</span>
             </legend>
             <div class="builder-step__content">
+              <p id="builder-subject-hint" class="builder-step__hint">Search for a player or team name.</p>
+              <div id="builder-subject-chips" class="builder-subject-chips" aria-label="Selected subjects"></div>
               <div class="builder-subject-search">
-                <input type="text" id="builder-subject-search" class="builder-search-input" placeholder="Search players or teams…" aria-label="Search subjects">
-                <div id="builder-subject-list" class="builder-subject-list" role="group" aria-label="Subject selection"></div>
+                <input type="search" id="builder-subject-search" class="builder-search-input" placeholder="Search players or teams…" aria-label="Search subjects" autocomplete="off">
+                <div id="builder-subject-list" class="builder-picker-list" role="listbox" aria-label="Subject suggestions"></div>
               </div>
-              <button type="button" id="builder-add-subject" class="button button--secondary builder-step__action" hidden>
-                + Add another subject
-              </button>
             </div>
           </fieldset>
 
-          <!-- Step 3: Stat Selection -->
+          <!-- Step 3: Stat -->
           <fieldset id="builder-step-stat" class="builder-step" data-step="3" aria-labelledby="builder-step-stat-legend" hidden>
             <legend id="builder-step-stat-legend">
               <span class="builder-step__number">3</span>
-              <span class="builder-step__title">Pick a stat</span>
+              <span class="builder-step__title">Which stat?</span>
             </legend>
             <div class="builder-step__content">
+              <p class="builder-step__hint">Search or pick from common stats below.</p>
               <div class="builder-stat-search">
-                <input type="text" id="builder-stat-search" class="builder-search-input" placeholder="Search stats…" aria-label="Search statistics">
-                <div id="builder-stat-list" class="builder-stat-list" role="group" aria-label="Stat selection"></div>
+                <input type="search" id="builder-stat-search" class="builder-search-input" placeholder="Search stats…" aria-label="Search statistics" autocomplete="off">
+                <div id="builder-stat-list" class="builder-picker-list" role="listbox" aria-label="Stat suggestions"></div>
               </div>
             </div>
           </fieldset>
 
-          <!-- Step 4: Filters (Optional) -->
-          <fieldset id="builder-step-filters" class="builder-step" data-step="4" aria-labelledby="builder-step-filters-legend" hidden>
-            <legend id="builder-step-filters-legend">
-              <span class="builder-step__number">4</span>
-              <span class="builder-step__title">Add filters (optional)</span>
-            </legend>
-            <div class="builder-step__content">
-              <div class="builder-filters">
-                <label class="builder-filter-checkbox">
-                  <input type="checkbox" name="filter-opponent" value="opponent">
-                  <span>Filter by opponent</span>
-                </label>
-                <div id="builder-filter-opponent" class="builder-filter-input" hidden>
-                  <input type="text" class="builder-search-input" placeholder="Search opponent…" aria-label="Opponent name">
-                </div>
-
-                <label class="builder-filter-checkbox">
-                  <input type="checkbox" name="filter-location" value="location">
-                  <span>Filter by location</span>
-                </label>
-                <div id="builder-filter-location" class="builder-filter-input" hidden>
-                  <select class="builder-search-input" aria-label="Location">
-                    <option value="">Select location…</option>
-                    <option value="home">Home</option>
-                    <option value="away">Away</option>
-                  </select>
-                </div>
-
-                <label class="builder-filter-checkbox">
-                  <input type="checkbox" name="filter-games" value="games">
-                  <span>Filter by game count</span>
-                </label>
-                <div id="builder-filter-games" class="builder-filter-input" hidden>
-                  <input type="number" min="1" placeholder="Minimum games" class="builder-search-input" aria-label="Minimum games">
-                </div>
-              </div>
-            </div>
-          </fieldset>
-
-          <!-- Step 5: Timeframe -->
-          <fieldset id="builder-step-timeframe" class="builder-step" data-step="5" aria-labelledby="builder-step-timeframe-legend" hidden>
+          <!-- Step 4: Timeframe + optional filters -->
+          <fieldset id="builder-step-timeframe" class="builder-step" data-step="4" aria-labelledby="builder-step-timeframe-legend" hidden>
             <legend id="builder-step-timeframe-legend">
-              <span class="builder-step__number">5</span>
-              <span class="builder-step__title">Pick a timeframe</span>
+              <span class="builder-step__number">4</span>
+              <span class="builder-step__title">When?</span>
             </legend>
             <div class="builder-step__content">
               <div class="builder-timeframe-options">
@@ -416,6 +387,39 @@
                   <span class="builder-timeframe-option__label">All-time</span>
                 </label>
               </div>
+
+              <details id="builder-filters-disclosure" class="builder-filters-disclosure">
+                <summary>Add filters (optional)</summary>
+                <div class="builder-filters">
+                  <label class="builder-filter-checkbox">
+                    <input type="checkbox" name="filter-opponent" value="opponent">
+                    <span>Filter by opponent</span>
+                  </label>
+                  <div id="builder-filter-opponent" class="builder-filter-input" hidden>
+                    <input type="text" class="builder-search-input" placeholder="Opponent name…" aria-label="Opponent name">
+                  </div>
+
+                  <label class="builder-filter-checkbox">
+                    <input type="checkbox" name="filter-location" value="location">
+                    <span>Filter by location</span>
+                  </label>
+                  <div id="builder-filter-location" class="builder-filter-input" hidden>
+                    <select class="builder-search-input" aria-label="Location">
+                      <option value="">Select location…</option>
+                      <option value="home">Home</option>
+                      <option value="away">Away</option>
+                    </select>
+                  </div>
+
+                  <label class="builder-filter-checkbox">
+                    <input type="checkbox" name="filter-games" value="games">
+                    <span>Filter by game count</span>
+                  </label>
+                  <div id="builder-filter-games" class="builder-filter-input" hidden>
+                    <input type="number" min="1" placeholder="Minimum games" class="builder-search-input" aria-label="Minimum games">
+                  </div>
+                </div>
+              </details>
             </div>
           </fieldset>
 

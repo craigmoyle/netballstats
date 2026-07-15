@@ -164,6 +164,26 @@ const templateButtons = Array.from((elements.queryTemplateStrip?.querySelectorAl
 const submitButtonDefaultLabel = elements.submitButton?.textContent || "Run question";
 
 // Builder modal elements
+const BUILDER_STEP_COUNT = 4;
+const BUILDER_COMMON_STATS = ["points", "goalAssists", "feeds", "gain", "intercepts", "generalPlayTurnovers"];
+const BUILDER_SUGGESTED_PLAYERS = [
+  "Grace Nweke",
+  "Liz Watson",
+  "Jamie-Lee Price",
+  "Paige Hadley"
+];
+
+const BUILDER_SHAPE_PREVIEW = {
+  count: "How many times has [subject] recorded [stat]",
+  highest: "What is [subject]'s highest [stat]",
+  lowest: "What is [subject]'s lowest [stat]",
+  comparison: "Compare [subject] and [subject] on [stat]",
+  trend: "[subject] [stat] across seasons",
+  list: "Which players or teams had [stat]",
+  record: "What is the all-time record for [stat]",
+  combination: "Combine conditions on [stat]"
+};
+
 const builderElements = {
   modal: document.getElementById("query-builder-modal"),
   form: document.getElementById("builder-form"),
@@ -171,28 +191,30 @@ const builderElements = {
   nextBtn: document.getElementById("builder-next"),
   prevBtn: document.getElementById("builder-prev"),
   submitBtn: document.getElementById("builder-submit"),
-  addSubjectBtn: document.getElementById("builder-add-subject"),
-  
+  stepProgress: document.getElementById("builder-step-progress"),
+  questionPreview: document.getElementById("builder-question-preview"),
+  subjectHint: document.getElementById("builder-subject-hint"),
+  subjectChips: document.getElementById("builder-subject-chips"),
+
   // Step elements
   stepShape: document.getElementById("builder-step-shape"),
   stepSubjects: document.getElementById("builder-step-subjects"),
   stepStat: document.getElementById("builder-step-stat"),
-  stepFilters: document.getElementById("builder-step-filters"),
   stepTimeframe: document.getElementById("builder-step-timeframe"),
-  
+
   // Subject selection
   subjectSearch: document.getElementById("builder-subject-search"),
   subjectList: document.getElementById("builder-subject-list"),
-  
+
   // Stat selection
   statSearch: document.getElementById("builder-stat-search"),
   statList: document.getElementById("builder-stat-list"),
-  
+
   // Filters
   filterOpponent: document.getElementById("builder-filter-opponent"),
   filterLocation: document.getElementById("builder-filter-location"),
   filterGames: document.getElementById("builder-filter-games"),
-  
+
   // Timeframe
   timeframeSingle: document.getElementById("builder-timeframe-single"),
   timeframeRange: document.getElementById("builder-timeframe-range"),
@@ -1280,7 +1302,6 @@ function showBuilderStep(stepNum) {
     builderElements.stepShape,
     builderElements.stepSubjects,
     builderElements.stepStat,
-    builderElements.stepFilters,
     builderElements.stepTimeframe
   ];
 
@@ -1291,16 +1312,34 @@ function showBuilderStep(stepNum) {
   });
 
   builderState.currentStep = stepNum;
+  if (stepNum === 2) {
+    updateBuilderSubjectHint();
+    renderBuilderSubjectChips();
+    renderBuilderSubjectOptions();
+  }
   if (stepNum === 3) {
     renderBuilderStatOptions();
   }
   updateBuilderFooter();
+  updateBuilderPreview();
+}
+
+function updateBuilderSubjectHint() {
+  if (!builderElements.subjectHint) return;
+  builderElements.subjectHint.textContent = builderState.shape === "comparison"
+    ? "Search and pick two players or teams to compare."
+    : builderState.shape === "record" || builderState.shape === "combination"
+      ? "Subjects are optional for this question shape."
+      : "Search for a player or team name.";
 }
 
 function updateBuilderFooter() {
   const isFirstStep = builderState.currentStep === 1;
-  const isLastStep = builderState.currentStep === 5;
+  const isLastStep = builderState.currentStep === BUILDER_STEP_COUNT;
 
+  if (builderElements.stepProgress) {
+    builderElements.stepProgress.textContent = `Step ${builderState.currentStep} of ${BUILDER_STEP_COUNT}`;
+  }
   if (builderElements.prevBtn) {
     builderElements.prevBtn.hidden = isFirstStep;
   }
@@ -1312,11 +1351,68 @@ function updateBuilderFooter() {
   }
 }
 
+function formatBuilderTimeframePhrase() {
+  if (!builderState.timeframe) {
+    return "";
+  }
+  if (builderState.timeframe === "alltime") {
+    return "all-time";
+  }
+  if (builderState.timeframe === "single" && builderState.seasonSingle) {
+    return `in ${builderState.seasonSingle}`;
+  }
+  if (builderState.timeframe === "range" && builderState.seasonRange?.from && builderState.seasonRange?.to) {
+    return `from ${builderState.seasonRange.from} to ${builderState.seasonRange.to}`;
+  }
+  return "";
+}
+
+function buildBuilderPreviewText() {
+  const shape = builderState.shape;
+  if (!shape) {
+    return "Your question will appear here as you build it.";
+  }
+
+  const subjects = builderState.subjects || [];
+  const subjectPhrase = subjects.length
+    ? (subjects.length === 2 ? `${subjects[0]} and ${subjects[1]}` : subjects[0])
+    : "[subject]";
+  const statPhrase = builderState.stat ? formatStatLabel(builderState.stat) : "[stat]";
+  const timeframePhrase = formatBuilderTimeframePhrase();
+  const timeframeSuffix = timeframePhrase ? ` ${timeframePhrase}` : "";
+
+  switch (shape) {
+    case "count":
+      return `How many times has ${subjectPhrase} recorded ${statPhrase}${timeframeSuffix}?`;
+    case "highest":
+      return `What is ${subjectPhrase}'s highest ${statPhrase}${timeframeSuffix}?`;
+    case "lowest":
+      return `What is ${subjectPhrase}'s lowest ${statPhrase}${timeframeSuffix}?`;
+    case "comparison":
+      return `Compare ${subjectPhrase} on ${statPhrase}${timeframeSuffix}.`;
+    case "trend":
+      return `${subjectPhrase} ${statPhrase} across seasons${timeframeSuffix}.`;
+    case "list":
+      return `Which players or teams had ${statPhrase}${timeframeSuffix}?`;
+    case "record":
+      return `What is the all-time record for ${statPhrase}?`;
+    case "combination":
+      return `Combine conditions on ${statPhrase}${timeframeSuffix}.`;
+    default:
+      return BUILDER_SHAPE_PREVIEW[shape] || "Your question will appear here as you build it.";
+  }
+}
+
+function updateBuilderPreview() {
+  if (!builderElements.questionPreview) return;
+  builderElements.questionPreview.textContent = buildBuilderPreviewText();
+}
+
 function validateBuilderStep(stepNum) {
   switch (stepNum) {
-    case 1: // Shape
+    case 1:
       return !!builderState.shape;
-    case 2: // Subjects
+    case 2:
       if (builderState.shape === "combination" || builderState.shape === "record") {
         return true;
       }
@@ -1324,23 +1420,24 @@ function validateBuilderStep(stepNum) {
         builderState.subjects = builderState.shape === "comparison"
           ? builderElements.subjectSearch.value.split(",").map((value) => value.trim()).filter(Boolean).slice(0, 2)
           : [builderElements.subjectSearch.value.trim()];
+        renderBuilderSubjectChips();
+        updateBuilderPreview();
       }
       if (builderState.shape === "comparison") {
         return builderState.subjects && builderState.subjects.length === 2;
       }
       return builderState.subjects && builderState.subjects.length > 0;
-    case 3: // Stat
+    case 3:
       if (builderState.shape === "combination") {
         return true;
       }
       return !!builderState.stat;
-    case 4: // Filters (optional)
-      return true;
-    case 5: // Timeframe
+    case 4:
       if (!builderState.timeframe) return false;
       if (builderState.timeframe === "single") {
         return !!builderState.seasonSingle;
-      } else if (builderState.timeframe === "range") {
+      }
+      if (builderState.timeframe === "range") {
         return !!(builderState.seasonRange && builderState.seasonRange.from && builderState.seasonRange.to);
       }
       return true;
@@ -1351,37 +1448,33 @@ function validateBuilderStep(stepNum) {
 
 function getValidationErrorMessage(step) {
   switch (step) {
-    case 1: return "Please select a query shape to continue.";
+    case 1: return "Pick a question shape to continue.";
     case 2: return builderState.shape === "comparison"
-      ? "Please enter two subjects separated by a comma to continue."
-      : "Please select at least one subject to continue.";
-    case 3: return "Please select a stat to continue.";
-    case 4: return ""; // Filters are optional
-    case 5: return "Please select a timeframe to continue.";
-    default: return "Please complete this step.";
+      ? "Pick two subjects to compare."
+      : "Pick at least one subject to continue.";
+    case 3: return "Pick a stat to continue.";
+    case 4: return "Pick a timeframe to continue.";
+    default: return "Complete this step to continue.";
   }
 }
 
 function showBuilderValidationError(message) {
   const errorRegion = document.getElementById("builder-validation-errors");
-  if (errorRegion) {
-    errorRegion.textContent = message;
-    errorRegion.style.display = "block";
-    // Clear after 5 seconds
-    setTimeout(() => {
-      errorRegion.textContent = "";
-      errorRegion.style.display = "none";
-    }, 5000);
-  }
+  if (!errorRegion || !message) return;
+  errorRegion.textContent = message;
+  errorRegion.hidden = false;
+  setTimeout(() => {
+    errorRegion.textContent = "";
+    errorRegion.hidden = true;
+  }, 5000);
 }
 
 function nextBuilderStep() {
   if (!validateBuilderStep(builderState.currentStep)) {
-    // Show error message
     showBuilderValidationError(getValidationErrorMessage(builderState.currentStep));
     return;
   }
-  if (builderState.currentStep < 5) {
+  if (builderState.currentStep < BUILDER_STEP_COUNT) {
     showBuilderStep(builderState.currentStep + 1);
   }
 }
@@ -1442,118 +1535,154 @@ function getStatsList() {
   return keys.filter((key) => !matchDerived.has(key));
 }
 
+function getSuggestedSubjects() {
+  const teamNames = (builderState.availableTeams || [])
+    .map((team) => String(team?.squad_name || team || "").trim())
+    .filter(Boolean);
+  const playerNames = (builderState.availableSubjects || [])
+    .filter((name) => !teamNames.includes(name));
+  const suggestedPlayers = BUILDER_SUGGESTED_PLAYERS.filter((name) => playerNames.includes(name));
+  const extraPlayers = playerNames.filter((name) => !suggestedPlayers.includes(name)).slice(0, 4);
+  return [...new Set([...teamNames.slice(0, 6), ...suggestedPlayers, ...extraPlayers])];
+}
+
+function getSuggestedStats() {
+  const stats = getStatsList();
+  const common = BUILDER_COMMON_STATS.filter((key) => stats.includes(key));
+  const remainder = stats.filter((key) => !common.includes(key));
+  return [...common, ...remainder.slice(0, 6)];
+}
+
 function renderBuilderShapeOptions() {
   const radios = builderElements.stepShape.querySelectorAll('input[name="shape"]');
-  
+
   radios.forEach((radio) => {
     radio.addEventListener("change", () => {
       builderState.shape = radio.value;
-      
-      // For comparison, allow multi-select; others single
-      const isComparison = builderState.shape === "comparison";
-      if (builderElements.addSubjectBtn) {
-        builderElements.addSubjectBtn.hidden = !isComparison;
-      }
-      
+      updateBuilderSubjectHint();
+      updateBuilderPreview();
       nextBuilderStep();
     });
   });
 }
 
+function renderBuilderSubjectChips() {
+  if (!builderElements.subjectChips) return;
+  builderElements.subjectChips.replaceChildren();
+
+  (builderState.subjects || []).forEach((subject) => {
+    const chip = document.createElement("button");
+    chip.type = "button";
+    chip.className = "builder-subject-chip";
+    chip.textContent = subject;
+    chip.setAttribute("aria-label", `Remove ${subject}`);
+    chip.addEventListener("click", () => {
+      builderState.subjects = builderState.subjects.filter((entry) => entry !== subject);
+      renderBuilderSubjectChips();
+      renderBuilderSubjectOptions();
+      updateBuilderPreview();
+    });
+    builderElements.subjectChips.appendChild(chip);
+  });
+}
+
+function selectBuilderSubject(subject) {
+  const isComparison = builderState.shape === "comparison";
+  if (isComparison) {
+    if (!builderState.subjects.includes(subject)) {
+      if (builderState.subjects.length >= 2) {
+        builderState.subjects = [builderState.subjects[1], subject];
+      } else {
+        builderState.subjects.push(subject);
+      }
+    }
+  } else {
+    builderState.subjects = [subject];
+  }
+  if (builderElements.subjectSearch) {
+    builderElements.subjectSearch.value = "";
+  }
+  renderBuilderSubjectChips();
+  renderBuilderSubjectOptions();
+  updateBuilderPreview();
+}
+
 function renderBuilderSubjectOptions() {
   if (!builderElements.subjectList) return;
 
-  const subjects = builderState.availableSubjects || [];
-  const filtered = (builderElements.subjectSearch?.value || "").toLowerCase();
-  const matched = filtered
-    ? subjects.filter(s => s.toLowerCase().includes(filtered))
-    : subjects;
+  const query = (builderElements.subjectSearch?.value || "").trim().toLowerCase();
+  const allSubjects = builderState.availableSubjects || [];
+  const pool = query
+    ? allSubjects.filter((subject) => subject.toLowerCase().includes(query))
+    : getSuggestedSubjects();
+  const matched = pool.slice(0, query ? 12 : 10);
 
   builderElements.subjectList.replaceChildren();
 
-   if (builderState.subjects.length) {
-    const selected = document.createElement("p");
-    selected.className = "builder-step__note";
-    selected.textContent = builderState.shape === "comparison"
-      ? `Selected subjects: ${builderState.subjects.join(", ")}`
-      : `Selected subject: ${builderState.subjects[0]}`;
-    builderElements.subjectList.appendChild(selected);
-  }
-
-  if (!matched.length && !builderState.subjects.length) {
-    const helper = document.createElement("p");
-    helper.className = "builder-step__note";
-    helper.textContent = builderState.shape === "comparison"
-      ? "Type two player or team names separated by a comma."
-      : "Type a player or team name to continue.";
-    builderElements.subjectList.appendChild(helper);
+  if (!matched.length) {
+    const empty = document.createElement("p");
+    empty.className = "builder-picker-empty";
+    empty.textContent = query ? "No matching players or teams." : "Start typing to search the archive.";
+    builderElements.subjectList.appendChild(empty);
+    return;
   }
 
   matched.forEach((subject) => {
-    const isMulti = builderState.shape === "comparison";
-    const label = document.createElement("label");
-    label.className = "builder-subject-option";
-    
-    const input = document.createElement("input");
-    input.type = isMulti ? "checkbox" : "radio";
-    input.name = isMulti ? "subjects" : "subject-single";
-    input.value = subject;
-    input.checked = builderState.subjects.includes(subject);
-    
-    input.addEventListener("change", () => {
-      if (isMulti) {
-        if (input.checked) {
-          if (!builderState.subjects.includes(subject)) {
-            builderState.subjects.push(subject);
-          }
-        } else {
-          builderState.subjects = builderState.subjects.filter(s => s !== subject);
-        }
-      } else {
-        builderState.subjects = [subject];
-      }
-    });
-
-    const span = document.createElement("span");
-    span.textContent = subject;
-
-    label.appendChild(input);
-    label.appendChild(span);
-    builderElements.subjectList.appendChild(label);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "builder-picker-row";
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", builderState.subjects.includes(subject) ? "true" : "false");
+    button.textContent = subject;
+    if (builderState.subjects.includes(subject)) {
+      button.classList.add("is-selected");
+    }
+    button.addEventListener("click", () => selectBuilderSubject(subject));
+    builderElements.subjectList.appendChild(button);
   });
+}
+
+function selectBuilderStat(stat) {
+  builderState.stat = stat;
+  if (builderElements.statSearch) {
+    builderElements.statSearch.value = formatStatLabel(stat);
+  }
+  renderBuilderStatOptions();
+  updateBuilderPreview();
 }
 
 function renderBuilderStatOptions() {
   if (!builderElements.statList) return;
 
   const stats = getStatsList();
-  const filtered = (builderElements.statSearch?.value || "").toLowerCase();
-  const matched = filtered
-    ? stats.filter(s => s.toLowerCase().includes(filtered) || formatStatLabel(s).toLowerCase().includes(filtered))
-    : stats;
+  const query = (builderElements.statSearch?.value || "").trim().toLowerCase();
+  const pool = query
+    ? stats.filter((stat) => stat.toLowerCase().includes(query) || formatStatLabel(stat).toLowerCase().includes(query))
+    : getSuggestedStats();
+  const matched = pool.slice(0, query ? 12 : 10);
 
   builderElements.statList.replaceChildren();
 
+  if (!matched.length) {
+    const empty = document.createElement("p");
+    empty.className = "builder-picker-empty";
+    empty.textContent = query ? "No matching stats." : "Start typing to search stats.";
+    builderElements.statList.appendChild(empty);
+    return;
+  }
+
   matched.forEach((stat) => {
-    const label = document.createElement("label");
-    label.className = "builder-stat-option";
-    
-    const input = document.createElement("input");
-    input.type = "radio";
-    input.name = "stat";
-    input.value = stat;
-    input.checked = builderState.stat === stat;
-    
-    input.addEventListener("change", () => {
-      builderState.stat = stat;
-    });
-
-    const span = document.createElement("span");
-    span.textContent = formatStatLabel(stat);
-
-    label.appendChild(input);
-    label.appendChild(span);
-    builderElements.statList.appendChild(label);
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "builder-picker-row";
+    button.setAttribute("role", "option");
+    button.setAttribute("aria-selected", builderState.stat === stat ? "true" : "false");
+    button.textContent = formatStatLabel(stat);
+    if (builderState.stat === stat) {
+      button.classList.add("is-selected");
+    }
+    button.addEventListener("click", () => selectBuilderStat(stat));
+    builderElements.statList.appendChild(button);
   });
 }
 
@@ -1583,7 +1712,7 @@ function setupBuilderFilterListeners() {
 
 function setupBuilderTimeframeListeners() {
   const timeframeRadios = builderElements.form.querySelectorAll('[name="timeframe"]');
-  
+
   timeframeRadios.forEach((radio) => {
     radio.addEventListener("change", () => {
       builderState.timeframe = radio.value;
@@ -1594,27 +1723,29 @@ function setupBuilderTimeframeListeners() {
       if (builderElements.timeframeRange) {
         builderElements.timeframeRange.hidden = radio.value !== "range";
       }
+      updateBuilderPreview();
     });
   });
 
-  // Season single select
   if (builderElements.seasonSingle) {
     builderElements.seasonSingle.addEventListener("change", () => {
       builderState.seasonSingle = builderElements.seasonSingle.value ? parseInt(builderElements.seasonSingle.value, 10) : null;
+      updateBuilderPreview();
     });
   }
 
-  // Season range selects
   if (builderElements.seasonFrom) {
     builderElements.seasonFrom.addEventListener("change", () => {
       if (!builderState.seasonRange) builderState.seasonRange = {};
       builderState.seasonRange.from = builderElements.seasonFrom.value ? parseInt(builderElements.seasonFrom.value, 10) : null;
+      updateBuilderPreview();
     });
   }
   if (builderElements.seasonTo) {
     builderElements.seasonTo.addEventListener("change", () => {
       if (!builderState.seasonRange) builderState.seasonRange = {};
       builderState.seasonRange.to = builderElements.seasonTo.value ? parseInt(builderElements.seasonTo.value, 10) : null;
+      updateBuilderPreview();
     });
   }
 }
@@ -1651,8 +1782,10 @@ function populateBuilderSeasonSelects() {
 }
 
 async function submitBuilderQuery() {
-  const isValid = validateBuilderStep(5);
-  if (!isValid) return;
+  if (!validateBuilderStep(BUILDER_STEP_COUNT)) {
+    showBuilderValidationError(getValidationErrorMessage(BUILDER_STEP_COUNT));
+    return;
+  }
 
   const formData = {
     shape: builderState.shape,
@@ -1762,12 +1895,15 @@ function openBuilderModalUI(prefill = {}) {
   }
 
   if (builderElements.subjectSearch) {
-    builderElements.subjectSearch.value = builderState.shape === "comparison"
-      ? builderState.subjects.join(", ")
-      : (builderState.subjects[0] || "");
+    builderElements.subjectSearch.value = "";
+  }
+  if (builderElements.statSearch && builderState.stat) {
+    builderElements.statSearch.value = formatStatLabel(builderState.stat);
   }
 
   populateBuilderSeasonSelects();
+  updateBuilderSubjectHint();
+  renderBuilderSubjectChips();
   renderBuilderSubjectOptions();
   renderBuilderStatOptions();
 
@@ -1797,8 +1933,9 @@ function openBuilderModalUI(prefill = {}) {
     ? 1
     : (!validateBuilderStep(2) ? 2
       : (!validateBuilderStep(3) ? 3
-        : (!validateBuilderStep(5) ? 5 : 5)));
+        : (!validateBuilderStep(4) ? 4 : 4)));
   showBuilderStep(initialStep);
+  updateBuilderPreview();
   builderElements.modal.showModal();
 }
 
@@ -1826,16 +1963,6 @@ function setupBuilderEventListeners() {
     });
   }
 
-  // Add subject button for comparison
-  if (builderElements.addSubjectBtn) {
-    builderElements.addSubjectBtn.addEventListener("click", () => {
-      // Focus subject search to add another
-      if (builderElements.subjectSearch) {
-        builderElements.subjectSearch.focus();
-      }
-    });
-  }
-
   // Subject search
   if (builderElements.subjectSearch) {
     builderElements.subjectSearch.addEventListener("input", renderBuilderSubjectOptions);
@@ -1843,7 +1970,18 @@ function setupBuilderEventListeners() {
 
   // Stat search
   if (builderElements.statSearch) {
-    builderElements.statSearch.addEventListener("input", renderBuilderStatOptions);
+    builderElements.statSearch.addEventListener("input", () => {
+      const query = builderElements.statSearch.value.trim().toLowerCase();
+      const stats = getStatsList();
+      const exact = stats.find((stat) => formatStatLabel(stat).toLowerCase() === query);
+      if (exact) {
+        builderState.stat = exact;
+      } else if (builderState.stat && !query) {
+        builderState.stat = null;
+      }
+      renderBuilderStatOptions();
+      updateBuilderPreview();
+    });
   }
 
   // Shape options
