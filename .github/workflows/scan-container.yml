@@ -76,7 +76,7 @@ jobs:
       # https://github.com/github/codeql-action/commits/v4
       # Always upload (even empty result) so the check always reports a status.
       - name: Upload Trivy scan results
-        uses: github/codeql-action/upload-sarif@f205ea1c3313d32999d8d6a48b4f6530d4437b38
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd
         if: always()
         with:
           sarif_file: trivy-results.sarif
