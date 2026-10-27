@@ -1,5 +1,11 @@
 #!/usr/bin/env Rscript
 
+# Logging helper with severity levels
+api_log <- function(level = "INFO", msg) {
+  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
+  cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
+}
+
 api_log("INFO", "=== INTERNATIONAL NETBALL DATABASE BUILD ===")
 api_log("INFO", sprintf("Timestamp: %s", Sys.time()))
 api_log("INFO", sprintf("Process ID: %s", Sys.getpid()))
@@ -41,12 +47,6 @@ sample_mode <- identical(tolower(Sys.getenv("NETBALL_STATS_INTERNATIONAL_SAMPLE"
 
 if (!nzchar(Sys.getenv("NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS", ""))) {
   Sys.setenv(NETBALL_STATS_DB_STATEMENT_TIMEOUT_MS = "0")
-}
-
-# Logging helper with severity levels
-api_log <- function(level = "INFO", msg) {
-  timestamp <- format(Sys.time(), "%Y-%m-%d %H:%M:%S")
-  cat(sprintf("[%s] %s: %s\n", timestamp, level, msg))
 }
 
 # Database connection function
