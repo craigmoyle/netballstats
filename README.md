@@ -1,8 +1,8 @@
 # Netball Stats Website
 
-`netballstats` is an editorial Super Netball archive. Azure remains the live public deployment and rollback source: Static Web Apps, a read-only R Plumber data API on Container Apps, and PostgreSQL refreshed by Container Apps jobs. A parallel staging instance is deployed at `https://vps.statsball.net` on the shared 4-vCPU/8-GiB Debian VPS; it has a private PostgreSQL database, local systemd refresh timers, and a private PostgreSQL telemetry/feedback sink. Its weekly usage report is written to a root-only Markdown file over SSH; browser events are tagged as testing and excluded from public totals.
+`netballstats` is an editorial Super Netball archive. The public site now runs on the shared 4-vCPU/8-GiB Debian VPS at `https://statsball.net`; `https://vps.statsball.net` remains an operator alias. Caddy serves the static site and same-origin API, with private PostgreSQL, local systemd refresh timers, and a PostgreSQL telemetry/feedback sink. The weekly usage report is a root-only Markdown file over SSH. Azure Static Web Apps, API, database, and refresh jobs remain available as rollback during the agreed window.
 
-The production operating model is now **Azure + PostgreSQL first**. Legacy Render/Cloudflare deployment notes remain below as an alternative, but the repo, docs, and runtime defaults are centred on the Azure stack.
+The production operating model is now **VPS + PostgreSQL first**. Legacy Render/Cloudflare deployment notes remain below as alternatives; Azure guidance is retained only for the rollback window.
 
 ## What’s in the app
 
@@ -171,11 +171,13 @@ The application is intentionally conservative:
 - **Rate limiting**: the API applies a simple request-per-minute guard.
 - **Secrets in Key Vault**: Azure deployment keeps DB credentials out of repo files.
 - **Structured request telemetry**: the API logs request path, status, latency, and slow/failing requests without dumping raw database errors into normal logs.
-- **Privacy-safe usage telemetry**: browser page views and curated feature events flow to Azure Application Insights without logging raw Ask the Stats question text or auto-capturing fetch/XHR URLs.
+- **Privacy-safe usage telemetry**: Azure rollback still uses Application Insights; the public VPS uses the private PostgreSQL sink and SSH-readable weekly report without logging raw Ask the Stats question text or auto-capturing fetch/XHR URLs.
 
-## Azure deployment (primary path)
+## Azure deployment (rollback path)
 
-This repository is prepared for:
+Azure resources remain available for the rollback window; the VPS is the current public path. Keep these deployment references until rollback closes, then remove only Stats-specific resources after checking shared consumers.
+
+This repository retains configuration for:
 
 - **Azure Static Web Apps Standard** for the frontend
 - **Azure Container Apps** for the R Plumber API

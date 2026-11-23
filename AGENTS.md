@@ -26,22 +26,23 @@ This file captures the repo-specific context, decisions, and operating guidance 
 
 ## System shape
 
-- Frontend: static HTML and vanilla JS, built into `dist/` and deployed to Azure Static Web Apps.
-- API: read-only R Plumber service in `api/plumber.R`, deployed to Azure Container Apps.
-- Database: Azure Database for PostgreSQL Flexible Server.
-- Data refresh: scheduled Azure Container Apps jobs rebuild the database from Champion Data via `superNetballR` and `netballR`.
-- Infra and deploy: `azure.yaml` plus Bicep under `infra/`.
+- Frontend: static HTML and vanilla JS served by Caddy from the VPS.
+- API: R Plumber statistics API in `api/plumber.R`; archive tables are read-only to the API, with a separate insert-only telemetry role.
+- Database: private PostgreSQL on the VPS.
+- Data refresh: local systemd timers rebuild the database from Champion Data via `superNetballR` and `netballR`.
+- Azure Static Web Apps, Container Apps, PostgreSQL, and refresh jobs are retained as rollback during the agreed window; their deployment code stays until cleanup approval.
 
-## Parallel VPS staging
+## VPS production
 
-- `https://vps.statsball.net` is a staging deployment on the shared 4-vCPU/8-GiB Debian VPS; Azure `statsball.net` remains the live public site and rollback source. Do not cut over or retire Azure without separate acceptance and approval.
-- The VPS hosts both apps with separate private PostgreSQL databases; Stats refreshes run locally through systemd timers, not GitHub Actions. PostgreSQL has no published host port.
-- VPS Stats browser telemetry and Ideas feedback use the private `telemetry` schema in `netballstats`; the API role is insert-only there and remains read-only on archive tables. The server forces staging events to `testing`, and the weekly SSH-readable report excludes internal/testing traffic.
-- The Stats API trusts `X-Forwarded-For` only from the fixed Caddy container IP configured in `NETBALL_STATS_TRUSTED_PROXY_IPS`; Azure client-IP headers are explicitly enabled only in the Azure environment.
+- `https://statsball.net` now resolves to the VPS and is the public Stats site. `https://vps.statsball.net` remains an operator alias; its telemetry host is server-tagged `testing`.
+- Caddy serves the site and same-origin API on both names. The API allows both HTTPS origins; telemetry from the staging alias is excluded from public totals.
+- The VPS hosts Trials TEST separately with its own private database. PostgreSQL has no published host port.
+- VPS telemetry and Ideas feedback use the private `telemetry` schema in `netballstats`; the writer is insert-only and archive access stays read-only. The weekly SSH-readable report is root-only and prunes records older than 90 days.
+- The Stats API trusts `X-Forwarded-For` only from the fixed Caddy container IP configured in `NETBALL_STATS_TRUSTED_PROXY_IPS`; Azure client-IP headers are explicitly enabled only in the rollback environment.
 
 ## Operating model decisions
 
-- Azure plus PostgreSQL is the primary supported deployment path.
+- The VPS plus PostgreSQL is the primary deployment path; Azure remains rollback-only until the agreed window ends.
 - Render/Cloudflare notes in the README are legacy alternatives, not the default operating model.
 - Archive/statistics data endpoints are read-only. Browser telemetry and Ideas are the approved narrow write paths; keep their database role restricted to inserts in the private telemetry schema.
 - Keep validation and result caps strict. The current posture favours trustworthy, bounded queries over permissive behaviour.
@@ -51,7 +52,7 @@ This file captures the repo-specific context, decisions, and operating guidance 
 
 ## Telemetry decisions
 
-- Browser usage telemetry and Ideas feedback stay privacy-safe. Azure production continues to use Application Insights; VPS staging uses the private PostgreSQL `telemetry` schema.
+- Browser usage telemetry and Ideas feedback stay privacy-safe. The public VPS uses the private PostgreSQL `telemetry` schema; Azure Application Insights remains only for rollback during the agreed window.
 - Browser telemetry loads runtime config from `/meta` and posts same-origin to `/api/telemetry`. The telemetry role can insert only into telemetry tables; reports use a separate restricted role.
 - Do not enable automatic fetch/XHR capture for browser telemetry; this was intentionally disabled to avoid collecting raw Ask the Stats URLs and question text.
 - Do not log raw Ask the Stats free-text prompts in telemetry.
