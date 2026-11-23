@@ -9,7 +9,7 @@ Sys.setenv(
   NETBALL_STATS_TELEMETRY_DB_NAME = "netballstats",
   NETBALL_STATS_TELEMETRY_DB_USER = "telemetry_writer",
   NETBALL_STATS_TELEMETRY_DB_PASSWORD = "test-only-password",
-  NETBALL_STATS_TESTING_HOSTS = "vps.statsball.net"
+  NETBALL_STATS_TESTING_HOSTS = "stats-staging.example.test"
 )
 source(file.path(repo_root, "api", "plumber.R"), local = TRUE)
 
@@ -32,7 +32,7 @@ request <- list(
   ), auto_unbox = TRUE),
   REMOTE_ADDR = "203.0.113.44",
   HTTP_USER_AGENT = "test-agent",
-  HTTP_HOST = "vps.statsball.net"
+  HTTP_HOST = "stats-staging.example.test"
 )
 parsed <- parse_browser_telemetry_request(request)
 record <- build_stored_telemetry_record(parsed$kind, parsed$payload, request)
@@ -43,7 +43,6 @@ assert_true(identical(record$context$traffic_class, "testing"), "Expected the st
 assert_true(identical(telemetry_default_traffic_class(request), "testing"), "Expected staging feedback to be tagged as testing.")
 production_request <- request
 production_request$HTTP_HOST <- "statsball.net"
-production_request$postBody <- sub("vps.statsball.net", "statsball.net", production_request$postBody, fixed = TRUE)
 production_payload <- parse_browser_telemetry_request(production_request)$payload
 assert_true(identical(production_payload$context$traffic_class, "public"), "Expected public traffic to preserve the browser's public class.")
 assert_true(identical(telemetry_default_traffic_class(production_request), ""), "Expected production feedback to use the normal public default.")
