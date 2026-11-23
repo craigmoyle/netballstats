@@ -30,36 +30,33 @@ This file captures the repo-specific context, decisions, and operating guidance 
 - API: R Plumber statistics API in `api/plumber.R`; archive tables are read-only to the API, with a separate insert-only telemetry role.
 - Database: private PostgreSQL on the VPS.
 - Data refresh: local systemd timers rebuild the database from Champion Data via `superNetballR` and `netballR`.
-- Azure Static Web Apps, Container Apps, PostgreSQL, and refresh jobs are retained as rollback during the agreed window; their deployment code stays until cleanup approval.
 
 ## VPS production
 
-- `https://statsball.net` resolves to the VPS and is the public Stats site.
-- Caddy serves the site and same-origin API on the primary hostname. The API allows the primary HTTPS origin; browser telemetry uses the public class by default.
-- The VPS hosts Trials TEST separately with its own private database. PostgreSQL has no published host port.
-- VPS telemetry and Ideas feedback use the private `telemetry` schema in `netballstats`; the writer is insert-only and archive access stays read-only. The weekly SSH-readable report is root-only and prunes records older than 90 days.
-- The Stats API trusts `X-Forwarded-For` only from the fixed Caddy container IP configured in `NETBALL_STATS_TRUSTED_PROXY_IPS`; Azure client-IP headers are explicitly enabled only in the rollback environment.
+- `https://statsball.net` is the only public Stats site.
+- Caddy serves the site and same-origin API. PostgreSQL is private and has no published host port.
+- Telemetry and Ideas feedback use the private `telemetry` schema; the writer is insert-only and archive access stays read-only. The weekly SSH-readable report is root-only and prunes records older than 90 days.
+- The Stats API trusts forwarded client IPs only from the fixed Caddy container IP configured in `NETBALL_STATS_TRUSTED_PROXY_IPS`.
 
 ## Operating model decisions
 
-- The VPS plus PostgreSQL is the primary deployment path; Azure remains rollback-only until the agreed window ends.
-- Render/Cloudflare notes in the README are legacy alternatives, not the default operating model.
+- The self-managed VPS with private PostgreSQL is the only supported hosted path for Stats.
 - Archive/statistics data endpoints are read-only. Browser telemetry and Ideas are the approved narrow write paths; keep their database role restricted to inserts in the private telemetry schema.
 - Keep validation and result caps strict. The current posture favours trustworthy, bounded queries over permissive behaviour.
 - Continue using parameterized SQL and explicit request validation across the API surface.
 - Avoid broad try/catch wrappers or silent fallbacks. Surface or log errors in the same explicit style already used in the repo.
-- The per-replica in-memory rate limiter does not aggregate across Container App replicas. This is acceptable while `apiMaxReplicas` is 1 but would need a centralized store (e.g. Redis) if scaling beyond a single replica.
+- The in-memory rate limiter does not aggregate across API processes. Use a centralized store before running multiple API workers.
 
 ## Telemetry decisions
 
-- Browser usage telemetry and Ideas feedback stay privacy-safe. The public VPS uses the private PostgreSQL `telemetry` schema; Azure Application Insights remains only for rollback during the agreed window.
+- Browser usage telemetry and Ideas feedback stay privacy-safe and use the private PostgreSQL `telemetry` schema.
 - Browser telemetry loads runtime config from `/meta` and posts same-origin to `/api/telemetry`. The telemetry role can insert only into telemetry tables; reports use a separate restricted role.
 - Do not enable automatic fetch/XHR capture for browser telemetry; this was intentionally disabled to avoid collecting raw Ask the Stats URLs and question text.
 - Do not log raw Ask the Stats free-text prompts in telemetry.
 - VPS page views and custom interactions land in `telemetry.events`; feedback text is stored only in `telemetry.feedback`. The weekly report prunes records older than 90 days and is written mode 0600 under `/opt/netball/reports`.
 - Existing page view names include `archive-home`, `compare`, and `player-profile`.
 - Player URLs are sanitized to `/player/:id/` in telemetry.
-- `scripts/weekly_usage_report.R` generates the VPS Markdown report; Azure's `scripts/usage-telemetry.kql` remains the reference for existing Azure reporting.
+- `scripts/weekly_usage_report.R` generates the VPS Markdown report.
 
 ## Frontend conventions
 
@@ -113,54 +110,14 @@ This file captures the repo-specific context, decisions, and operating guidance 
 ### Round recap
 - `build_round_summary_payload()` generates 12 spotlights: 6 player stats (points, goalAssists, feeds, gain, deflections, intercepts) and 6 team stats (points, gain, deflections, intercepts, penalties, generalPlayTurnovers). The last two team stats rank lowest-is-best.
 - Each spotlight entry carries `historical_rank` (integer or NULL). The frontend renders this as e.g. "34th highest all-time" or "2nd lowest all-time".
-- Each round-summary call now executes ~50 DB queries. Acceptable for Azure PostgreSQL but worth monitoring if latency becomes an issue.
+- Each round-summary call now executes ~50 DB queries. Monitor latency under expected load.
 
-## Azure and deployment notes
+## Validation and release
 
-- Build the static site with `npm run build`.
-- The repo does not currently provide an `npm test` script.
-- The practical validation commands used in this repo are:
-  - `node --check assets/*.js`
-  - `Rscript -e "parse(file='api/R/helpers.R'); parse(file='api/plumber.R')"`
-  - `npm run build`
-  - `Rscript scripts/test_api_regression.R` against a running environment when API behaviour changes
-- For frontend-only changes, prefer `azd deploy web`.
-- `azure.yaml` has a `postdeploy` hook that syncs the database refresh jobs to the current API image and triggers an immediate rebuild job. Keep that relationship intact.
-- Pushes to `main` only deploy the Static Web App through GitHub Actions. The database refresh jobs are not automatically updated by that workflow; they are synchronized during `azd` deploys.
-- Container images must keep the `renv` cache outside `/root` because the app runs as a non-root user and the library symlinks must remain traversable at runtime.
-- On Apple Silicon, keep the Azure API build targeting `linux/amd64` as configured in `azure.yaml`.
-
-### `azd provision` resets job images
-- `azd provision` resets Container App Job images to `mcr.microsoft.com/azuredocs/containerapps-helloworld:latest` (the Bicep placeholder).
-- Always run `azd deploy api` after any `azd provision` to restore the real R image via the postdeploy hook.
-- Without this step, DB rebuild jobs will fail immediately with `exec: "Rscript": executable file not found in $PATH`.
-
-### PostgreSQL extensions and parameters
-- Azure PostgreSQL Flexible Server requires extensions to be allow-listed via the `azure.extensions` server parameter before `CREATE EXTENSION` works in SQL.
-- Currently allow-listed: `pg_trgm,pgaudit`. Add new extensions there before referencing them in `build_database.R`.
-- `pgaudit.log` valid values: `none`, `read`, `write`, `function`, `role`, `ddl`, `misc`, `all`. The value `mod` is NOT valid.
-
-### DB refresh job and API user sync
-- `build_database.R` calls `configure_postgres_api_user()` to create/sync the read-only `netballstats_api` DB user.
-- This function requires `NETBALL_STATS_API_DB_USERNAME` and `NETBALL_STATS_API_DB_PASSWORD` env vars to be set on the job. If both are absent the function silently skips — the API user will not be created or have its password updated.
-- Both env vars are now present in `dbRefreshEnv` in `infra/modules/app-stack.bicep`. Do not remove them.
-- `dbJobIdentity` must have Key Vault Secrets User access to both `postgres-admin-password` and `postgres-api-password` secrets.
-
-### SSL with Azure PostgreSQL
-- The API and refresh jobs use `NETBALL_STATS_DB_SSLMODE=verify-full` and `NETBALL_STATS_DB_SSLROOTCERT=system`.
-- `sslrootcert=system` (libpq 14+) uses the OS trust store. Ubuntu Noble's `ca-certificates` package includes the DigiCert root CA that signs Azure PostgreSQL Flexible Server certificates. No cert download is needed.
-- Do not attempt to download the DigiCert cert from `dl.cacerts.digicert.com` — that URL has an SSL hostname mismatch.
-
-## Registry cleanup workflow decisions
-
-- `.github/workflows/cleanup-registry.yml` uses GitHub OIDC with a federated Azure app registration.
-- The workflow requires:
-  - GitHub secret `AZURE_CLIENT_ID`
-  - GitHub secret `AZURE_TENANT_ID`
-  - GitHub variable `AZURE_SUBSCRIPTION_ID`
-  - GitHub variable `AZURE_REGISTRY_NAME`
-- The federated service principal needs both `AcrPull` and `AcrDelete` on the registry. `AcrDelete` alone is not enough because the workflow must enumerate repositories and tags before pruning.
-- The workflow intentionally skips cleanly when its Azure configuration is incomplete.
+- Build static files with `npm run build` and run the existing syntax checks before review.
+- When API behaviour changes, run `Rscript scripts/test_api_regression.R` against the local API.
+- The public site is served from `https://statsball.net` on the VPS. Releases are operator-managed; merges to `main` do not deploy.
+- Keep PostgreSQL private, the API role read-only for archive tables, and refresh credentials separate.
 
 ## Repo map
 
@@ -174,38 +131,26 @@ This file captures the repo-specific context, decisions, and operating guidance 
   - `international/`: dedicated international frontend pages and assets
   - `scripts/build_international_database.R`: international data pipeline implementation
 
-- `scripts/usage-telemetry.kql`: starter usage and product analytics queries
-- `azure.yaml` and `infra/`: Azure deployment definitions
-- `Dockerfile.azure`: Azure runtime image for the API
-
 ## Preferred change style
 
 - Make surgical changes that preserve the existing product tone and operating model.
 - Prefer extending existing helpers and utilities over adding parallel systems.
 - Keep telemetry privacy-safe and low-cardinality.
-- Keep docs aligned with Azure-first deployment and the current production architecture.
+- Keep docs aligned with the single public site at `statsball.net` and VPS operations.
 
 ## Known pitfalls
 
-- `scripts/usage-telemetry.kql` blocks should stay self-contained. Query tabs in the portal are often run individually, so shared `let` bindings across sections break easily.
-- Browser telemetry should keep using the `/meta` bootstrap plus `/api/telemetry` proxy path. Direct browser-to-App-Insights changes risk losing sanitization and privacy guarantees.
+- Browser telemetry should keep using the `/meta` bootstrap plus the same-origin `/api/telemetry` route so server-side sanitization remains in force.
 - Do not re-enable fetch/XHR auto-tracking in telemetry. It can capture raw Ask the Stats URLs and undo the current privacy posture.
 - `theme.js` already owns reveal-observer behaviour. Reintroducing observer setup in `config.js` or page scripts creates duplication and drift.
 - `assets/query.js` has historically been sensitive to missing DOM hooks. Guard page-specific selectors instead of assuming every element exists.
-- `azure.yaml` postdeploy keeps the database refresh jobs aligned with the API image. Frontend-only GitHub Actions deploys do not update those jobs.
-- **`azd provision` resets job images to the hello-world placeholder.** Always run `azd deploy api` after any `azd provision` or jobs will fail with `Rscript not found`.
-- If the API image/runtime changes, keep the `renv` cache outside `/root` or the non-root Container App user will hit broken library symlinks at runtime.
-- The registry cleanup workflow can authenticate successfully and still fail functionally if the service principal lacks `AcrPull`; it needs both `AcrPull` and `AcrDelete`.
+- If the API image/runtime changes, keep the `renv` cache outside `/root` or the non-root container user will hit broken library symlinks at runtime.
 - Do not use `fetch_player_game_high_rows()` or `fetch_team_game_high_rows()` with `stat = 'points'`. "Points" is synthetic (goal1 + 2×goal2 / match scores); use `fetch_player_points_high()` and `fetch_team_points_high()` instead.
 - Do not use `ANY(ARRAY[...])` syntax for IN clauses. Use `append_integer_in_filter()` to stay SQLite-compatible.
 - The homepage hero `h1` uses a home-specific font-size override (`.hero-copy--home h1`) with a tighter `clamp()` than the global heading scale. Do not remove it — the global scale is too large for the 1240px shell at mid-range viewport widths.
 - Archive filter toggles use `field--toggle` class (not `compare-mode-toggle`) to avoid inheriting pill-button wrapping from the compare page styles.
-- Do not remove `NETBALL_STATS_API_DB_USERNAME` / `NETBALL_STATS_API_DB_PASSWORD` from `dbRefreshEnv` in Bicep. Without them the API DB user is never created/synced and the API will fail authentication after a fresh rebuild.
-- `render.yaml` and the root `Dockerfile` are legacy Render deployment files and should not be used; Azure deployment uses `Dockerfile.azure`.
-- The `_headers` file duplicates `staticwebapp.config.json` and may contain stale CSP origins (e.g. Render API).
 - `buildUrl()` and `fetchJson()` should be used from the shared `window.NetballStatsUI` module, not redefined per page script.
-- The Saturday DB refresh job (`dbRefreshJobSat`) should have explicit `resources` (cpu/memory) matching the Sunday job.
-The Saturday DB refresh job (`dbRefreshJobSat`) should have explicit `resources` (cpu/memory) matching the Sunday job.
+- The Saturday DB refresh job (`dbRefreshJobSat`) should have explicit `resources` (CPU/memory) matching the Sunday job.
 
 ## International Data Integration
 
@@ -215,7 +160,7 @@ The netballstats system now includes a complete international data integration f
 
 - **Separate Tables**: International data is stored in dedicated `international_*` tables to maintain clear separation from Super Netball data
 - **Dedicated API Endpoints**: Separate `/api/international/*` endpoints handle international data queries
-- **Independent Data Pipeline**: Dedicated Azure Container App jobs manage international data refresh on Tuesday and Friday schedules
+- **Independent data pipeline**: Local VPS timers refresh international data on Tuesday and Friday
 - **Unified Interface**: International data is presented through dedicated UI sections while maintaining consistent design language
 
 ### Data Sources

@@ -65,17 +65,9 @@ See: **[CODEOWNERS](./CODEOWNERS)**
 
 ---
 
-## 🔄 Workflows (CI/CD)
+## Current site release
 
-GitHub Actions workflows in [workflows/](./workflows/):
-
-| Workflow | Trigger | Purpose |
-|----------|---------|---------|
-| **deploy-azure-static-web-app.yml** | Push to `main` | Build and deploy frontend to Azure Static Web Apps |
-| **scan-container.yml** | PR to `main` | Security scan of container images |
-| **cleanup-registry.yml** | Manual trigger | Remove old container images from registry |
-
-These are referenced in branch protection rules and must pass before merge.
+The only public Stats site is `https://statsball.net`, hosted on the VPS. VPS releases are operator-managed and are not triggered by GitHub Actions. The required PR check scans the API container; run `npm run build:verify` locally for frontend validation.
 
 ---
 
@@ -149,7 +141,6 @@ gh api -X GET repos/craigmoyle/netballstats/branches/main/protection
 ### Code Owners
 
 - **API** (`api/`, `api/R/`) → @craigmoyle
-- **Infrastructure** (`infra/`, `azure.yaml`) → @craigmoyle
 - **Frontend** (`assets/`, `*.html`) → @craigmoyle
 - Default → @craigmoyle
 

@@ -6,35 +6,9 @@ This guide helps resolve common issues you might encounter with the branch prote
 
 ## Status Checks Not Passing
 
-### Problem: "deploy-azure-static-web-app" Check Failing
+### Problem: Frontend build verification fails
 
-**Symptoms**: Red ✗ next to "deploy-azure-static-web-app" in your PR.
-
-**Cause**: Frontend build failed. The code doesn't compile.
-
-**Solution**:
-```bash
-# Run the build locally to see the error
-npm run build
-
-# Common errors:
-# - Syntax errors in JavaScript
-# - Missing imports or undefined variables
-# - CSS issues
-# - Build script configuration
-
-# Fix the error, then commit and push
-git add .
-git commit -m "Fix: Resolve build error in [file]"
-git push origin feature/my-feature
-
-# The check will re-run automatically
-```
-
-**More Help**:
-- Check the GitHub Actions workflow logs for detailed error output
-- Click the failing check → "Details" → "Build logs"
-- Look for error line numbers and messages
+**Solution**: Run `npm run build:verify` locally, fix the reported error, then push the change. The public site is served from the VPS; CI does not deploy it.
 
 ---
 

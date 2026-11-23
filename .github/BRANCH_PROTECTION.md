@@ -33,7 +33,7 @@ All of the following must pass before merge is allowed:
 
 **Strict mode**: Status checks are validated against the most recent commit on your branch, not the base branch. This ensures fresh scans after you push updates.
 
-**Note**: The `Deploy Azure Static Web App` workflow is a post-merge deployment check (runs after merge to `main`), not a PR requirement. Frontend validation during PR review is performed locally via `npm run build:verify`.
+**Note**: The public site is hosted on the VPS; merging to `main` does not deploy it. Frontend validation during PR review is performed locally via `npm run build:verify`.
 
 ### 3. **Conversation Resolution** (REQUIRED)
 - All comments and feedback must be resolved before merging
@@ -66,8 +66,7 @@ All of the following must pass before merge is allowed:
 
 The `netballstats` system is a complex, production service with:
 
-- **Static frontend** deployed to Azure Static Web Apps
-- **Read-only API** (R Plumber service) deployed to Azure Container Apps
+- **Static frontend** and read-only R Plumber API served from the VPS through Caddy
 - **PostgreSQL database** with automated refresh jobs
 - **Real user data** across multiple Super Netball seasons
 - **Privacy commitments** (telemetry is sanitized and privacy-safe)
@@ -171,7 +170,7 @@ Code owner reviews provide domain guidance for sensitive areas (API, database, i
 
 - **`main`**: Production branch. Always stable, always deployable.
   - Protected with strict rules
-  - Automatically deployed to Azure after merge
+  - Released to the VPS by the operator after merge; GitHub Actions does not deploy the site
   
 - **Feature branches**: Developer branches for work in progress.
   - Naming: `feature/*`, `fix/*`, `docs/*`, etc.
@@ -212,7 +211,7 @@ While not enforced by branch protection, follow these conventions:
 
 ### Q: What if my status check fails?
 **A**: Fix the issue locally, push your changes, and the check will re-run automatically. The `Scan container image / scan` check can fail due to:
-- **API/container vulnerabilities** → Fix dependencies in `Dockerfile.azure`, `api/`, or `renv.lock`
+- **API/container vulnerabilities** → Fix dependencies in the API image, `api/`, or `renv.lock`
 - **Network issues** → Re-run by pushing an empty commit (`git commit --allow-empty -m "Re-run checks"`)
 - **Frontend-only PR** → No Docker build needed; scan will complete quickly with a pass
 
