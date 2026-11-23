@@ -1,6 +1,6 @@
 # Netball Stats Website
 
-`netballstats` is an editorial Super Netball archive: a static frontend on Azure Static Web Apps, a read-only R Plumber API on Azure Container Apps, and a PostgreSQL database refreshed by scheduled Container Apps jobs using `superNetballR`.
+`netballstats` is an editorial Super Netball archive. Azure remains the live public deployment and rollback source: Static Web Apps, a read-only R Plumber data API on Container Apps, and PostgreSQL refreshed by Container Apps jobs. A parallel staging instance is deployed at `https://vps.statsball.net` on the shared 4-vCPU/8-GiB Debian VPS; it has a private PostgreSQL database, local systemd refresh timers, and a private PostgreSQL telemetry/feedback sink. Its weekly usage report is written to a root-only Markdown file over SSH; browser events are tagged as testing and excluded from public totals.
 
 The production operating model is now **Azure + PostgreSQL first**. Legacy Render/Cloudflare deployment notes remain below as an alternative, but the repo, docs, and runtime defaults are centred on the Azure stack.
 

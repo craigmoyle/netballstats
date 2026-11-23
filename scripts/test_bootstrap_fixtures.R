@@ -38,6 +38,14 @@ assert_true(
   identical(normalize_fixture_match_number(NULL, 9L), 9L),
   "Expected fallback game numbers to be used when match numbers are absent."
 )
+assert_true(
+  identical(normalize_fixture_team_name("Swifts"), "NSW Swifts"),
+  "Expected known fixture team aliases to be normalized."
+)
+assert_true(
+  identical(normalize_fixture_team_name("Net Blacks"), "Net Blacks"),
+  "Expected unknown fixture team names to be preserved."
+)
 
 invalid_round_message <- tryCatch(
   {

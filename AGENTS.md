@@ -32,11 +32,18 @@ This file captures the repo-specific context, decisions, and operating guidance 
 - Data refresh: scheduled Azure Container Apps jobs rebuild the database from Champion Data via `superNetballR` and `netballR`.
 - Infra and deploy: `azure.yaml` plus Bicep under `infra/`.
 
+## Parallel VPS staging
+
+- `https://vps.statsball.net` is a staging deployment on the shared 4-vCPU/8-GiB Debian VPS; Azure `statsball.net` remains the live public site and rollback source. Do not cut over or retire Azure without separate acceptance and approval.
+- The VPS hosts both apps with separate private PostgreSQL databases; Stats refreshes run locally through systemd timers, not GitHub Actions. PostgreSQL has no published host port.
+- VPS Stats browser telemetry and Ideas feedback use the private `telemetry` schema in `netballstats`; the API role is insert-only there and remains read-only on archive tables. The server forces staging events to `testing`, and the weekly SSH-readable report excludes internal/testing traffic.
+- The Stats API trusts `X-Forwarded-For` only from the fixed Caddy container IP configured in `NETBALL_STATS_TRUSTED_PROXY_IPS`; Azure client-IP headers are explicitly enabled only in the Azure environment.
+
 ## Operating model decisions
 
 - Azure plus PostgreSQL is the primary supported deployment path.
 - Render/Cloudflare notes in the README are legacy alternatives, not the default operating model.
-- The API is intentionally read-only. Do not introduce public write endpoints without an explicit product decision.
+- Archive/statistics data endpoints are read-only. Browser telemetry and Ideas are the approved narrow write paths; keep their database role restricted to inserts in the private telemetry schema.
 - Keep validation and result caps strict. The current posture favours trustworthy, bounded queries over permissive behaviour.
 - Continue using parameterized SQL and explicit request validation across the API surface.
 - Avoid broad try/catch wrappers or silent fallbacks. Surface or log errors in the same explicit style already used in the repo.
@@ -44,14 +51,14 @@ This file captures the repo-specific context, decisions, and operating guidance 
 
 ## Telemetry decisions
 
-- Browser usage telemetry is enabled and should stay privacy-safe.
-- Browser telemetry loads runtime config from `/meta`, posts same-origin to `/api/telemetry`, and the API forwards sanitized events to Application Insights.
+- Browser usage telemetry and Ideas feedback stay privacy-safe. Azure production continues to use Application Insights; VPS staging uses the private PostgreSQL `telemetry` schema.
+- Browser telemetry loads runtime config from `/meta` and posts same-origin to `/api/telemetry`. The telemetry role can insert only into telemetry tables; reports use a separate restricted role.
 - Do not enable automatic fetch/XHR capture for browser telemetry; this was intentionally disabled to avoid collecting raw Ask the Stats URLs and question text.
 - Do not log raw Ask the Stats free-text prompts in telemetry.
-- Browser page views land in `AppPageViews`; custom interactions land in `AppEvents`.
+- VPS page views and custom interactions land in `telemetry.events`; feedback text is stored only in `telemetry.feedback`. The weekly report prunes records older than 90 days and is written mode 0600 under `/opt/netball/reports`.
 - Existing page view names include `archive-home`, `compare`, and `player-profile`.
 - Player URLs are sanitized to `/player/:id/` in telemetry.
-- `scripts/usage-telemetry.kql` is the starter report file and its query blocks are intentionally self-contained so they can be run independently.
+- `scripts/weekly_usage_report.R` generates the VPS Markdown report; Azure's `scripts/usage-telemetry.kql` remains the reference for existing Azure reporting.
 
 ## Frontend conventions
 

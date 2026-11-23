@@ -631,6 +631,10 @@ resource apiContainerApp 'Microsoft.App/containerApps@2025-07-01' = {
               value: allowedCorsOriginsCsv
             }
             {
+              name: 'NETBALL_STATS_TRUST_AZURE_CLIENT_IP'
+              value: 'true'
+            }
+            {
               name: 'NETBALL_STATS_DB_BACKEND'
               value: 'postgres'
             }

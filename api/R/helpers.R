@@ -30,6 +30,30 @@ resolve_request_client_key <- function(raw_forwarded, remote_addr) {
   remote_addr
 }
 
+resolve_stats_request_client_ip <- function(req) {
+  if (is.null(req) || !is.list(req)) {
+    return("unknown")
+  }
+
+  remote_addr <- trimws(as.character(req$REMOTE_ADDR %||% "unknown")[[1]])
+  if (!nzchar(remote_addr)) remote_addr <- "unknown"
+
+  if (identical(tolower(trimws(Sys.getenv("NETBALL_STATS_TRUST_AZURE_CLIENT_IP", "false"))), "true")) {
+    for (header_name in c("HTTP_X_AZURE_CLIENTIP", "HTTP_X_MS_CLIENT_IP")) {
+      candidate <- trimws(as.character(req[[header_name]] %||% "")[[1]])
+      if (nzchar(candidate)) return(candidate)
+    }
+  }
+
+  trusted_proxies <- trimws(strsplit(Sys.getenv("NETBALL_STATS_TRUSTED_PROXY_IPS", ""), ",", fixed = TRUE)[[1]])
+  trusted_proxies <- trusted_proxies[nzchar(trusted_proxies)]
+  if (remote_addr %in% trusted_proxies) {
+    return(resolve_request_client_key(req$HTTP_X_FORWARDED_FOR, remote_addr))
+  }
+
+  remote_addr
+}
+
 anonymize_client_ip <- function(raw_ip) {
   ip <- trimws(as.character(raw_ip %||% "")[[1]])
   if (!nzchar(ip) || identical(ip, "unknown") || identical(ip, "0.0.0.0")) {
@@ -51,37 +75,7 @@ anonymize_client_ip <- function(raw_ip) {
 }
 
 resolve_telemetry_client_ip <- function(req) {
-  if (is.null(req) || !is.list(req)) {
-    return("")
-  }
-
-  header_names <- c(
-    "HTTP_X_AZURE_CLIENTIP",
-    "HTTP_X_MS_CLIENT_IP",
-    "HTTP_X_FORWARDED_FOR",
-    "HTTP_X_REAL_IP",
-    "REMOTE_ADDR"
-  )
-
-  for (header_name in header_names) {
-    raw_value <- req[[header_name]] %||% ""
-    if (!nzchar(trimws(as.character(raw_value)[[1]]))) {
-      next
-    }
-
-    if (identical(header_name, "HTTP_X_FORWARDED_FOR")) {
-      candidate <- resolve_request_client_key(raw_value, "unknown")
-    } else {
-      candidate <- trimws(as.character(raw_value)[[1]])
-    }
-
-    anonymized <- anonymize_client_ip(candidate)
-    if (nzchar(anonymized)) {
-      return(anonymized)
-    }
-  }
-
-  ""
+  anonymize_client_ip(resolve_stats_request_client_ip(req))
 }
 
 DEFAULT_TEAM_STATS <- c(
@@ -8600,20 +8594,9 @@ TELEMETRY_BLOCKED_PROPERTY_NAMES <- c(
   "comment"
 )
 
-# Prefer platform-asserted client IPs over client-spoofable X-Forwarded-For.
+# Trust forwarding headers only when the immediate peer is a configured proxy.
 resolve_rate_limit_client_key <- function(req) {
-  if (is.null(req) || !is.list(req)) {
-    return("unknown")
-  }
-
-  for (header_name in c("HTTP_X_AZURE_CLIENTIP", "HTTP_X_MS_CLIENT_IP")) {
-    raw_value <- trimws(as.character(req[[header_name]] %||% "")[[1]])
-    if (nzchar(raw_value)) {
-      return(raw_value)
-    }
-  }
-
-  resolve_request_client_key(req$HTTP_X_FORWARDED_FOR, req$REMOTE_ADDR)
+  resolve_stats_request_client_ip(req)
 }
 
 feedback_scalar_string <- function(value, field_name) {

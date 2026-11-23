@@ -92,7 +92,7 @@ normalize_fixture_team_name <- function(value) {
 
   raw_value <- first_fixture_value(value)
   normalized <- as.character(raw_value %||% "")
-  mapped <- unname(team_map[[normalized]])
+  mapped <- if (normalized %in% names(team_map)) unname(team_map[[normalized]]) else NULL
   if (!is.null(mapped) && nzchar(mapped)) {
     return(mapped)
   }
