@@ -19,7 +19,7 @@ assert_true <- function(condition, message) {
 
 repo_root <- normalizePath(".", winslash = "/", mustWork = TRUE)
 lockfile <- file.path(repo_root, "renv.lock")
-dockerfile <- file.path(repo_root, "Dockerfile.azure")
+dockerfile <- file.path(repo_root, "Dockerfile")
 
 lock_data <- jsonlite::fromJSON(lockfile, simplifyVector = FALSE)
 packages <- lock_data$Packages %||% list()
@@ -34,7 +34,7 @@ uses_github_install <- grepl("install_github\\(", docker_text)
 
 assert_true(
   uses_lockfile_restore || uses_github_install,
-  "Expected Dockerfile.azure to install GitHub packages via renv::restore() or remotes::install_github()."
+  "Expected Dockerfile to install GitHub packages via renv::restore() or remotes::install_github()."
 )
 
 if (uses_github_install) {
@@ -46,14 +46,14 @@ if (uses_github_install) {
   )
   assert_true(
     grepl(github_ref, docker_text, fixed = TRUE),
-    sprintf("Expected Dockerfile.azure to install superNetballR from %s.", github_ref)
+    sprintf("Expected Dockerfile to install superNetballR from %s.", github_ref)
   )
 }
 
 assert_true(
   grepl("requireNamespace", docker_text, fixed = TRUE) ||
     grepl("installed.packages(", docker_text, fixed = TRUE),
-  "Expected Dockerfile.azure to verify required R packages are installed before the image build succeeds."
+  "Expected Dockerfile to verify required R packages are installed before the image build succeeds."
 )
 
-cat("Dockerfile.azure handles GitHub R packages and verifies required package availability.\n")
+cat("Dockerfile handles GitHub R packages and verifies required package availability.\n")

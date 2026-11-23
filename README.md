@@ -159,7 +159,7 @@ Rscript scripts/test_api_regression.R --base-url=https://your-api.example.com
 
 The application is intentionally conservative:
 
-- **No public write endpoints**: the API is read-only.
+- **Narrow public writes only**: archive/statistics endpoints are read-only; browser telemetry and Ideas feedback use the restricted telemetry sink.
 - **Prepared SQL**: every endpoint queries through parameterized SQL.
 - **Strict validation**: seasons, limits, player IDs, team IDs, stats, and query text are validated before use.
 - **Result caps**: list endpoints enforce hard maximum limits.

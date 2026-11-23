@@ -1,6 +1,5 @@
 /**
  * Build the editorial HTML body for the Statsball weekly usage email.
- * Keep layout in sync with infra/weekly-usage-report.json Compose_* actions.
  * Uses inline styles and table rows for broad email-client support.
  */
 

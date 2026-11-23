@@ -10,7 +10,6 @@ telemetry_db_configured <- function() {
 }
 
 telemetry_sink_mode <- function() {
-  if (nzchar(browser_telemetry_connection_string())) return("appinsights")
   if (telemetry_db_configured()) return("postgres")
   "none"
 }

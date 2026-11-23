@@ -3,7 +3,6 @@
 repo_root <- normalizePath(".", winslash = "/", mustWork = TRUE)
 Sys.setenv(
   NETBALL_STATS_REPO_ROOT = repo_root,
-  NETBALL_STATS_BROWSER_APPINSIGHTS_CONNECTION_STRING = "",
   NETBALL_STATS_TELEMETRY_DB_HOST = "db",
   NETBALL_STATS_TELEMETRY_DB_PORT = "5432",
   NETBALL_STATS_TELEMETRY_DB_NAME = "netballstats",
@@ -50,7 +49,14 @@ assert_true(identical(record$properties$safe_metric, "42"), "Expected safe prope
 assert_true(is.null(record$properties$message) && is.null(record$properties$prompt), "Expected free-text telemetry properties to be dropped.")
 assert_true(identical(record$client_ip, "203.0.113.0"), "Expected client IP anonymization before storage.")
 
-Sys.setenv(NETBALL_STATS_BROWSER_APPINSIGHTS_CONNECTION_STRING = "InstrumentationKey=test")
-assert_true(identical(telemetry_sink_mode(), "appinsights"), "Expected Azure telemetry to remain selected when its connection string is configured.")
+Sys.unsetenv(c(
+  "NETBALL_STATS_TELEMETRY_DB_HOST",
+  "NETBALL_STATS_TELEMETRY_DB_PORT",
+  "NETBALL_STATS_TELEMETRY_DB_NAME",
+  "NETBALL_STATS_TELEMETRY_DB_USER",
+  "NETBALL_STATS_TELEMETRY_DB_PASSWORD"
+))
+assert_true(identical(telemetry_sink_mode(), "none"), "Expected telemetry to be disabled without the PostgreSQL sink.")
+assert_true(!browser_telemetry_enabled(), "Expected browser telemetry to be disabled without a sink.")
 
 cat("Telemetry sink checks passed.\n")

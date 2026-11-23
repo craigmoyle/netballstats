@@ -894,9 +894,8 @@ assert_true(
 )
 check_step('rate limiter tolerates blank forwarded IP tokens')
 
-old_azure_proxy_setting <- Sys.getenv('NETBALL_STATS_TRUST_AZURE_CLIENT_IP', unset = NA_character_)
 old_trusted_proxies <- Sys.getenv('NETBALL_STATS_TRUSTED_PROXY_IPS', unset = NA_character_)
-Sys.setenv(NETBALL_STATS_TRUST_AZURE_CLIENT_IP = 'true', NETBALL_STATS_TRUSTED_PROXY_IPS = '127.0.0.1')
+Sys.setenv(NETBALL_STATS_TRUSTED_PROXY_IPS = '127.0.0.1')
 assert_true(
   identical(helpers_env$anonymize_client_ip('203.0.113.45'), '203.0.113.0'),
   'Expected telemetry IP anonymisation to zero the last IPv4 octet.'
@@ -908,23 +907,12 @@ assert_true(
 assert_true(
   identical(
     helpers_env$resolve_telemetry_client_ip(list(
-      HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
-      HTTP_X_FORWARDED_FOR = '198.51.100.10',
-      REMOTE_ADDR = '127.0.0.1'
-    )),
-    '203.0.113.0'
-  ),
-  'Expected Azure client IP header to take precedence for telemetry geo enrichment.'
-)
-assert_true(
-  identical(
-    helpers_env$resolve_telemetry_client_ip(list(
       HTTP_X_FORWARDED_FOR = '198.51.100.10, 10.0.0.4',
       REMOTE_ADDR = '127.0.0.1'
     )),
     '198.51.100.0'
   ),
-  'Expected forwarded client IP to be anonymised for telemetry.'
+  'Expected the configured proxy IP to be anonymised for telemetry.'
 )
 assert_true(
   identical(plumber_helpers_env$telemetry_normalise_site_mode('International'), 'international'),
@@ -939,38 +927,25 @@ check_step('telemetry client IP and context normalisation helpers')
 assert_true(
   identical(
     helpers_env$resolve_rate_limit_client_key(list(
-      HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
-      HTTP_X_FORWARDED_FOR = '198.51.100.10',
-      REMOTE_ADDR = '127.0.0.1'
-    )),
-    '203.0.113.45'
-  ),
-  'Expected rate-limit client key to prefer Azure client IP over X-Forwarded-For.'
-)
-assert_true(
-  identical(
-    helpers_env$resolve_rate_limit_client_key(list(
       HTTP_X_FORWARDED_FOR = '198.51.100.10, 10.0.0.4',
       REMOTE_ADDR = '127.0.0.1'
     )),
     '198.51.100.10'
   ),
-  'Expected rate-limit client key to fall back to leftmost X-Forwarded-For.'
+  'Expected the trusted proxy client key to use the leftmost forwarded IP.'
 )
-check_step('rate-limit client key prefers platform-asserted IPs')
+check_step('rate-limit client key uses the configured proxy')
 
-Sys.setenv(NETBALL_STATS_TRUST_AZURE_CLIENT_IP = 'false', NETBALL_STATS_TRUSTED_PROXY_IPS = '172.30.0.2')
+Sys.setenv(NETBALL_STATS_TRUSTED_PROXY_IPS = '172.30.0.2')
 assert_true(
   identical(helpers_env$resolve_rate_limit_client_key(list(
-    HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
     HTTP_X_FORWARDED_FOR = '198.51.100.10',
     REMOTE_ADDR = '198.51.100.22'
   )), '198.51.100.22'),
-  'Expected untrusted client headers to be ignored when Azure proxy trust is disabled.'
+  'Expected forwarded headers from untrusted peers to be ignored.'
 )
 assert_true(
   identical(helpers_env$resolve_rate_limit_client_key(list(
-    HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
     HTTP_X_FORWARDED_FOR = '198.51.100.10',
     REMOTE_ADDR = '172.30.0.2'
   )), '198.51.100.10'),
@@ -978,13 +953,11 @@ assert_true(
 )
 assert_true(
   identical(helpers_env$resolve_telemetry_client_ip(list(
-    HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
     HTTP_X_FORWARDED_FOR = '198.51.100.10',
     REMOTE_ADDR = '172.30.0.2'
   )), '198.51.100.0'),
   'Expected telemetry to trust forwarded IP only from the configured Caddy peer.'
 )
-if (is.na(old_azure_proxy_setting)) Sys.unsetenv('NETBALL_STATS_TRUST_AZURE_CLIENT_IP') else Sys.setenv(NETBALL_STATS_TRUST_AZURE_CLIENT_IP = old_azure_proxy_setting)
 if (is.na(old_trusted_proxies)) Sys.unsetenv('NETBALL_STATS_TRUSTED_PROXY_IPS') else Sys.setenv(NETBALL_STATS_TRUSTED_PROXY_IPS = old_trusted_proxies)
 check_step('proxy IP trust is explicitly configured')
 

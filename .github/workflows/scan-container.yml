@@ -30,7 +30,7 @@ jobs:
           fi
           # For PRs, only scan if relevant files changed
           git fetch origin ${{ github.base_ref }}
-          if git diff --quiet origin/${{ github.base_ref }} -- Dockerfile.azure api/ R/ renv.lock .trivyignore .github/workflows/scan-container.yml; then
+          if git diff --quiet origin/${{ github.base_ref }} -- Dockerfile api/ R/ renv.lock .trivyignore .github/workflows/scan-container.yml; then
             echo "api_changed=false" >> $GITHUB_OUTPUT
           else
             echo "api_changed=true" >> $GITHUB_OUTPUT
@@ -38,7 +38,7 @@ jobs:
 
       - name: Build image
         if: steps.api_changed.outputs.api_changed == 'true'
-        run: docker build -f Dockerfile.azure -t netballstats-api:scan .
+        run: docker build -f Dockerfile -t netballstats-api:scan .
 
       # Install Trivy directly from GitHub Releases instead of via a third-party
       # GitHub Action. The aquasecurity/trivy-action and setup-trivy actions were

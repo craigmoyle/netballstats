@@ -19,7 +19,7 @@
 /api/R/                                         @craigmoyle
 
 # API configuration and build
-/Dockerfile.azure                               @craigmoyle
+/Dockerfile                                     @craigmoyle
 /renv.lock                                      @craigmoyle
 /renv/                                          @craigmoyle
 
@@ -34,14 +34,6 @@
 
 # Database schema and migrations
 /scripts/schema/                                @craigmoyle
-
-# =============================================================================
-# Infrastructure and Deployment (Azure/Bicep/IaC)
-# =============================================================================
-
-# Azure deployment configuration
-/azure.yaml                                     @craigmoyle
-/infra/                                         @craigmoyle
 
 # GitHub Actions workflows
 /.github/workflows/                             @craigmoyle
@@ -72,10 +64,6 @@
 /player/                                        @craigmoyle
 /international/                                 @craigmoyle
 
-# Static web app configuration
-/staticwebapp.config.json                       @craigmoyle
-/_headers                                       @craigmoyle
-
 # =============================================================================
 # Repository Configuration and Documentation
 # =============================================================================
@@ -101,7 +89,6 @@
 
 # Scripts (data refresh, testing, utilities)
 /scripts/                                       @craigmoyle
-/scripts/usage-telemetry.kql                   @craigmoyle
 /scripts/test_api_regression.R                 @craigmoyle
 
 # Configuration files

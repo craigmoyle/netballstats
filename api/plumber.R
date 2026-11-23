@@ -165,10 +165,6 @@ request_path_for_logs <- function(req) {
   sub("\\?.*$", "", raw_path)
 }
 
-browser_telemetry_connection_string <- function() {
-  trimws(Sys.getenv("NETBALL_STATS_BROWSER_APPINSIGHTS_CONNECTION_STRING", ""))
-}
-
 browser_telemetry_enabled <- function() {
   !identical(telemetry_sink_mode(), "none")
 }
@@ -233,52 +229,6 @@ allowed_browser_event_names <- c(
 
 allowed_browser_traffic_classes <- c("public", "internal", "testing")
 
-parse_connection_string_fields <- function(connection_string) {
-  fields <- list()
-  parts <- strsplit(connection_string %||% "", ";", fixed = TRUE)[[1]]
-  for (part in parts) {
-    entry <- strsplit(part, "=", fixed = TRUE)[[1]]
-    if (length(entry) != 2L) {
-      next
-    }
-    fields[[tolower(trimws(entry[[1]]))]] <- trimws(entry[[2]])
-  }
-  fields
-}
-
-browser_telemetry_ingestion_url <- function() {
-  fields <- parse_connection_string_fields(browser_telemetry_connection_string())
-  instrumentation_key <- fields[["instrumentationkey"]] %||% ""
-  if (!nzchar(instrumentation_key)) {
-    return(NULL)
-  }
-
-  endpoint <- fields[["ingestionendpoint"]] %||% ""
-  if (!nzchar(endpoint)) {
-    endpoint_suffix <- fields[["endpointsuffix"]] %||% "services.visualstudio.com"
-    location <- fields[["location"]] %||% ""
-    endpoint <- sprintf(
-      "https://%sdc.%s",
-      if (nzchar(location)) paste0(location, ".") else "",
-      endpoint_suffix
-    )
-  }
-
-  sprintf("%s/v2/track", sub("/+$", "", endpoint))
-}
-
-browser_telemetry_instrumentation_key <- function() {
-  fields <- parse_connection_string_fields(browser_telemetry_connection_string())
-  fields[["instrumentationkey"]] %||% ""
-}
-
-# Format timestamp for telemetry in ISO8601 format with milliseconds (UTC)
-# @param time Timestamp to format (default: current time)
-# @return Character string in ISO8601 format with UTC timezone: "2024-01-15T10:30:45.123Z"
-telemetry_iso_time <- function(time = Sys.time()) {
-  format(as.POSIXct(time, tz = "UTC"), "%Y-%m-%dT%H:%M:%OS3Z", tz = "UTC")
-}
-
 # Safely trim and normalize telemetry string values
 # Collapses whitespace, trims leading/trailing space, enforces max length
 # Prevents high-cardinality telemetry (e.g., free-text URLs, user IDs) from bloating logs
@@ -326,7 +276,7 @@ telemetry_normalise_visit_hour_local <- function(value) {
   ""
 }
 
-# Sanitize custom telemetry properties before sending to Application Insights
+# Sanitize custom telemetry properties before storing them
 # Validates property names (alphanumeric + underscore only), trims values
 # Filters out NULL, NA, empty values to prevent sparse log rows
 # @param properties List of custom properties (key → value)
@@ -372,7 +322,7 @@ telemetry_sanitise_properties <- function(properties) {
 # Only includes non-empty fields to minimize log cardinality
 # Validates field names and normalizes whitespace
 # @param context List of context metadata from browser (session_id, user_id, viewport_bucket, etc.)
-# @return Filtered, trimmed list of context fields safe for Application Insights
+# @return Filtered, trimmed list of context fields safe for storage
 telemetry_sanitise_context <- function(context) {
   if (is.null(context) || !is.list(context)) {
     return(list())
@@ -435,184 +385,6 @@ telemetry_sanitise_context <- function(context) {
   }
 
   output
-}
-
-# Build Application Insights telemetry envelope from sanitized browser payload
-# Converts browser telemetry to Application Insights schema (JSON format)
-# Sanitizes all inputs (name, URI, context, properties)
-# Anonymizes client IP: zeros IPv4 last octet, IPv6 last 80 bits
-# Adds AI context tags (operation name, cloud role, device, session, user)
-# @param kind Character: "pageView" or "event" (determines AI baseType)
-# @param payload List with: name (string), uri (string), context (list), properties (list)
-# @param req Plumber request object (for extracting anonymized client IP)
-# @return List conforming to Application Insights 2.6 schema, ready for JSON serialization
-build_telemetry_envelope <- function(kind, payload, req) {
-  instrumentation_key <- browser_telemetry_instrumentation_key()
-  if (!nzchar(instrumentation_key)) {
-    stop("Browser telemetry instrumentation key is unavailable.", call. = FALSE)
-  }
-
-  telemetry_name <- telemetry_trim_string(payload$name, 80L)
-  telemetry_uri <- telemetry_trim_string(payload$uri, 200L)
-  telemetry_context <- telemetry_sanitise_context(payload$context)
-  telemetry_properties <- utils::modifyList(
-    telemetry_sanitise_properties(payload$properties),
-    Filter(
-      nzchar,
-      list(
-        viewport_bucket = telemetry_context$viewport_bucket %||% "",
-        browser_language = telemetry_context$browser_language %||% "",
-        referrer_host = telemetry_context$referrer_host %||% "",
-        timezone = telemetry_context$timezone %||% "",
-        device_type = telemetry_context$device_type %||% "",
-        device_os = telemetry_context$device_os %||% "",
-        device_os_version = telemetry_context$device_os_version %||% "",
-        traffic_class = telemetry_context$traffic_class %||% "",
-        site_mode = telemetry_context$site_mode %||% "",
-        visit_hour_local = telemetry_context$visit_hour_local %||% ""
-      )
-    )
-  )
-  operation_name <- if (nzchar(telemetry_uri)) telemetry_uri else telemetry_name
-  client_ip <- resolve_telemetry_client_ip(req)
-  client_ip <- telemetry_trim_string(client_ip, 80L)
-
-  tags <- list(
-    "ai.operation.name" = operation_name,
-    "ai.cloud.role" = "netballstats-browser",
-    "ai.internal.sdkVersion" = "netballstats-browser-proxy:1.0.0"
-  )
-
-  if (nzchar(client_ip)) {
-    tags[["ai.location.ip"]] <- client_ip
-  }
-
-  if (nzchar(telemetry_context$device_type %||% "")) {
-    tags[["ai.device.type"]] <- telemetry_context$device_type
-  }
-  if (nzchar(telemetry_context$device_os %||% "")) {
-    tags[["ai.device.os"]] <- telemetry_context$device_os
-  }
-  if (nzchar(telemetry_context$device_os_version %||% "")) {
-    tags[["ai.device.osVersion"]] <- telemetry_context$device_os_version
-  }
-
-  if (nzchar(telemetry_context$session_id %||% "")) {
-    tags[["ai.session.id"]] <- telemetry_context$session_id
-  }
-  if (nzchar(telemetry_context$user_id %||% "")) {
-    tags[["ai.user.id"]] <- telemetry_context$user_id
-  }
-  if (nzchar(telemetry_context$operation_id %||% "")) {
-    tags[["ai.operation.id"]] <- telemetry_context$operation_id
-  }
-
-  list(
-    time = telemetry_iso_time(),
-    iKey = instrumentation_key,
-    name = sprintf(
-      "Microsoft.ApplicationInsights.%s.%s",
-      gsub("-", "", instrumentation_key, fixed = TRUE),
-      if (identical(kind, "pageView")) "Pageview" else "Event"
-    ),
-    tags = tags,
-    data = list(
-      baseType = if (identical(kind, "pageView")) "PageviewData" else "EventData",
-      baseData = if (identical(kind, "pageView")) {
-        list(
-          ver = 2,
-          name = telemetry_name,
-          url = telemetry_uri,
-          properties = telemetry_properties
-        )
-      } else {
-        list(
-          ver = 2,
-          name = telemetry_name,
-          properties = telemetry_properties
-        )
-      }
-    )
-  )
-}
-
-forward_browser_telemetry <- function(kind, payload, req) {
-  if (identical(telemetry_sink_mode(), "postgres")) {
-    return(store_browser_telemetry(build_stored_telemetry_record(kind, payload, req)))
-  }
-
-  ingestion_url <- browser_telemetry_ingestion_url()
-  if (!nzchar(ingestion_url %||% "")) {
-    stop("Browser telemetry ingestion endpoint is unavailable.", call. = FALSE)
-  }
-
-  envelope <- build_telemetry_envelope(kind, payload, req)
-  response <- httr::POST(
-    url = ingestion_url,
-    body = jsonlite::toJSON(list(envelope), auto_unbox = TRUE, null = "null"),
-    encode = "raw",
-    httr::add_headers(.headers = c(
-      "Content-Type" = "application/json",
-      "User-Agent" = telemetry_trim_string(req$HTTP_USER_AGENT %||% "netballstats-browser-proxy/1.0", 240L),
-      "Accept-Language" = telemetry_trim_string(req$HTTP_ACCEPT_LANGUAGE %||% "", 120L)
-    )),
-    httr::timeout(5)
-  )
-
-  status <- httr::status_code(response)
-  if (status < 200L || status >= 300L) {
-    stop(sprintf("Telemetry ingestion failed with status %s.", status), call. = FALSE)
-  }
-
-  invisible(TRUE)
-}
-
-forward_feedback_submission <- function(category, message, req) {
-  if (!browser_telemetry_enabled()) {
-    stop("Feedback forwarding is unavailable.", call. = FALSE)
-  }
-
-  trimmed_message <- feedback_normalise_message(message)
-  # Server-only inbox event — must NOT be in allowed_browser_event_names.
-  payload <- list(
-    name = FEEDBACK_INBOX_EVENT_NAME,
-    uri = "/ideas/",
-    properties = list(
-      category = feedback_category_label(category),
-      message = trimmed_message,
-      message_length = as.character(nchar(trimmed_message))
-    ),
-    context = list()
-  )
-
-  if (identical(telemetry_sink_mode(), "postgres")) {
-    return(store_feedback_submission(category, trimmed_message, req))
-  }
-
-  envelope <- build_telemetry_envelope("event", payload, req)
-  envelope$tags[["ai.internal.sdkVersion"]] <- "netballstats-feedback:1.0.0"
-  envelope$tags[["ai.cloud.role"]] <- "netballstats-feedback"
-  envelope$data$baseData$properties$message <- trimmed_message
-
-  ingestion_url <- browser_telemetry_ingestion_url()
-  response <- httr::POST(
-    url = ingestion_url,
-    body = jsonlite::toJSON(list(envelope), auto_unbox = TRUE, null = "null"),
-    encode = "raw",
-    httr::add_headers(.headers = c(
-      "Content-Type" = "application/json",
-      "User-Agent" = telemetry_trim_string(req$HTTP_USER_AGENT %||% "netballstats-feedback/1.0", 240L),
-      "Accept-Language" = telemetry_trim_string(req$HTTP_ACCEPT_LANGUAGE %||% "", 120L)
-    )),
-    httr::timeout(2)
-  )
-
-  status <- httr::status_code(response)
-  if (status < 200L || status >= 300L) {
-    stop(sprintf("Feedback forwarding failed with status %s.", status), call. = FALSE)
-  }
-
-  invisible(TRUE)
 }
 
 parse_browser_telemetry_request <- function(req) {
@@ -699,7 +471,7 @@ request_log_event <- function(status, duration_ms) {
 }
 
 #* @apiTitle Netball Stats API
-#* @apiDescription Read-only Super Netball statistics API backed by a PostgreSQL database built with superNetballR.
+#* @apiDescription Super Netball statistics API with read-only archive endpoints and narrow telemetry/feedback writes to PostgreSQL.
 
 #* @filter security_headers
 function(req, res) {
@@ -1188,9 +960,9 @@ function(res) {
   )
 }
 
-#* Serve application metadata: instrumentation key, season years, API version, DB refresh timestamp
+#* Serve application metadata: seasons, API version, DB refresh timestamp, and telemetry availability
 #* Cached in-process for 30 minutes (refreshed on DB rebuild)
-#* Critical for bootstrapping browser telemetry (instrumentation_key needed before first pageView)
+#* Used to enable browser telemetry when the private PostgreSQL sink is configured
 #* Returns 503 if database unavailable (with stale cache fallback if available)
 #* @get /meta
 #* @get /api/meta
@@ -1244,7 +1016,7 @@ function(req, res) {
 
   result <- tryCatch({
     telemetry_request <- parse_browser_telemetry_request(req)
-    forward_browser_telemetry(telemetry_request$kind, telemetry_request$payload, req)
+    store_browser_telemetry(build_stored_telemetry_record(telemetry_request$kind, telemetry_request$payload, req))
     api_log(
       "INFO",
       "browser_telemetry_forwarded",
@@ -1303,7 +1075,7 @@ function(req, res) {
     forwarded <- FALSE
     if (browser_telemetry_enabled()) {
       forwarded <- tryCatch({
-        forward_feedback_submission(validated$category, validated$message, req)
+        store_feedback_submission(validated$category, validated$message, req)
         TRUE
       }, error = function(error) {
         api_log(

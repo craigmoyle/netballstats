@@ -1082,7 +1082,7 @@ write_database <- function(tables, build_mode) {
     DBI::dbExecute(conn, "CREATE INDEX idx_players_search_name ON players(search_name)")
     DBI::dbExecute(conn, "CREATE INDEX idx_player_aliases_search_name ON player_aliases(alias_search_name, player_id)")
     # pg_trgm GIN indexes for LIKE '%foo%' player search queries — converts full-table scans to
-    # sub-millisecond GIN lookups. pg_trgm is pre-loaded on Azure PostgreSQL Flexible Server.
+    # sub-millisecond GIN lookups. pg_trgm is installed on the PostgreSQL server.
     DBI::dbExecute(conn, "CREATE EXTENSION IF NOT EXISTS pg_trgm")
     DBI::dbExecute(conn, "CREATE INDEX idx_players_search_trgm ON players USING gin(search_name gin_trgm_ops)")
     DBI::dbExecute(conn, "CREATE INDEX idx_player_aliases_search_trgm ON player_aliases USING gin(alias_search_name gin_trgm_ops)")
