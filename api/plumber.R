@@ -40,6 +40,7 @@ options(netballstats.repo_root = repo_root_path)
 source(file.path(repo_root_path, "R", "database.R"), local = TRUE)
 source(file.path(repo_root_path, "R", "player_reference.R"), local = TRUE)
 source(file.path(repo_root_path, "api", "R", "helpers.R"), local = TRUE)
+source(file.path(repo_root_path, "api", "R", "telemetry_sink.R"), local = TRUE)
 source(file.path(repo_root_path, "api", "R", "international_helpers.R"), local = TRUE)
 source(file.path(repo_root_path, "api", "R", "parse_question.R"), local = TRUE)
 
@@ -169,7 +170,7 @@ browser_telemetry_connection_string <- function() {
 }
 
 browser_telemetry_enabled <- function() {
-  nzchar(browser_telemetry_connection_string())
+  !identical(telemetry_sink_mode(), "none")
 }
 
 meta_json_scalar <- function(value, default = NULL) {
@@ -296,6 +297,15 @@ telemetry_normalise_traffic_class <- function(value) {
   }
 
   normalised
+}
+
+telemetry_default_traffic_class <- function(req = NULL) {
+  host <- tolower(trimws(as.character(req$HTTP_HOST %||% "")[[1]]))
+  host <- sub(":\\d+$", "", host)
+  testing_hosts <- tolower(trimws(strsplit(Sys.getenv("NETBALL_STATS_TESTING_HOSTS", ""), ",", fixed = TRUE)[[1]]))
+  testing_hosts <- testing_hosts[nzchar(testing_hosts)]
+  if (host %in% testing_hosts) return("testing")
+  telemetry_normalise_traffic_class(Sys.getenv("NETBALL_STATS_DEFAULT_TRAFFIC_CLASS", ""))
 }
 
 telemetry_normalise_site_mode <- function(value) {
@@ -527,6 +537,10 @@ build_telemetry_envelope <- function(kind, payload, req) {
 }
 
 forward_browser_telemetry <- function(kind, payload, req) {
+  if (identical(telemetry_sink_mode(), "postgres")) {
+    return(store_browser_telemetry(build_stored_telemetry_record(kind, payload, req)))
+  }
+
   ingestion_url <- browser_telemetry_ingestion_url()
   if (!nzchar(ingestion_url %||% "")) {
     stop("Browser telemetry ingestion endpoint is unavailable.", call. = FALSE)
@@ -570,6 +584,10 @@ forward_feedback_submission <- function(category, message, req) {
     ),
     context = list()
   )
+
+  if (identical(telemetry_sink_mode(), "postgres")) {
+    return(store_feedback_submission(category, trimmed_message, req))
+  }
 
   envelope <- build_telemetry_envelope("event", payload, req)
   envelope$tags[["ai.internal.sdkVersion"]] <- "netballstats-feedback:1.0.0"
@@ -634,6 +652,10 @@ parse_browser_telemetry_request <- function(req) {
   payload$uri <- telemetry_trim_string(payload$uri, 200L)
   payload$properties <- telemetry_sanitise_properties(payload$properties)
   payload$context <- telemetry_sanitise_context(payload$context)
+  default_traffic_class <- telemetry_default_traffic_class(req)
+  if (nzchar(default_traffic_class)) {
+    payload$context$traffic_class <- default_traffic_class
+  }
 
   list(kind = kind, payload = payload)
 }
@@ -905,7 +927,7 @@ build_meta_payload <- function(conn) {
     build_mode = meta_json_scalar(metadata_map[["build_mode"]], default = "production"),
     refreshed_at = meta_json_scalar(metadata_map[["refreshed_at"]]),
     telemetry = list(
-      provider = meta_json_scalar(if (browser_telemetry_enabled()) "appinsights" else "none"),
+      provider = meta_json_scalar(telemetry_sink_mode()),
       browser_enabled = meta_json_scalar(browser_telemetry_enabled())
     )
   )
@@ -1207,7 +1229,7 @@ function(res) {
   })
 }
 
-#* Receive browser telemetry and forward to Application Insights
+#* Receive browser telemetry and write to the configured sink
 #* Parses and validates browser payload (name, uri, context, properties, custom metrics)
 #* Sanitizes all strings to prevent high-cardinality telemetry and privacy leaks
 #* Returns 202 Accepted on success, 204 No Content if telemetry is disabled (via env var)
@@ -1247,13 +1269,17 @@ function(req, res) {
       error_class = class(error)[[1]] %||% "unknown",
       error_message = substr(msg, 1L, 200L)
     )
-    json_error(res, 400, if (is_validation_error) msg else "Telemetry request could not be processed.")
+    if (is_validation_error) {
+      json_error(res, 400, msg)
+    } else {
+      json_error(res, 503, "Telemetry could not be stored. Try again shortly.")
+    }
   })
 
   result
 }
 
-#* Receive user feedback and forward to Application Insights
+#* Receive user feedback and write to the configured sink
 #* Returns 202 Accepted on success; silently accepts suspected spam with 202
 #* Returns 400 Bad Request when validation fails
 #* Returns 429 Too Many Requests when the feedback rate limit is exceeded
@@ -1290,6 +1316,11 @@ function(req, res) {
         )
         FALSE
       })
+    }
+
+    if (!forwarded && browser_telemetry_enabled()) {
+      res$status <- 503
+      return(list(error = "Feedback could not be saved. Try again shortly."))
     }
 
     if (!forwarded) {

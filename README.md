@@ -1,8 +1,8 @@
 # Netball Stats Website
 
-`netballstats` is an editorial Super Netball archive: a static frontend on Azure Static Web Apps, a read-only R Plumber API on Azure Container Apps, and a PostgreSQL database refreshed by scheduled Container Apps jobs using `superNetballR`.
+`netballstats` is an editorial Super Netball archive. The public site now runs on the shared 4-vCPU/8-GiB Debian VPS at `https://statsball.net`; `https://vps.statsball.net` remains an operator alias. Caddy serves the static site and same-origin API, with private PostgreSQL, local systemd refresh timers, and a PostgreSQL telemetry/feedback sink. The weekly usage report is a root-only Markdown file over SSH. Azure Static Web Apps, API, database, and refresh jobs remain available as rollback during the agreed window.
 
-The production operating model is now **Azure + PostgreSQL first**. Legacy Render/Cloudflare deployment notes remain below as an alternative, but the repo, docs, and runtime defaults are centred on the Azure stack.
+The production operating model is now **VPS + PostgreSQL first**. Legacy Render/Cloudflare deployment notes remain below as alternatives; Azure guidance is retained only for the rollback window.
 
 ## What’s in the app
 
@@ -171,11 +171,13 @@ The application is intentionally conservative:
 - **Rate limiting**: the API applies a simple request-per-minute guard.
 - **Secrets in Key Vault**: Azure deployment keeps DB credentials out of repo files.
 - **Structured request telemetry**: the API logs request path, status, latency, and slow/failing requests without dumping raw database errors into normal logs.
-- **Privacy-safe usage telemetry**: browser page views and curated feature events flow to Azure Application Insights without logging raw Ask the Stats question text or auto-capturing fetch/XHR URLs.
+- **Privacy-safe usage telemetry**: Azure rollback still uses Application Insights; the public VPS uses the private PostgreSQL sink and SSH-readable weekly report without logging raw Ask the Stats question text or auto-capturing fetch/XHR URLs.
 
-## Azure deployment (primary path)
+## Azure deployment (rollback path)
 
-This repository is prepared for:
+Azure resources remain available for the rollback window; the VPS is the current public path. Keep these deployment references until rollback closes, then remove only Stats-specific resources after checking shared consumers.
+
+This repository retains configuration for:
 
 - **Azure Static Web Apps Standard** for the frontend
 - **Azure Container Apps** for the R Plumber API

@@ -894,6 +894,9 @@ assert_true(
 )
 check_step('rate limiter tolerates blank forwarded IP tokens')
 
+old_azure_proxy_setting <- Sys.getenv('NETBALL_STATS_TRUST_AZURE_CLIENT_IP', unset = NA_character_)
+old_trusted_proxies <- Sys.getenv('NETBALL_STATS_TRUSTED_PROXY_IPS', unset = NA_character_)
+Sys.setenv(NETBALL_STATS_TRUST_AZURE_CLIENT_IP = 'true', NETBALL_STATS_TRUSTED_PROXY_IPS = '127.0.0.1')
 assert_true(
   identical(helpers_env$anonymize_client_ip('203.0.113.45'), '203.0.113.0'),
   'Expected telemetry IP anonymisation to zero the last IPv4 octet.'
@@ -955,6 +958,35 @@ assert_true(
   'Expected rate-limit client key to fall back to leftmost X-Forwarded-For.'
 )
 check_step('rate-limit client key prefers platform-asserted IPs')
+
+Sys.setenv(NETBALL_STATS_TRUST_AZURE_CLIENT_IP = 'false', NETBALL_STATS_TRUSTED_PROXY_IPS = '172.30.0.2')
+assert_true(
+  identical(helpers_env$resolve_rate_limit_client_key(list(
+    HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
+    HTTP_X_FORWARDED_FOR = '198.51.100.10',
+    REMOTE_ADDR = '198.51.100.22'
+  )), '198.51.100.22'),
+  'Expected untrusted client headers to be ignored when Azure proxy trust is disabled.'
+)
+assert_true(
+  identical(helpers_env$resolve_rate_limit_client_key(list(
+    HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
+    HTTP_X_FORWARDED_FOR = '198.51.100.10',
+    REMOTE_ADDR = '172.30.0.2'
+  )), '198.51.100.10'),
+  'Expected the configured Caddy peer to supply the client IP.'
+)
+assert_true(
+  identical(helpers_env$resolve_telemetry_client_ip(list(
+    HTTP_X_AZURE_CLIENTIP = '203.0.113.45',
+    HTTP_X_FORWARDED_FOR = '198.51.100.10',
+    REMOTE_ADDR = '172.30.0.2'
+  )), '198.51.100.0'),
+  'Expected telemetry to trust forwarded IP only from the configured Caddy peer.'
+)
+if (is.na(old_azure_proxy_setting)) Sys.unsetenv('NETBALL_STATS_TRUST_AZURE_CLIENT_IP') else Sys.setenv(NETBALL_STATS_TRUST_AZURE_CLIENT_IP = old_azure_proxy_setting)
+if (is.na(old_trusted_proxies)) Sys.unsetenv('NETBALL_STATS_TRUSTED_PROXY_IPS') else Sys.setenv(NETBALL_STATS_TRUSTED_PROXY_IPS = old_trusted_proxies)
+check_step('proxy IP trust is explicitly configured')
 
 assert_true(identical(helpers_env$FEEDBACK_INBOX_EVENT_NAME, 'feedback_inbox_item'), 'Expected server-only inbox event name.')
 assert_true(!('feedback_inbox_item' %in% plumber_helpers_env$allowed_browser_event_names), 'Expected feedback_inbox_item to be blocked from browser telemetry.')
@@ -2016,7 +2048,7 @@ if (file.exists(helpers_path)) {
         "DB: match_scoreflow_summary comeback_deficit_points nonzero without comeback_win")
 
       check_step(sprintf(
-        "match_scoreflow_summary DB validation pass (%d rows, %d with scoreflow coverage)",
+        "match_scoreflow_summary DB validation pass (%s rows, %s with scoreflow coverage)",
         coverage$total_rows, coverage$scoreflow_rows
       ))
     }, finally = {

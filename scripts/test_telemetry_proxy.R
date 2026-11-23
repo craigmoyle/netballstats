@@ -49,5 +49,6 @@ assert_true(
   identical(event_envelope$data$baseData$properties$traffic_class, "testing"),
   "Expected telemetry envelope properties to include the normalized traffic_class."
 )
+assert_true(identical(telemetry_sink_mode(), "appinsights"), "Expected Application Insights to remain the selected sink when configured.")
 
 cat("Telemetry proxy checks passed.\n")
