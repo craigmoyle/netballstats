@@ -102,7 +102,7 @@ store_feedback_submission <- function(category, message, req) {
   ), params = list(
     category,
     feedback_normalise_message(message),
-    telemetry_optional_value(telemetry_default_traffic_class()),
+    telemetry_optional_value(telemetry_default_traffic_class(req)),
     telemetry_optional_value(resolve_telemetry_client_ip(req))
   ))
 

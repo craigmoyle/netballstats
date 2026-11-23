@@ -299,7 +299,12 @@ telemetry_normalise_traffic_class <- function(value) {
   normalised
 }
 
-telemetry_default_traffic_class <- function() {
+telemetry_default_traffic_class <- function(req = NULL) {
+  host <- tolower(trimws(as.character(req$HTTP_HOST %||% "")[[1]]))
+  host <- sub(":\\d+$", "", host)
+  testing_hosts <- tolower(trimws(strsplit(Sys.getenv("NETBALL_STATS_TESTING_HOSTS", ""), ",", fixed = TRUE)[[1]]))
+  testing_hosts <- testing_hosts[nzchar(testing_hosts)]
+  if (host %in% testing_hosts) return("testing")
   telemetry_normalise_traffic_class(Sys.getenv("NETBALL_STATS_DEFAULT_TRAFFIC_CLASS", ""))
 }
 
@@ -647,7 +652,7 @@ parse_browser_telemetry_request <- function(req) {
   payload$uri <- telemetry_trim_string(payload$uri, 200L)
   payload$properties <- telemetry_sanitise_properties(payload$properties)
   payload$context <- telemetry_sanitise_context(payload$context)
-  default_traffic_class <- telemetry_default_traffic_class()
+  default_traffic_class <- telemetry_default_traffic_class(req)
   if (nzchar(default_traffic_class)) {
     payload$context$traffic_class <- default_traffic_class
   }
