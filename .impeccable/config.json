@@ -10,8 +10,7 @@
     "ignoreRules": [],
     "ignoreFiles": [
       "nwar/index.html",
-      "scripts/weekly_report_email.js",
-      "infra/weekly-usage-report.json"
+      "scripts/weekly_report_email.js"
     ],
     "ignoreValues": [
       {

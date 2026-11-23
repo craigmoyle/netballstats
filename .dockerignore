@@ -25,7 +25,6 @@ _headers
 
 # CI/CD and deployment config
 .github/
-render.yaml
 
 # Documentation and threat models
 *.md
