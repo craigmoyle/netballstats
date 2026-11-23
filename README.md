@@ -1,6 +1,6 @@
 # Netball Stats Website
 
-`netballstats` is an editorial Super Netball archive. The public site now runs on the shared 4-vCPU/8-GiB Debian VPS at `https://statsball.net`; `https://vps.statsball.net` remains an operator alias. Caddy serves the static site and same-origin API, with private PostgreSQL, local systemd refresh timers, and a PostgreSQL telemetry/feedback sink. The weekly usage report is a root-only Markdown file over SSH. Azure Static Web Apps, API, database, and refresh jobs remain available as rollback during the agreed window.
+`netballstats` is an editorial Super Netball archive. The public site runs on the shared 4-vCPU/8-GiB Debian VPS at `https://statsball.net`. Caddy serves the static site and same-origin API, with private PostgreSQL, local systemd refresh timers, and a PostgreSQL telemetry/feedback sink. The weekly usage report is a root-only Markdown file over SSH. Azure Stats workloads remain available as rollback during the agreed window.
 
 The production operating model is now **VPS + PostgreSQL first**. Legacy Render/Cloudflare deployment notes remain below as alternatives; Azure guidance is retained only for the rollback window.
 

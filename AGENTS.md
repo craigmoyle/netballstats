@@ -34,8 +34,8 @@ This file captures the repo-specific context, decisions, and operating guidance 
 
 ## VPS production
 
-- `https://statsball.net` now resolves to the VPS and is the public Stats site. `https://vps.statsball.net` remains an operator alias; its telemetry host is server-tagged `testing`.
-- Caddy serves the site and same-origin API on both names. The API allows both HTTPS origins; telemetry from the staging alias is excluded from public totals.
+- `https://statsball.net` resolves to the VPS and is the public Stats site.
+- Caddy serves the site and same-origin API on the primary hostname. The API allows the primary HTTPS origin; browser telemetry uses the public class by default.
 - The VPS hosts Trials TEST separately with its own private database. PostgreSQL has no published host port.
 - VPS telemetry and Ideas feedback use the private `telemetry` schema in `netballstats`; the writer is insert-only and archive access stays read-only. The weekly SSH-readable report is root-only and prunes records older than 90 days.
 - The Stats API trusts `X-Forwarded-For` only from the fixed Caddy container IP configured in `NETBALL_STATS_TRUSTED_PROXY_IPS`; Azure client-IP headers are explicitly enabled only in the rollback environment.
