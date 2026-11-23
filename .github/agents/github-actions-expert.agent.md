@@ -58,7 +58,7 @@ Before creating or modifying workflows:
 
 Eliminate long-lived credentials:
 - **AWS**: Configure IAM role with trust policy for GitHub OIDC provider
-- **Azure**: Use workload identity federation
+- **Cloud credentials**: Prefer short-lived workload identity federation over static secrets
 - **GCP**: Use workload identity provider
 - Requires `id-token: write` permission
 

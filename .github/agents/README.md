@@ -5,10 +5,6 @@ This directory is the repo’s single shared home for agent playbooks that are u
 ## Use these first
 
 - `accessibility.agent.md` — UI accessibility review and remediation
-- `azure-iac-generator.agent.md` — Azure infrastructure generation
-- `azure-principal-architect.agent.md` — Entra/RBAC identity and access design
-- `bicep-plan.agent.md` — infrastructure planning for Bicep changes
-- `bicep-implement.agent.md` — Bicep implementation changes
 - `devops-expert.agent.md` — deployment, CI/CD, and repo operations
 - `github-actions-expert.agent.md` — workflow and automation changes
 - `postgresql-dba.agent.md` — database design and query review

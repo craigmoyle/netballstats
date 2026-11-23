@@ -23,12 +23,9 @@ compare/
 round/
 _headers
 
-# Infrastructure, CI/CD, and deploy config
-infra/
+# CI/CD and deployment config
 .github/
-azure.yaml
 render.yaml
-staticwebapp.config.json
 
 # Documentation and threat models
 *.md

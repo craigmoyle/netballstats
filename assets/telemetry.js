@@ -1,6 +1,6 @@
 (function () {
   const state = {
-    appInsights: null,
+    telemetryClient: null,
     browserConfig: null,
     initPromise: null,
     metaPromise: null,
@@ -467,16 +467,16 @@
   }
 
   function flushQueue() {
-    if (!state.appInsights || !state.queue.length) {
+    if (!state.telemetryClient || !state.queue.length) {
       return;
     }
 
     const pending = state.queue.splice(0, state.queue.length);
     pending.forEach((entry) => {
       if (entry.kind === "pageView") {
-        state.appInsights.trackPageView(entry.payload);
+        state.telemetryClient.trackPageView(entry.payload);
       } else if (entry.kind === "event") {
-        state.appInsights.trackEvent(
+        state.telemetryClient.trackEvent(
           { name: entry.payload.name },
           entry.payload.properties,
           entry.payload.context
@@ -521,7 +521,7 @@
       enabled: true
     };
     state.metaPromise = Promise.resolve(state.browserConfig);
-    if (!state.appInsights) {
+    if (!state.telemetryClient) {
       state.initPromise = null;
       void ensureClient();
     }
@@ -561,8 +561,8 @@
   }
 
   async function ensureClient() {
-    if (state.appInsights) {
-      return state.appInsights;
+    if (state.telemetryClient) {
+      return state.telemetryClient;
     }
 
     if (!state.initPromise) {
@@ -572,7 +572,7 @@
           return null;
         }
 
-        state.appInsights = {
+        state.telemetryClient = {
           trackPageView(payload) {
             sendTelemetry("pageView", payload);
           },
@@ -582,12 +582,10 @@
               properties: properties || {},
               context: arguments[2] || {}
             });
-          },
-          flush() {}
+          }
         };
-        window.appInsights = state.appInsights;
         flushQueue();
-        return state.appInsights;
+        return state.telemetryClient;
       })().catch(() => {
         state.initPromise = null;
         return null;
@@ -605,8 +603,8 @@
     state.pageViewSent = true;
     const payload = pageViewPayload(properties);
 
-    if (state.appInsights) {
-      state.appInsights.trackPageView(payload);
+    if (state.telemetryClient) {
+      state.telemetryClient.trackPageView(payload);
       return;
     }
 
@@ -626,8 +624,8 @@
       })
     };
 
-    if (state.appInsights) {
-      state.appInsights.trackEvent({ name: payload.name }, payload.properties, payload.context);
+    if (state.telemetryClient) {
+      state.telemetryClient.trackEvent({ name: payload.name }, payload.properties, payload.context);
       return;
     }
 

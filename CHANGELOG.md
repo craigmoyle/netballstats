@@ -16,7 +16,7 @@ All notable changes to netballstats are documented in this file.
 - **Competition coverage**: Exhaustive search across all women's competitions to identify every Diamonds match — 29 competitions and 200+ matches across 13 years of data
 - **Stat selectors on leaderboards**: Player and team stat dropdowns (points, goal assists, feeds, gains, intercepts, etc.) with dynamic table captions
 - **Unified two-section navigation**: Top nav separates Super Netball and Australian Diamonds sections with a divider
-- **Dedicated data pipeline**: Separate Azure Container Apps jobs rebuild international data on Tuesday/Friday schedules
+- **Dedicated data pipeline**: International data refreshes run on Tuesday/Friday schedules
 - **Database tables**: `international_matches`, `international_teams`, `international_players`, `international_player_match_stats` (long-format stats, same schema discipline as Super Netball tables)
 
 #### Code Quality & Reliability
@@ -65,7 +65,6 @@ All notable changes to netballstats are documented in this file.
 - **International team leaders**: Aggregates from `international_player_match_stats` (no separate team stats table); uses `LEFT JOIN + COALESCE` to handle squad_id mismatches on the points stat
 - **International competition discovery**: Replaced name-heuristic search with exhaustive check of all women's competitions; coverage increased from 13 to 29 competitions (60 → 200+ matches)
 - **International players endpoint**: Fixed crash on empty search param (`nzchar(NULL)` → `logical(0)` → "argument is of length zero"); rewrote to use incremental params pattern
-- **Stale Container App revision**: Deactivated old revision that was handling live traffic despite 0% weight
 - **Docker layer cache**: Added `ARG BUILD_TIMESTAMP` to force fresh `COPY` of R files on each deploy
 - **Docker Container Startup**: Fixed API startup failure by installing R packages in runtime stage (not build stage) and disabling project `.Rprofile` to prevent renv activation
 - **Round Preview UX**: Player stats now grouped under single teal team heading; round preview shows in-progress rounds and auto-advances when complete
@@ -101,9 +100,7 @@ All notable changes to netballstats are documented in this file.
 - Responsive design for mobile and desktop
 
 ### API Infrastructure [Released]
-- Deployed API on Azure Container Apps
-- Configured PostgreSQL Flexible Server database
-- Set up scheduled database refresh jobs
+- Added the read-only statistics API and scheduled database refresh jobs
 - Implemented rate limiting and error telemetry
 
 ### Initial Archive [Released]

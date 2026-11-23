@@ -37,8 +37,6 @@ netballstats/
 │   └── ...
 ├── assets/                     # Shared frontend scripts and styles
 ├── scripts/                    # Data refresh and utilities
-├── infra/                      # Azure infrastructure (Bicep)
-├── azure.yaml                  # Azure deployment configuration
 ├── package.json                # Frontend dependencies
 ├── AGENTS.md                   # Canonical agent operating guidance (harness-neutral)
 ├── CLAUDE.md                   # Product design context for UI/copy work
@@ -86,17 +84,13 @@ ls dist/
 # Restore R dependencies with renv
 Rscript -e "renv::restore()"
 
-# Test the API locally (if Docker available)
-docker build -f Dockerfile.azure -t netballstats-api .
-docker run -p 8000:8000 netballstats-api
-
-# Or validate R syntax
+# Validate R syntax
 Rscript -e "parse(file='api/plumber.R')"
 ```
 
 ### Database Development
 
-- The database is Azure PostgreSQL Flexible Server (production)
+- The hosted archive database is private PostgreSQL on the VPS
 - See `scripts/build_database.R` for schema and refresh logic
 - See `AGENTS.md` for database conventions and helper functions
 
@@ -250,9 +244,8 @@ Use **Squash and merge** or **Rebase and merge**. Do not create merge commits.
 
 ### After Merge
 
-- The frontend deploys automatically via Azure Static Web Apps
-- Database refresh jobs remain synchronized through the Azure deployment process
-- Monitor deployment status and logs if something looks off
+- Merging to `main` does not deploy the hosted site. VPS releases are operator-managed.
+- Refresh jobs run locally on systemd timers; check their status after changing the build or data pipeline.
 
 ---
 

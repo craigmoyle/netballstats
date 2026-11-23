@@ -2,5 +2,4 @@
 # These are well-known demo keys from https://github.com/jeroen/openssl - not real secrets.
 # Suppressed via --skip-files in the workflow; this file documents the rationale.
 #
-# No CVE suppressions currently needed - linux-libc-dev is purged in Dockerfile.azure
-# after the build step, eliminating the kernel header CVEs at image scan time.
+# No CVE suppressions are currently needed; build dependencies stay out of the runtime image.

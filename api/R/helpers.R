@@ -38,13 +38,6 @@ resolve_stats_request_client_ip <- function(req) {
   remote_addr <- trimws(as.character(req$REMOTE_ADDR %||% "unknown")[[1]])
   if (!nzchar(remote_addr)) remote_addr <- "unknown"
 
-  if (identical(tolower(trimws(Sys.getenv("NETBALL_STATS_TRUST_AZURE_CLIENT_IP", "false"))), "true")) {
-    for (header_name in c("HTTP_X_AZURE_CLIENTIP", "HTTP_X_MS_CLIENT_IP")) {
-      candidate <- trimws(as.character(req[[header_name]] %||% "")[[1]])
-      if (nzchar(candidate)) return(candidate)
-    }
-  }
-
   trusted_proxies <- trimws(strsplit(Sys.getenv("NETBALL_STATS_TRUSTED_PROXY_IPS", ""), ",", fixed = TRUE)[[1]])
   trusted_proxies <- trusted_proxies[nzchar(trusted_proxies)]
   if (remote_addr %in% trusted_proxies) {

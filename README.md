@@ -1,8 +1,6 @@
 # Netball Stats Website
 
-`netballstats` is an editorial Super Netball archive. The public site runs on the shared 4-vCPU/8-GiB Debian VPS at `https://statsball.net`. Caddy serves the static site and same-origin API, with private PostgreSQL, local systemd refresh timers, and a PostgreSQL telemetry/feedback sink. The weekly usage report is a root-only Markdown file over SSH. Azure Stats workloads remain available as rollback during the agreed window.
-
-The production operating model is now **VPS + PostgreSQL first**. Legacy Render/Cloudflare deployment notes remain below as alternatives; Azure guidance is retained only for the rollback window.
+`netballstats` is an editorial Super Netball archive. Its only public site is `https://statsball.net`, hosted on the self-managed VPS. Caddy serves the static site and same-origin API; PostgreSQL is private, refreshes run on local systemd timers, and the archive database is rebuilt from Champion Data. Browser telemetry and feedback use a private PostgreSQL schema and are the only public write paths. The weekly usage report is a root-only Markdown file available over SSH.
 
 ## What’s in the app
 
@@ -51,7 +49,6 @@ International data is refreshed using the `scripts/build_international_database.
 - `scripts/run_api.R`: local API runner
 - `scripts/test_api_regression.R`: endpoint smoke/regression checks
 - `config/competitions.csv`: season-to-competition manifest
-- `azure.yaml` + `infra/`: Azure Developer CLI and Bicep deployment files
 - `renv.lock` + `renv/`: reproducible R dependency management
 
 ## Agent guidance
@@ -83,7 +80,7 @@ docker run --rm --name netballstats-postgres \
   -e POSTGRES_DB=netballstats \
   -e POSTGRES_USER=netballstatsadmin \
   -e POSTGRES_PASSWORD=netballstatsadmin \
-  -p 5432:5432 \
+  -p 127.0.0.1:5432:5432 \
   postgres:16
 ```
 
@@ -141,7 +138,7 @@ cd /Users/craig/Git/netballstats
 python3 -m http.server 4173
 ```
 
-For non-local hosts the frontend defaults to `/api`, which matches the Azure Static Web Apps linked-backend path.
+For the hosted site the frontend defaults to `/api`, which Caddy proxies to the same-origin API.
 
 ### Run the API regression suite
 
@@ -162,139 +159,16 @@ Rscript scripts/test_api_regression.R --base-url=https://your-api.example.com
 
 The application is intentionally conservative:
 
-- **No public write endpoints**: the API is read-only.
+- **Narrow public writes only**: archive/statistics endpoints are read-only; browser telemetry and Ideas feedback use the restricted telemetry sink.
 - **Prepared SQL**: every endpoint queries through parameterized SQL.
 - **Strict validation**: seasons, limits, player IDs, team IDs, stats, and query text are validated before use.
 - **Result caps**: list endpoints enforce hard maximum limits.
 - **Explicit CORS allow-list**: only configured origins can call the API cross-origin.
 - **Security headers**: HSTS, frame busting, content-type hardening, referrer policy, and permissions policy are all set in the API.
 - **Rate limiting**: the API applies a simple request-per-minute guard.
-- **Secrets in Key Vault**: Azure deployment keeps DB credentials out of repo files.
+- **Secrets out of source control**: deployment credentials stay in root-only host configuration, not repo files.
 - **Structured request telemetry**: the API logs request path, status, latency, and slow/failing requests without dumping raw database errors into normal logs.
-- **Privacy-safe usage telemetry**: Azure rollback still uses Application Insights; the public VPS uses the private PostgreSQL sink and SSH-readable weekly report without logging raw Ask the Stats question text or auto-capturing fetch/XHR URLs.
-
-## Azure deployment (rollback path)
-
-Azure resources remain available for the rollback window; the VPS is the current public path. Keep these deployment references until rollback closes, then remove only Stats-specific resources after checking shared consumers.
-
-This repository retains configuration for:
-
-- **Azure Static Web Apps Standard** for the frontend
-- **Azure Container Apps** for the R Plumber API
-- **Azure Database for PostgreSQL Flexible Server** for the application database
-- **Azure Container Apps Jobs** for scheduled database refreshes
-- **Azure Key Vault** for secret storage
-- **Azure Container Registry** for API image builds
-- **Log Analytics** for Container Apps logs and request telemetry
-- **Application Insights (workspace-based)** for browser usage telemetry
-
-### Azure files in this repo
-
-- `azure.yaml`: Azure Developer CLI project definition
-- `infra/main.bicep`: subscription-scope entry point
-- `infra/modules/app-stack.bicep`: resource-group stack
-- `infra/main.parameters.json`: env-driven defaults for `azd`
-- `Dockerfile.azure`: API image build for Azure Container Apps
-- `staticwebapp.config.json`: Static Web Apps routing + headers
-- `scripts/usage-telemetry.kql`: ready-to-pin KQL queries for usage reporting
-- `.github/workflows/deploy-azure-static-web-app.yml`: static frontend deployment workflow
-
-### Required azd environment values
-
-```sh
-cd /Users/craig/Git/netballstats
-azd env set AZURE_LOCATION australiaeast
-azd env set NETBALL_STATS_POSTGRES_ADMIN_PASSWORD '<strong-admin-password>'
-azd env set NETBALL_STATS_POSTGRES_API_PASSWORD '<strong-readonly-password>'
-```
-
-If you use a custom frontend hostname, add it too:
-
-```sh
-azd env set NETBALL_STATS_CUSTOM_FRONTEND_HOSTNAME https://stats.example.com
-```
-
-### Optional staged private PostgreSQL networking
-
-The Bicep now includes an **opt-in** private-networking path for PostgreSQL and the Container Apps environment. It is intentionally disabled by default so current public deployments do not attempt a destructive in-place migration.
-
-Enable it only when you are ready for a staged infrastructure cutover:
-
-```sh
-azd env set NETBALL_STATS_PRIVATE_POSTGRES_NETWORKING_MODE enabled
-```
-
-Optional CIDR / DNS overrides:
-
-```sh
-azd env set NETBALL_STATS_VNET_ADDRESS_PREFIX 10.30.0.0/16
-azd env set NETBALL_STATS_CONTAINERAPPS_INFRA_SUBNET_PREFIX 10.30.0.0/21
-azd env set NETBALL_STATS_POSTGRES_DELEGATED_SUBNET_PREFIX 10.30.8.0/28
-azd env set NETBALL_STATS_POSTGRES_PRIVATE_DNS_ZONE_NAME netballstats.private.postgres.database.azure.com
-```
-
-Important notes:
-
-- enabling private networking may require Azure to recreate the Container Apps environment
-- treat it as a planned migration, not a casual toggle on a live environment
-- when private networking is enabled, the broad `0.0.0.0` PostgreSQL firewall rule is skipped automatically
-
-### Provision and deploy
-
-```sh
-cd /Users/craig/Git/netballstats
-azd provision --preview
-azd up
-```
-
-If you are deploying from Apple Silicon, keep `azure.yaml` configured with `platform: linux/amd64` for the API service.
-
-### Seed or refresh PostgreSQL
-
-`azd up` provisions infrastructure and deploys the API/frontend, but the database still needs a build from Champion Data. From a trusted machine or CI runner:
-
-```sh
-NETBALL_STATS_DB_BACKEND=postgres \
-NETBALL_STATS_DB_HOST='<postgres fqdn>' \
-NETBALL_STATS_DB_PORT=5432 \
-NETBALL_STATS_DB_NAME='netballstats' \
-NETBALL_STATS_DB_USER='netballstatsadmin' \
-NETBALL_STATS_DB_PASSWORD='<admin password>' \
-NETBALL_STATS_DB_SSLMODE=require \
-NETBALL_STATS_API_DB_USERNAME='netballstats_api' \
-NETBALL_STATS_API_DB_PASSWORD='<readonly password>' \
-Rscript scripts/build_database.R
-```
-
-The deployed stack also provisions three scheduled Container Apps jobs:
-
-- Saturday at **21:00 AEST**
-- Sunday at **18:00 AEST**
-- Tuesday at **19:00 AEST**
-
-Those jobs rebuild the database in Azure using the deployed API image, with the Tuesday run picking up late Champion Data review changes.
-
-### Validate the deployed API
-
-After deployment, run the regression checks against the public API:
-
-```sh
-NETBALL_STATS_API_BASE_URL=https://<api-fqdn> Rscript scripts/test_api_regression.R
-```
-
-### Azure deployment notes
-
-- The API uses a **user-assigned managed identity** for ACR pulls and Key Vault secret reads.
-- Container Apps probes use `/live` for liveness and `/ready` for DB readiness.
-- The API emits structured request-complete / request-slow / request-failed log lines with endpoint latency.
-- Docker builds now restore R packages from `renv.lock`, so local, CI, and Azure builds all use the same dependency set.
-
-### Usage telemetry reporting
-
-- Browser usage telemetry is intentionally limited to curated page views and feature events.
-- The frontend does **not** auto-track fetch/XHR calls, which keeps raw Ask the Stats question URLs out of browser telemetry.
-- Starter reporting queries live in `scripts/usage-telemetry.kql`.
-- Paste those queries into either the Application Insights Logs blade or the linked Log Analytics workspace, then pin the ones you care about to an Azure Dashboard or Workbook.
+- **Privacy-safe usage telemetry**: the public VPS uses a private PostgreSQL sink and SSH-readable weekly report without logging raw Ask the Stats question text or auto-capturing fetch/XHR URLs.
 
 ## Frontend build
 
@@ -306,19 +180,9 @@ npm run build
 
 That writes the deployable frontend into `dist/`.
 
-## Legacy alternative: Cloudflare Pages + Render
-
-The repo still contains `render.yaml` and the generic `Dockerfile` for a lower-cost hobby path. That route is now considered a legacy alternative rather than the default operating model.
-
-If you use it:
-
-- prefer PostgreSQL rather than baking SQLite into the image
-- keep the API read-only and refresh data from an offline/scheduled job
-- run `Rscript scripts/test_api_regression.R --base-url=<render-api-url>` after each deploy
-
 ## Operational suggestions
 
 - Revisit `config/competitions.csv` at the start of each season because Champion Data competition IDs change year to year.
 - Keep the API and refresh jobs on separate credentials: read-only for the API, write-capable for ingestion.
 - Use the request telemetry logs to identify true hot endpoints before introducing caching or Redis.
-- Treat private-networking enablement as a migration project with a maintenance window.
+- Keep PostgreSQL private and preserve separate read-only API and write-capable refresh roles.
